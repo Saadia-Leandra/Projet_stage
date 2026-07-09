@@ -44,6 +44,20 @@ export async function createInternshipRequest(studentId, data) {
   const companyName = clean(data.companyName);
   const companyCity = clean(data.companyCity);
   const companyAddress = clean(data.companyAddress);
+  const companyPostalCode = clean(data.companyPostalCode);
+  const companyPhone = clean(data.companyPhone);
+  const companyExtension = clean(data.companyExtension);
+  const companyEmail = clean(data.companyEmail);
+  const companyWebsite = clean(data.companyWebsite);
+  const hrName = clean(data.hrName);
+  const hrEmail = clean(data.hrEmail);
+  const hrPhone = clean(data.hrPhone);
+  const hrExtension = clean(data.hrExtension);
+  const workSchedule = clean(data.workSchedule);
+  const weeklyHours = clean(data.weeklyHours);
+  const workLanguage = clean(data.workLanguage);
+  const supervisorName = clean(data.supervisorName);
+  const supervisorEmail = clean(data.supervisorEmail);
   const taskSummary = clean(data.taskSummary);
   const startDate = clean(data.startDate);
   const endDate = clean(data.endDate);
@@ -61,7 +75,21 @@ export async function createInternshipRequest(studentId, data) {
     const companyId = await createCompany(connection, {
       companyName,
       companyCity,
-      companyAddress
+      companyAddress,
+      companyPostalCode,
+      companyPhone,
+      companyExtension,
+      companyEmail,
+      companyWebsite,
+      hrName,
+      hrEmail,
+      hrPhone,
+      hrExtension,
+      workSchedule,
+      weeklyHours,
+      workLanguage,
+      supervisorName,
+      supervisorEmail
     });
     const folderId = await findOrCreateFolder(connection, student);
 
@@ -98,6 +126,20 @@ export async function createInternshipRequest(studentId, data) {
       companyName,
       companyCity,
       companyAddress,
+      companyPostalCode,
+      companyPhone,
+      companyExtension,
+      companyEmail,
+      companyWebsite,
+      hrName,
+      hrEmail,
+      hrPhone,
+      hrExtension,
+      workSchedule,
+      weeklyHours,
+      workLanguage,
+      supervisorName,
+      supervisorEmail,
       taskSummary,
       startDate,
       endDate,
@@ -149,15 +191,59 @@ async function createCompany(connection, data) {
         code,
         nom,
         adresse,
-        ville
-      ) VALUES (?, ?, ?, ?)
+        ville,
+        code_postal,
+        telephone,
+        poste_telephonique,
+        courriel,
+        site_web,
+        contact_rh_nom,
+        contact_rh_courriel,
+        contact_rh_telephone,
+        contact_signature_nom,
+        contact_signature_courriel,
+        horaire_travail,
+        heures_semaine,
+        langue_travail
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE
         nom = VALUES(nom),
         adresse = VALUES(adresse),
         ville = VALUES(ville),
+        code_postal = VALUES(code_postal),
+        telephone = VALUES(telephone),
+        poste_telephonique = VALUES(poste_telephonique),
+        courriel = VALUES(courriel),
+        site_web = VALUES(site_web),
+        contact_rh_nom = VALUES(contact_rh_nom),
+        contact_rh_courriel = VALUES(contact_rh_courriel),
+        contact_rh_telephone = VALUES(contact_rh_telephone),
+        contact_signature_nom = VALUES(contact_signature_nom),
+        contact_signature_courriel = VALUES(contact_signature_courriel),
+        horaire_travail = VALUES(horaire_travail),
+        heures_semaine = VALUES(heures_semaine),
+        langue_travail = VALUES(langue_travail),
         id = LAST_INSERT_ID(id)
     `,
-    [code, data.companyName, data.companyAddress, data.companyCity]
+    [
+      code,
+      data.companyName,
+      data.companyAddress,
+      data.companyCity,
+      nullable(data.companyPostalCode),
+      nullable(data.companyPhone),
+      nullable(data.companyExtension),
+      nullable(data.companyEmail),
+      nullable(data.companyWebsite),
+      nullable(data.hrName),
+      nullable(data.hrEmail),
+      nullable(formatPhoneWithExtension(data.hrPhone, data.hrExtension)),
+      nullable(formatNameWithTitle(data.supervisorName, data.supervisorTitle)),
+      nullable(data.supervisorEmail),
+      nullable(data.workSchedule),
+      numberOrNull(data.weeklyHours),
+      nullable(data.workLanguage)
+    ]
   );
 
   return result.insertId;
@@ -203,6 +289,38 @@ function makeCompanyCode(companyName) {
 
 function clean(value) {
   return String(value || "").trim();
+}
+
+function nullable(value) {
+  const cleanedValue = clean(value);
+  return cleanedValue || null;
+}
+
+function numberOrNull(value) {
+  const cleanedValue = clean(value);
+  return cleanedValue ? Number(cleanedValue) : null;
+}
+
+function formatPhoneWithExtension(phone, extension) {
+  const cleanedPhone = clean(phone);
+  const cleanedExtension = clean(extension);
+
+  if (!cleanedPhone) {
+    return "";
+  }
+
+  return cleanedExtension ? `${cleanedPhone} poste ${cleanedExtension}` : cleanedPhone;
+}
+
+function formatNameWithTitle(name, title) {
+  const cleanedName = clean(name);
+  const cleanedTitle = clean(title);
+
+  if (!cleanedName) {
+    return "";
+  }
+
+  return cleanedTitle ? `${cleanedName} - ${cleanedTitle}` : cleanedName;
 }
 
 function createError(message, status) {

@@ -13,7 +13,7 @@ Le serveur Express sert l'API et le frontend Vite en middleware sur `http://loca
 
 ## Base de donnees
 
-La connexion MySQL utilise `src/backend/.env`.
+La connexion MySQL utilise `backend/.env`.
 
 ```env
 PORT=3000
@@ -79,7 +79,8 @@ Dependances de developpement:
 
 ## Scripts npm
 
-- `npm.cmd run dev`: lance Vite seul.
+- `npm.cmd run dev`: lance le serveur Express complet.
+- `npm.cmd run dev:frontend`: lance Vite seul.
 - `npm.cmd run dev:backend`: lance le serveur Express complet.
 - `npm.cmd run start`: lance le serveur Express complet.
 - `npm.cmd run build`: compile le frontend.

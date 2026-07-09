@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import mysql from "mysql2/promise";
 
-dotenv.config({ path: "src/backend/.env" });
+dotenv.config({ path: "backend/.env" });
 
 export function createDbPool() {
   return mysql.createPool({
