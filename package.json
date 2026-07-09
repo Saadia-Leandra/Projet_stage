@@ -1,0 +1,29 @@
+{
+  "name": "projet_stage",
+  "version": "1.0.0",
+  "description": "Projet d'automatisation du processus de demande de stage",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Saadia-Leandra/Projet_stage.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Saadia-Leandra/Projet_stage/issues"
+  },
+  "homepage": "https://github.com/Saadia-Leandra/Projet_stage#readme",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
