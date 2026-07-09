@@ -1,12 +1,27 @@
 import { useState } from "react";
 
 const initialForm = {
-  companyName: "",
-  companyCity: "",
-  companyAddress: "",
   taskSummary: "",
   startDate: "",
-  endDate: ""
+  endDate: "",
+  companyName: "",
+  companyAddress: "",
+  companyCity: "",
+  companyPostalCode: "",
+  companyPhone: "",
+  companyExtension: "",
+  companyEmail: "",
+  companyWebsite: "",
+  hrName: "",
+  hrEmail: "",
+  hrPhone: "",
+  hrExtension: "",
+  workSchedule: "",
+  weeklyHours: "",
+  workLanguage: "",
+  supervisorName: "",
+  supervisorTitle: "",
+  supervisorEmail: ""
 };
 
 export default function StudentRequestForm({ onCreated }) {
@@ -65,9 +80,46 @@ export default function StudentRequestForm({ onCreated }) {
       </div>
 
       <form className="studentForm" onSubmit={handleSubmit}>
+        <h3>Identification du stage</h3>
+        <div className="studentFormGrid">
+          <label className="field wide">
+            Resume des taches
+            <textarea
+              name="taskSummary"
+              value={form.taskSummary}
+              onChange={updateField}
+              rows="5"
+              required
+            />
+          </label>
+
+          <label className="field">
+            Debut de disponibilite
+            <input
+              type="date"
+              name="startDate"
+              value={form.startDate}
+              onChange={updateField}
+              required
+            />
+          </label>
+
+          <label className="field">
+            Fin de disponibilite
+            <input
+              type="date"
+              name="endDate"
+              value={form.endDate}
+              onChange={updateField}
+              required
+            />
+          </label>
+        </div>
+
+        <h3>Identification du milieu de stage</h3>
         <div className="studentFormGrid">
           <label className="field">
-            Entreprise
+            Nom du milieu
             <input
               name="companyName"
               value={form.companyName}
@@ -97,35 +149,116 @@ export default function StudentRequestForm({ onCreated }) {
           </label>
 
           <label className="field">
-            Date de debut
+            Code postal
             <input
-              type="date"
-              name="startDate"
-              value={form.startDate}
+              name="companyPostalCode"
+              value={form.companyPostalCode}
               onChange={updateField}
-              required
             />
           </label>
 
           <label className="field">
-            Date de fin
+            Telephone
             <input
-              type="date"
-              name="endDate"
-              value={form.endDate}
+              name="companyPhone"
+              value={form.companyPhone}
               onChange={updateField}
-              required
             />
           </label>
 
-          <label className="field wide">
-            Resume des taches
-            <textarea
-              name="taskSummary"
-              value={form.taskSummary}
+          <label className="field">
+            Poste
+            <input
+              name="companyExtension"
+              value={form.companyExtension}
               onChange={updateField}
-              rows="4"
-              required
+            />
+          </label>
+
+          <label className="field">
+            Courriel du milieu
+            <input
+              type="email"
+              name="companyEmail"
+              value={form.companyEmail}
+              onChange={updateField}
+            />
+          </label>
+
+          <label className="field">
+            Site internet
+            <input
+              name="companyWebsite"
+              value={form.companyWebsite}
+              onChange={updateField}
+            />
+          </label>
+        </div>
+
+        <h3>Ressources humaines et horaire</h3>
+        <div className="studentFormGrid">
+          <label className="field">
+            Responsable RH
+            <input name="hrName" value={form.hrName} onChange={updateField} />
+          </label>
+
+          <label className="field">
+            Courriel RH
+            <input type="email" name="hrEmail" value={form.hrEmail} onChange={updateField} />
+          </label>
+
+          <label className="field">
+            Telephone RH
+            <input name="hrPhone" value={form.hrPhone} onChange={updateField} />
+          </label>
+
+          <label className="field">
+            Poste RH
+            <input name="hrExtension" value={form.hrExtension} onChange={updateField} />
+          </label>
+
+          <label className="field">
+            Horaire de travail
+            <input name="workSchedule" value={form.workSchedule} onChange={updateField} />
+          </label>
+
+          <label className="field">
+            Heures par semaine
+            <input
+              type="number"
+              min="0"
+              step="0.5"
+              name="weeklyHours"
+              value={form.weeklyHours}
+              onChange={updateField}
+            />
+          </label>
+
+          <label className="field">
+            Langue de travail
+            <input name="workLanguage" value={form.workLanguage} onChange={updateField} />
+          </label>
+        </div>
+
+        <h3>Superviseur associe en entreprise</h3>
+        <div className="studentFormGrid">
+          <label className="field">
+            Nom
+            <input name="supervisorName" value={form.supervisorName} onChange={updateField} />
+          </label>
+
+          <label className="field">
+            Titre professionnel
+            <input name="supervisorTitle" value={form.supervisorTitle} onChange={updateField} />
+          </label>
+
+          <label className="field wide">
+            Courriel
+            <input
+              type="email"
+              name="supervisorEmail"
+              value={form.supervisorEmail}
+              onChange={updateField}
             />
           </label>
         </div>

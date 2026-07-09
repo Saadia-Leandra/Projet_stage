@@ -4,9 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "dev:backend": "node src/backend/server.js",
-    "start": "node src/backend/server.js",
+    "dev": "node backend/server.js",
+    "dev:frontend": "vite",
+    "dev:backend": "node backend/server.js",
+    "start": "node backend/server.js",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"
