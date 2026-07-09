@@ -1,16 +1,87 @@
-# React + Vite
+# StageTec
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Application React + Express pour extraire progressivement la plateforme StageTec.
+La version actuelle contient seulement l'authentification.
 
-Currently, two official plugins are available:
+## Demarrage
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm.cmd run dev:backend
+```
 
-## React Compiler
+Le serveur Express sert l'API et le frontend Vite en middleware sur `http://localhost:3000`.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Base de donnees
 
-## Expanding the Oxlint configuration
+La connexion MySQL utilise `src/backend/.env`.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```env
+PORT=3000
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=stagetec
+DB_USER=root
+DB_PASSWORD=
+JWT_SECRET=dev-secret
+```
+
+Le schema de reference est dans `../config/dbstage.sql`.
+Les donnees de test sont dans `../config/seed.sql`.
+
+## Authentification
+
+Routes disponibles:
+
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+
+Le login accepte:
+
+- `utilisateurs.courriel`
+- `etudiants.code_permanent`
+- `etudiants.code_etudiant`
+- `superviseurs.numero_employe`
+
+Les mots de passe en base peuvent etre verifies avec les formats:
+
+- `scrypt:...` utilise par le seed SQL actuel
+
+Comptes presents dans `../config/seed.sql`:
+
+- `marie@teccart.com`
+- `samir@teccart.com`
+- `tom@teccart.com`
+- `jessica@teccart.com`
+- `claire@teccart.com`
+- `compta@teccart.com`
+- `direction@teccart.com`
+
+Le mot de passe de test de ces comptes est `secret123`.
+
+## Dependances installees
+
+Dependances runtime:
+
+- `react`: librairie frontend.
+- `react-dom`: rendu React dans le navigateur.
+- `express`: serveur backend et routes API.
+- `mysql2`: connexion MySQL avec promesses.
+- `dotenv`: chargement des variables depuis `.env`.
+- `jsonwebtoken`: creation et verification des tokens JWT.
+
+Dependances de developpement:
+
+- `vite`: serveur de developpement et build frontend.
+- `@vitejs/plugin-react`: integration React pour Vite.
+- `oxlint`: verification statique du code.
+- `@types/react`: types React.
+- `@types/react-dom`: types React DOM.
+
+## Scripts npm
+
+- `npm.cmd run dev`: lance Vite seul.
+- `npm.cmd run dev:backend`: lance le serveur Express complet.
+- `npm.cmd run start`: lance le serveur Express complet.
+- `npm.cmd run build`: compile le frontend.
+- `npm.cmd run lint`: lance Oxlint.
+- `npm.cmd run preview`: preview du build Vite.

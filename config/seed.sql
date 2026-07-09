@@ -1,13 +1,13 @@
 USE stagetec;
 
 INSERT INTO utilisateurs (courriel, mot_de_passe_hash, prenom, nom, role, statut) VALUES
-('marie@teccart.com', 'scrypt:gVUQWNaoKf6mS2nWLC2cjA:XDOLOlCuBD-BIfyy_xay52kgRKBSImGF9PB9oQ2k9A3c1jL_gcLcUcUrCGG6Z_sN4ej1WVvuinaV2B_3_1Aghw', 'Marie', 'Tremblay', 'ETUDIANT', 'ACTIF'),
-('samir@teccart.com', 'scrypt:gVUQWNaoKf6mS2nWLC2cjA:XDOLOlCuBD-BIfyy_xay52kgRKBSImGF9PB9oQ2k9A3c1jL_gcLcUcUrCGG6Z_sN4ej1WVvuinaV2B_3_1Aghw', 'Samir', 'Haddad', 'ETUDIANT', 'ACTIF'),
-('tom@teccart.com', 'scrypt:gVUQWNaoKf6mS2nWLC2cjA:XDOLOlCuBD-BIfyy_xay52kgRKBSImGF9PB9oQ2k9A3c1jL_gcLcUcUrCGG6Z_sN4ej1WVvuinaV2B_3_1Aghw', 'Tom', 'Jerry', 'SUPERVISEUR', 'ACTIF'),
-('jessica@teccart.com', 'scrypt:gVUQWNaoKf6mS2nWLC2cjA:XDOLOlCuBD-BIfyy_xay52kgRKBSImGF9PB9oQ2k9A3c1jL_gcLcUcUrCGG6Z_sN4ej1WVvuinaV2B_3_1Aghw', 'Jessica', 'Adams', 'SUPERVISEUR', 'ACTIF'),
-('claire@teccart.com', 'scrypt:gVUQWNaoKf6mS2nWLC2cjA:XDOLOlCuBD-BIfyy_xay52kgRKBSImGF9PB9oQ2k9A3c1jL_gcLcUcUrCGG6Z_sN4ej1WVvuinaV2B_3_1Aghw', 'Claire', 'Bailey', 'CONSEILLERE', 'ACTIF'),
-('compta@teccart.com', 'scrypt:gVUQWNaoKf6mS2nWLC2cjA:XDOLOlCuBD-BIfyy_xay52kgRKBSImGF9PB9oQ2k9A3c1jL_gcLcUcUrCGG6Z_sN4ej1WVvuinaV2B_3_1Aghw', 'Samuel', 'Cruz', 'COMPTABILITE', 'ACTIF'),
-('direction@teccart.com', 'scrypt:gVUQWNaoKf6mS2nWLC2cjA:XDOLOlCuBD-BIfyy_xay52kgRKBSImGF9PB9oQ2k9A3c1jL_gcLcUcUrCGG6Z_sN4ej1WVvuinaV2B_3_1Aghw', 'Alexis', 'Martin', 'DIRECTION', 'ACTIF');
+('marie@teccart.com', 'scrypt:43lVUvURAAxQ6LYu25XaHw:XlJL4Mo-yPir5dOk0_eAhVNajoxvvTwbZoUE1D65iQQlxWtQ5u6hJDlfiNu_YcKBV0Si9JoA0EeXxDfX7GkCwQ', 'Marie', 'Tremblay', 'ETUDIANT', 'ACTIF'),
+('samir@teccart.com', 'scrypt:43lVUvURAAxQ6LYu25XaHw:XlJL4Mo-yPir5dOk0_eAhVNajoxvvTwbZoUE1D65iQQlxWtQ5u6hJDlfiNu_YcKBV0Si9JoA0EeXxDfX7GkCwQ', 'Samir', 'Haddad', 'ETUDIANT', 'ACTIF'),
+('tom@teccart.com', 'scrypt:43lVUvURAAxQ6LYu25XaHw:XlJL4Mo-yPir5dOk0_eAhVNajoxvvTwbZoUE1D65iQQlxWtQ5u6hJDlfiNu_YcKBV0Si9JoA0EeXxDfX7GkCwQ', 'Tom', 'Jerry', 'SUPERVISEUR', 'ACTIF'),
+('jessica@teccart.com', 'scrypt:43lVUvURAAxQ6LYu25XaHw:XlJL4Mo-yPir5dOk0_eAhVNajoxvvTwbZoUE1D65iQQlxWtQ5u6hJDlfiNu_YcKBV0Si9JoA0EeXxDfX7GkCwQ', 'Jessica', 'Adams', 'SUPERVISEUR', 'ACTIF'),
+('claire@teccart.com', 'scrypt:43lVUvURAAxQ6LYu25XaHw:XlJL4Mo-yPir5dOk0_eAhVNajoxvvTwbZoUE1D65iQQlxWtQ5u6hJDlfiNu_YcKBV0Si9JoA0EeXxDfX7GkCwQ', 'Claire', 'Bailey', 'CONSEILLERE', 'ACTIF'),
+('compta@teccart.com', 'scrypt:43lVUvURAAxQ6LYu25XaHw:XlJL4Mo-yPir5dOk0_eAhVNajoxvvTwbZoUE1D65iQQlxWtQ5u6hJDlfiNu_YcKBV0Si9JoA0EeXxDfX7GkCwQ', 'Samuel', 'Cruz', 'COMPTABILITE', 'ACTIF'),
+('direction@teccart.com', 'scrypt:43lVUvURAAxQ6LYu25XaHw:XlJL4Mo-yPir5dOk0_eAhVNajoxvvTwbZoUE1D65iQQlxWtQ5u6hJDlfiNu_YcKBV0Si9JoA0EeXxDfX7GkCwQ', 'Alexis', 'Martin', 'DIRECTION', 'ACTIF');
 
 INSERT INTO superviseurs (utilisateur_id, numero_employe, departement, taux_horaire, taux_kilometrique)
 SELECT id, 'EMP-1001', 'Informatique', 45.000, 0.610
