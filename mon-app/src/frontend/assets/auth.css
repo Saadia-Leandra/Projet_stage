@@ -16,7 +16,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -92,13 +93,25 @@ button:disabled {
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   width: 100%;
   min-height: 42px;
-  padding: 9px 11px;
+  padding: 11px 12px;
   border: 1px solid #d1d5db;
   border-radius: 7px;
   background: #ffffff;
+}
+
+.field textarea {
+  resize: vertical;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: 2px solid #bfdbfe;
+  border-color: #2563eb;
 }
 
 .passwordRow {
@@ -181,6 +194,10 @@ button:disabled {
   background: #2563eb;
 }
 
+.fitButton {
+  width: auto;
+}
+
 .secondaryButton {
   color: #1d4ed8;
   background: #eef2ff;
@@ -193,24 +210,35 @@ button:disabled {
 }
 
 .errorText,
-.error-message {
-  padding: 10px;
+.error-message,
+.studentError {
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
   border-radius: 7px;
-  color: #b91c1c;
-  background: #fee2e2;
+  color: #991b1b;
+  background: #fef2f2;
+  font-size: 14px;
+}
+
+.studentSuccess {
+  padding: 10px 12px;
+  border: 1px solid #bbf7d0;
+  border-radius: 7px;
+  color: #166534;
+  background: #f0fdf4;
   font-size: 14px;
 }
 
 .appLayout {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 250px 1fr;
+  grid-template-columns: 260px 1fr;
 }
 
 .sidebar {
   display: flex;
   flex-direction: column;
-  padding: 18px;
+  padding: 24px 14px;
   color: #ffffff;
   background: #173f83;
 }
@@ -219,7 +247,9 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 26px;
+  padding: 12px 12px 28px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .sidebarBrand span,
@@ -233,9 +263,9 @@ button:disabled {
 .brandMark {
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 7px;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
   background: #f97316;
   font-weight: 700;
 }
@@ -246,13 +276,18 @@ button:disabled {
 }
 
 .sideNav button {
-  min-height: 38px;
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  gap: 8px;
   padding: 0 12px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 9px;
   color: #dbeafe;
   text-align: left;
   background: transparent;
+  font-weight: 700;
 }
 
 .sideNav button.active,
@@ -261,14 +296,53 @@ button:disabled {
   background: #f97316;
 }
 
+.sideNavMarker {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  color: inherit;
+  font-size: 11px;
+  border: 1px solid currentColor;
+}
+
+.sideNavArrow {
+  font-size: 18px;
+}
+
 .profileBox {
   margin-top: auto;
-  padding-top: 16px;
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 12px 0;
   border-top: 1px solid rgba(255, 255, 255, 0.18);
 }
 
+.profileInitial {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: #ffffff;
+  background: #f97316;
+  font-weight: 700;
+}
+
+.profileBox .logout-button {
+  grid-column: 1 / -1;
+  justify-self: start;
+  margin-top: 12px;
+  padding: 0;
+  color: #bfdbfe;
+  background: transparent;
+}
+
 .contentArea {
-  padding: 28px 36px;
+  padding: 36px 42px;
 }
 
 .topHeader {
@@ -297,11 +371,72 @@ h2 {
 }
 
 .dashboardHero,
-.panel {
+.panel,
+.studentPanel {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #ffffff;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.studentHeroCard {
+  padding: 24px;
+  margin-bottom: 24px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+}
+
+.studentHeroHeader,
+.studentProgressRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.studentHeroHeader h2 {
+  margin-bottom: 5px;
+}
+
+.studentHeroHeader p,
+.studentProgressRow span {
+  margin: 0;
+  color: #64748b;
+}
+
+.studentProgressRow {
+  margin-top: 22px;
+}
+
+.studentProgressTrack {
+  height: 8px;
+  margin: 10px 0 18px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.studentProgressTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #173f83, #f97316);
+}
+
+.studentInfo.twoColumns {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 18px;
+}
+
+.studentActionButton {
+  min-width: 220px;
+}
+
+.studentDashboardGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 24px;
 }
 
 .dashboardHero {
@@ -318,9 +453,15 @@ h2 {
   color: #6b7280;
 }
 
-.panel {
-  padding: 20px;
+.panel,
+.studentPanel {
+  padding: 22px;
   margin-bottom: 18px;
+}
+
+.studentPanel h2 {
+  font-size: 20px;
+  font-weight: 600;
 }
 
 .panelHeader {
@@ -337,20 +478,141 @@ h2 {
   gap: 12px;
 }
 
-.stageInfo div {
-  padding: 12px;
+.studentInfo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stageInfo div,
+.studentInfo div {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
   border-radius: 7px;
   background: #f8fafc;
 }
 
 .stageInfo strong,
-.stageInfo span {
+.stageInfo span,
+.studentInfo strong,
+.studentInfo span {
   display: block;
 }
 
-.stageInfo span {
-  margin-top: 4px;
+.stageInfo span,
+.studentInfo span {
+  color: #4b5563;
+}
+
+.studentForm {
+  display: grid;
+  gap: 14px;
+}
+
+.studentFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.studentFormGrid .wide {
+  grid-column: 1 / -1;
+}
+
+.studentForm button {
+  width: fit-content;
+  padding: 12px 16px;
+  font-weight: 600;
+}
+
+.studentTableWrap {
+  overflow-x: auto;
+}
+
+.studentTableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.studentTableWrap th,
+.studentTableWrap td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  vertical-align: top;
+}
+
+.studentTableWrap th {
   color: #6b7280;
+  background: #f8fafc;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.contractRow {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+.contractRow strong,
+.contractRow span {
+  display: block;
+}
+
+.contractRow span {
+  color: #64748b;
+}
+
+.contractDot,
+.notificationDot,
+.legendDot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.panelLink {
+  margin-top: 12px;
+  font-weight: 700;
+}
+
+.notificationItem {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.notificationItem p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.legendPanel {
+  margin-top: 18px;
+}
+
+.legendList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  color: #64748b;
+}
+
+.legendList span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .statusPill {
@@ -370,10 +632,27 @@ h2 {
   background: #dcfce7;
 }
 
+.statusYellow {
+  color: #92400e;
+  background: #fef3c7;
+}
+
+.statusOrange {
+  color: #c2410c;
+  background: #ffedd5;
+}
+
+.statusRed {
+  color: #991b1b;
+  background: #fee2e2;
+}
+
 @media (max-width: 900px) {
   .loginPage,
   .appLayout,
-  .stageInfo {
+  .stageInfo,
+  .studentInfo,
+  .studentFormGrid {
     grid-template-columns: 1fr;
   }
 
@@ -386,8 +665,15 @@ h2 {
   }
 
   .topHeader,
-  .dashboardHero {
+  .dashboardHero,
+  .studentHeroHeader,
+  .studentProgressRow {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .studentDashboardGrid,
+  .studentInfo.twoColumns {
+    grid-template-columns: 1fr;
   }
 }
