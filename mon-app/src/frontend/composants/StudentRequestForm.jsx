@@ -42,7 +42,7 @@ const initialForm = {
   otherCompensation: ""
 };
 
-export default function StudentRequestForm({ onCreated }) {
+export default function StudentRequestForm({ student, onCreated }) {
   const [form, setForm] = useState(initialForm);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -138,6 +138,49 @@ export default function StudentRequestForm({ onCreated }) {
         className="studentForm"
         onSubmit={handleSubmit}
       >
+        
+     <FormSection
+    title="Informations de l'étudiant"
+    description="Ces informations proviennent du profil connecte."
+  >
+    <label className="field">
+      Nom complet
+      <input
+        type="text"
+        value={
+          student
+            ? `${student.firstName || ""} ${student.lastName || ""}`.trim()
+            : ""
+        }
+        readOnly
+      />
+    </label>
+
+    <label className="field">
+      Courriel
+      <input type="text" value={student?.email || ""} readOnly />
+    </label>
+
+    <label className="field">
+      Code etudiant
+      <input type="text" value={student?.studentCode || ""} readOnly />
+    </label>
+
+    <label className="field">
+      Code permanent
+      <input type="text" value={student?.codePermanent || ""} readOnly />
+    </label>
+
+    <label className="field">
+      Programme
+      <input type="text" value={student?.programme || ""} readOnly />
+    </label>
+
+    <label className="field">
+      Groupe
+      <input type="text" value={student?.groupe || ""} readOnly />
+    </label>
+    </FormSection>
         {/* SECTION 1 */}
         <FormSection
           title="1. Identification du stage"

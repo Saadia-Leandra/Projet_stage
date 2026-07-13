@@ -271,6 +271,7 @@ function RequestsView({
         />
       ) : (
         <StudentRequestForm
+          student={student}
           onCreated={onCreated}
         />
       )}
