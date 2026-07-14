@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { createServer as createViteServer } from "vite";
 import authRoutes from "./routes/authRoute.js";
 import studentRoutes from "./routes/studentRoute.js";
+import userManagementRoutes from "./routes/userManagementRoute.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { createDbPool } from "./config/db.js";
 import { createUsersRepo } from "./repositories/usersRepo.js";
@@ -23,6 +24,7 @@ app.use(express.json());
 
 app.use("/api/auth", authRoutes({ usersRepo }));
 app.use("/api/students", studentRoutes);
+app.use("/api/users", userManagementRoutes({ usersRepo }));
 
 const vite = await createViteServer({
   root: appRoot,

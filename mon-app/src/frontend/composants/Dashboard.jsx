@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Logout from "./Logout.jsx";
 import StudentDashboard from "./StudentDashboard.jsx";
+import UserManagement from "./UserManagement.jsx";
 import "../assets/auth.css";
 
 export default function Dashboard({ user, onLogout }) {
@@ -81,6 +82,7 @@ export default function Dashboard({ user, onLogout }) {
               />
             </>
           )}
+          {currentUser.role === "DIRECTION" && <SidebarButton active={activeView === "users"} label="Gestion des utilisateurs" marker="UT" onClick={() => setActiveView("users")} />}
         </nav>
 
         <div className="profileBox">
@@ -113,6 +115,8 @@ export default function Dashboard({ user, onLogout }) {
 
         {currentUser.role === "ETUDIANT" ? (
           <StudentDashboard view={activeView} onNavigate={setActiveView} />
+        ) : currentUser.role === "DIRECTION" && activeView === "users" ? (
+          <UserManagement currentUserId={currentUser.id} />
         ) : (
           <ProfilePanel user={currentUser} />
         )}
@@ -185,7 +189,8 @@ function pageTitle(view) {
   const titles = {
     dashboard: "Tableau de bord",
     requests: "Demandes de stage",
-    contracts: "Contrats"
+    contracts: "Contrats",
+    users: "Gestion des utilisateurs"
   };
 
   return titles[view] || "Tableau de bord";

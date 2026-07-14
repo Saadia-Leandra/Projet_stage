@@ -34,6 +34,7 @@ Routes disponibles:
 
 - `POST /api/auth/login`
 - `GET /api/auth/me`
+- `GET /api/users`, `POST /api/users`, `PATCH /api/users/:id`, `DELETE /api/users` (gestion reservee a la direction)
 
 Le login accepte:
 

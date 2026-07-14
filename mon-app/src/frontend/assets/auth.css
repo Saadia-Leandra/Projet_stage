@@ -526,6 +526,15 @@ h2 {
   font-weight: 600;
 }
 
+.managementPanel .panelHeader { align-items: flex-start; }
+.managementPanel .notice { margin: 7px 0 0; }
+.managementForm { display: grid; gap: 18px; margin-top: 18px; }
+.managementCard { position: relative; min-width: 0; padding: 20px; border: 1px solid #dbe3ee; border-radius: 9px; background: #f8fafc; }
+.managementCard legend { padding: 0 8px; color: #173f83; font-weight: 700; }
+.managementCard .field { margin-bottom: 0; }
+.removeCard { position: absolute; top: 8px; right: 12px; border: 0; color: #991b1b; background: transparent; font-weight: 700; }
+.currentAccount { display: inline-block; margin-left: 8px; padding: 2px 6px; border-radius: 999px; color: #1d4ed8; background: #dbeafe; }
+
 .studentTableWrap {
   overflow-x: auto;
 }
