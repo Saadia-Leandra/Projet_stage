@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import SupervisorStageRequests from "./SupervisorStageRequests.jsx";
 
 const CAMPUS_OPTIONS = {
   MTL: {
@@ -104,6 +105,10 @@ export default function SupervisorDashboard({ view, user }) {
   }, []);
 
   const supervisorTrips = trips.filter((trip) => Number(trip.supervisorUserId) === Number(user.id));
+
+  if (view === "stageRequests") {
+    return <SupervisorStageRequests />;
+  }
 
   if (view === "mileage") {
     return (

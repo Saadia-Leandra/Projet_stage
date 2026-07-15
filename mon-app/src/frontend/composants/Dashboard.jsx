@@ -87,11 +87,19 @@ export default function Dashboard({ user, onLogout }) {
           {currentUser.role === "SUPERVISEUR" && (
             <>
               <SidebarButton
+                active={activeView === "stageRequests"}
+                label="Demandes à valider"
+                marker="DV"
+                onClick={() => setActiveView("stageRequests")}
+              />
+
+              <SidebarButton
                 active={activeView === "mileage"}
-                label="Kilometrage"
+                label="Kilométrage"
                 marker="KM"
                 onClick={() => setActiveView("mileage")}
               />
+
               <SidebarButton
                 active={activeView === "payroll"}
                 label="Paie"
@@ -144,7 +152,10 @@ export default function Dashboard({ user, onLogout }) {
         ) : currentUser.role === "ETUDIANT" ? (
           <StudentDashboard view={activeView} onNavigate={setActiveView} />
         ) : currentUser.role === "SUPERVISEUR" ? (
-          <SupervisorDashboard view={activeView} user={currentUser} />
+          <SupervisorDashboard
+            view={activeView}
+            user={currentUser}
+          />
         ) : (
           <ProfilePanel user={currentUser} />
         )}
@@ -223,6 +234,7 @@ function pageTitle(view) {
     requests: "Demandes de stage",
     contracts: "Contrats",
     mileage: "Kilometrage",
+    stageRequests: "Demandes à valider",
     payroll: "Paie superviseurs"
   };
 

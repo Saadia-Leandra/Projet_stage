@@ -13,6 +13,7 @@ import { createDbPool } from "./config/db.js";
 import { createMileageTripsRepo } from "./repositories/mileageTripsRepo.js";
 import { createPayrollRepo } from "./repositories/payrollRepo.js";
 import { createUsersRepo } from "./repositories/usersRepo.js";
+import supervisorStageRoutes from "./routes/supervisorStageRoute.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,6 +33,7 @@ app.use(express.json());
 app.use("/api/auth", authRoutes({ usersRepo }));
 app.use("/api/students", studentRoutes);
 app.use("/api/mileage", mileageRoutes({ mileageTripsRepo }));
+app.use("/api/supervisor/stages", supervisorStageRoutes);
 app.use("/api/payroll", payrollRoutes({ payrollRepo }));
 
 const vite = await createViteServer({
