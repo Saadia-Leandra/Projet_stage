@@ -6,10 +6,12 @@ import { fileURLToPath } from "node:url";
 import { createServer as createViteServer } from "vite";
 import authRoutes from "./routes/authRoute.js";
 import mileageRoutes from "./routes/mileageRoute.js";
+import payrollRoutes from "./routes/payrollRoute.js";
 import studentRoutes from "./routes/studentRoute.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { createDbPool } from "./config/db.js";
 import { createMileageTripsRepo } from "./repositories/mileageTripsRepo.js";
+import { createPayrollRepo } from "./repositories/payrollRepo.js";
 import { createUsersRepo } from "./repositories/usersRepo.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -23,12 +25,14 @@ const server = createHttpServer(app);
 const db = createDbPool();
 const usersRepo = createUsersRepo(db);
 const mileageTripsRepo = createMileageTripsRepo(db);
+const payrollRepo = createPayrollRepo(db);
 
 app.use(express.json());
 
 app.use("/api/auth", authRoutes({ usersRepo }));
 app.use("/api/students", studentRoutes);
 app.use("/api/mileage", mileageRoutes({ mileageTripsRepo }));
+app.use("/api/payroll", payrollRoutes({ payrollRepo }));
 
 const vite = await createViteServer({
   root: appRoot,

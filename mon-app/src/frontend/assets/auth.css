@@ -520,6 +520,19 @@ h2 {
   grid-column: 1 / -1;
 }
 
+.formContext {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 7px;
+  color: #1d4ed8;
+  background: #eff6ff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .studentForm button {
   width: fit-content;
   padding: 12px 16px;
@@ -600,6 +613,24 @@ h2 {
   font-size: 13px;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.tableSubtext {
+  display: block;
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.tableActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tableActions button {
+  min-height: 34px;
+  padding: 0 10px;
 }
 
 .contractRow {

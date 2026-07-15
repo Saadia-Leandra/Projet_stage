@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Logout from "./Logout.jsx";
+import PayrollDashboard from "./PayrollDashboard.jsx";
 import StudentDashboard from "./StudentDashboard.jsx";
 import SupervisorDashboard from "./SupervisorDashboard.jsx";
 import "../assets/auth.css";
@@ -84,11 +85,28 @@ export default function Dashboard({ user, onLogout }) {
           )}
 
           {currentUser.role === "SUPERVISEUR" && (
+            <>
+              <SidebarButton
+                active={activeView === "mileage"}
+                label="Kilometrage"
+                marker="KM"
+                onClick={() => setActiveView("mileage")}
+              />
+              <SidebarButton
+                active={activeView === "payroll"}
+                label="Paie"
+                marker="PA"
+                onClick={() => setActiveView("payroll")}
+              />
+            </>
+          )}
+
+          {["CONSEILLERE", "COMPTABILITE", "DIRECTION"].includes(currentUser.role) && (
             <SidebarButton
-              active={activeView === "mileage"}
-              label="Kilometrage"
-              marker="KM"
-              onClick={() => setActiveView("mileage")}
+              active={activeView === "payroll"}
+              label="Paie superviseurs"
+              marker="PA"
+              onClick={() => setActiveView("payroll")}
             />
           )}
         </nav>
@@ -121,7 +139,9 @@ export default function Dashboard({ user, onLogout }) {
           <span className="statusPill statusGreen">{currentUser.status}</span>
         </section>
 
-        {currentUser.role === "ETUDIANT" ? (
+        {activeView === "payroll" ? (
+          <PayrollDashboard user={currentUser} />
+        ) : currentUser.role === "ETUDIANT" ? (
           <StudentDashboard view={activeView} onNavigate={setActiveView} />
         ) : currentUser.role === "SUPERVISEUR" ? (
           <SupervisorDashboard view={activeView} user={currentUser} />
@@ -190,6 +210,10 @@ function heroText(role) {
     return "Consultez votre dossier et soumettez vos demandes de stage.";
   }
 
+  if (role === "SUPERVISEUR") {
+    return "Consultez les demandes de stage et les informations de kilométrage.";
+  }
+
   return "Votre session est active. Les prochains modules seront ajoutes progressivement.";
 }
 
@@ -198,7 +222,8 @@ function pageTitle(view) {
     dashboard: "Tableau de bord",
     requests: "Demandes de stage",
     contracts: "Contrats",
-    mileage: "Kilometrage"
+    mileage: "Kilometrage",
+    payroll: "Paie superviseurs"
   };
 
   return titles[view] || "Tableau de bord";
