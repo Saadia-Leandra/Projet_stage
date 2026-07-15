@@ -257,6 +257,72 @@ export function createPayrollRepo(db) {
       return rows;
     },
 
+    async getSupervisorPayrollReport({ supervisorId, user }) {
+      if (user.role === "SUPERVISEUR" && String(user.id) !== String(supervisorId)) {
+        throw createError("Acces refuse.", 403);
+      }
+
+      const [[supervisorRows], [charges], [trips]] = await Promise.all([
+        db.execute(
+          `
+            SELECT
+              u.id AS supervisorUserId,
+              CONCAT(u.prenom, ' ', u.nom) AS supervisorName,
+              u.courriel AS supervisorEmail,
+              s.numero_employe AS employeeNumber
+            FROM superviseurs s
+            JOIN utilisateurs u ON u.id = s.utilisateur_id
+            WHERE u.id = ?
+            LIMIT 1
+          `,
+          [supervisorId]
+        ),
+        db.execute(
+          `
+            SELECT
+              cps.cree_le AS createdAt,
+              cps.dossier_stage_id AS stageFileId,
+              cps.code_etudiant AS studentCode,
+              cps.nom_etudiant AS studentName,
+              cps.heures_supervision AS hours,
+              cps.taux_horaire AS hourlyRate,
+              cps.montant_total AS amount,
+              cps.statut AS status,
+              ecp.commentaire AS comment
+            FROM charges_paie_supervision cps
+            LEFT JOIN etudiants_charge_paie ecp
+              ON ecp.charge_paie_supervision_id = cps.id
+            WHERE cps.superviseur_id = ?
+              AND cps.statut IN ('CALCULE', 'VALIDE', 'EXPORTE')
+            ORDER BY cps.cree_le ASC, cps.id ASC
+          `,
+          [supervisorId]
+        ),
+        db.execute(
+          `
+            SELECT
+              dk.date_deplacement AS tripDate,
+              dk.distance_km AS distanceKm,
+              dk.taux_kilometrique AS mileageRate,
+              dk.montant_stationnement AS parkingAmount,
+              dk.montant_remboursement AS amount,
+              dk.statut AS status
+            FROM deplacements_kilometrage dk
+            WHERE dk.superviseur_id = ?
+              AND dk.statut IN ('CALCULE', 'VALIDE', 'EXPORTE')
+            ORDER BY dk.date_deplacement ASC, dk.id ASC
+          `,
+          [supervisorId]
+        )
+      ]);
+
+      if (!supervisorRows[0]) {
+        throw createError("Superviseur introuvable.", 404);
+      }
+
+      return { supervisor: supervisorRows[0], charges, trips };
+    },
+
     async updateSupervisionChargeStatus({ id, status }) {
       const allowedStatuses = new Set(["CALCULE", "VALIDE", "REJETE", "EXPORTE"]);
 

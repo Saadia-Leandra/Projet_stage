@@ -129,6 +129,34 @@ export default function PayrollDashboard({ user }) {
     }
   }
 
+  async function downloadReport(supervisor) {
+    const token = localStorage.getItem("token");
+    setError("");
+
+    try {
+      const response = await fetch(`/api/payroll/reports/supervisors/${supervisor.supervisorUserId}.csv`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error || "Impossible d'exporter le rapport de paie.");
+        return;
+      }
+
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `rapport-paie-${supervisor.employeeNumber || supervisor.supervisorUserId}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("Erreur de connexion au serveur.");
+    }
+  }
+
   const canValidate = ["COMPTABILITE", "DIRECTION"].includes(user.role);
 
   return (
@@ -186,6 +214,7 @@ export default function PayrollDashboard({ user }) {
                 <th>Supervision</th>
                 <th>Kilometrage</th>
                 <th>Total</th>
+                <th>Rapport</th>
               </tr>
             </thead>
             <tbody>
@@ -203,12 +232,17 @@ export default function PayrollDashboard({ user }) {
                     <span className="tableSubtext">{formatNumber(supervisor.distanceKm)} km</span>
                   </td>
                   <td><strong>{formatCurrency(supervisor.totalAmount)}</strong></td>
+                  <td>
+                    <button className="secondaryButton" type="button" onClick={() => downloadReport(supervisor)}>
+                      Exporter CSV
+                    </button>
+                  </td>
                 </tr>
               ))}
 
               {!supervisors.length && (
                 <tr>
-                  <td colSpan="6">Aucun montant de paie a afficher.</td>
+                  <td colSpan="7">Aucun montant de paie a afficher.</td>
                 </tr>
               )}
             </tbody>
