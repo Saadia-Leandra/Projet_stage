@@ -297,13 +297,32 @@ function PayrollChargeForm({ settings, user, onCreated, onError }) {
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const selectedStudent = settings?.students?.find((student) => student.studentCode === form.studentCode);
+  const students = settings?.students || [];
+  const selectedStudent = students.find((student) => student.studentCode === form.studentCode);
+  const courseTitles = [...new Set(students.map((student) => student.program).filter(Boolean))];
+  const availableGroups = [...new Set(students
+    .filter((student) => student.program === form.courseTitle)
+    .map((student) => student.groupName)
+    .filter(Boolean))];
   const hourlyRate = Number(settings?.hourlyRate || 0);
   const totalAmount = FIXED_SUPERVISION_HOURS * hourlyRate;
 
   function updateField(event) {
     const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
+    const student = name === "studentCode"
+      ? students.find((item) => item.studentCode === value)
+      : null;
+
+    setForm((current) => ({
+      ...current,
+      [name]: value,
+      ...(name === "courseTitle" ? { courseCodeGroup: "", studentCode: "" } : {}),
+      ...(name === "courseCodeGroup" ? { studentCode: "" } : {}),
+      ...(student ? {
+        courseTitle: student.program || "",
+        courseCodeGroup: student.groupName || ""
+      } : {})
+    }));
   }
 
   async function submitForm(event) {
@@ -361,22 +380,36 @@ function PayrollChargeForm({ settings, user, onCreated, onError }) {
 
           <label className="field">
             Numero et nom de cours
-            <input
+            <select
               name="courseTitle"
               value={form.courseTitle}
               onChange={updateField}
-              placeholder="Ex.: Stage en developpement web"
-            />
+              required
+              disabled={!settings}
+            >
+              <option value="">Selectionner un cours</option>
+              {courseTitles.map((courseTitle) => (
+                <option key={courseTitle} value={courseTitle}>{courseTitle}</option>
+              ))}
+            </select>
           </label>
 
           <label className="field">
             Code du cours et no de groupe
-            <input
+            <select
               name="courseCodeGroup"
               value={form.courseCodeGroup}
               onChange={updateField}
-              placeholder="Ex.: 420-STG-A"
-            />
+              required
+              disabled={!form.courseTitle}
+            >
+              <option value="">Selectionner un groupe</option>
+              {availableGroups.map((groupName) => (
+                <option key={groupName} value={groupName}>
+                  {groupName}
+                </option>
+              ))}
+            </select>
           </label>
 
           <label className="field">

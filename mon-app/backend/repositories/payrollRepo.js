@@ -86,14 +86,21 @@ export function createPayrollRepo(db) {
               AND ds.superviseur_id = e.superviseur_id
             WHERE e.superviseur_id = ?
               AND e.code_etudiant = ?
+              AND e.programme = ?
+              AND e.groupe = ?
             ORDER BY ds.cree_le DESC
             LIMIT 1
           `,
-          [supervisorUserId, chargeData.studentCode]
+          [
+            supervisorUserId,
+            chargeData.studentCode,
+            chargeData.courseTitle,
+            chargeData.courseCodeGroup
+          ]
         );
 
         if (!studentRows[0]) {
-          throw createError("Etudiant introuvable pour ce superviseur.", 400);
+          throw createError("L'etudiant, le cours et le groupe ne correspondent pas au superviseur.", 400);
         }
 
         const student = studentRows[0];
@@ -288,6 +295,10 @@ function validateChargeData(data = {}) {
 
   if (!chargeData.studentCode) {
     throw createError("L'etudiant est obligatoire.", 400);
+  }
+
+  if (!chargeData.courseTitle || !chargeData.courseCodeGroup) {
+    throw createError("Le cours et le groupe sont obligatoires.", 400);
   }
 
   return chargeData;
