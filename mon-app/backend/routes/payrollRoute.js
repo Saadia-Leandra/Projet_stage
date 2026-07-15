@@ -46,6 +46,27 @@ export default function payrollRoutes({ payrollRepo }) {
     }
   );
 
+  router.get(
+    "/reports/supervisors/:id.csv",
+    requireRole("SUPERVISEUR", "COMPTABILITE", "DIRECTION"),
+    async (req, res, next) => {
+      try {
+        const report = await payrollRepo.getSupervisorPayrollReport({
+          supervisorId: req.params.id,
+          user: req.user
+        });
+        const fileName = `rapport-paie-${report.supervisor.employeeNumber || req.params.id}.csv`;
+
+        res
+          .set("Content-Type", "text/csv; charset=utf-8")
+          .set("Content-Disposition", `attachment; filename="${fileName}"`)
+          .send(`\uFEFF${createPayrollCsv(report)}`);
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
   router.post(
     "/supervision-charges",
     requireRole("SUPERVISEUR"),
@@ -81,4 +102,51 @@ export default function payrollRoutes({ payrollRepo }) {
   );
 
   return router;
+}
+
+function createPayrollCsv({ supervisor, charges, trips }) {
+  const supervisionTotal = charges.reduce((sum, row) => sum + Number(row.amount), 0);
+  const mileageTotal = trips.reduce((sum, row) => sum + Number(row.amount), 0);
+  const supervisionHours = charges.reduce((sum, row) => sum + Number(row.hours), 0);
+  const distanceKm = trips.reduce((sum, row) => sum + Number(row.distanceKm), 0);
+  const studentCount = new Set(charges.map((row) => row.studentCode)).size;
+  const rows = [
+    ["RAPPORT RECAPITULATIF DE PAIE"],
+    [],
+    ["Enseignant", supervisor.supervisorName],
+    ["Numero d'employe", supervisor.employeeNumber],
+    ["Courriel", supervisor.supervisorEmail],
+    ["Date d'export", new Date().toISOString().slice(0, 10)],
+    [],
+    ["RECAPITULATIF"],
+    ["Nombre d'etudiants", studentCount],
+    ["Nombre de charges", charges.length],
+    ["Total des heures de supervision", supervisionHours],
+    ["Montant de supervision", supervisionTotal],
+    ["Nombre de deplacements", trips.length],
+    ["Distance totale (km)", distanceKm],
+    ["Montant de kilometrage", mileageTotal],
+    ["TOTAL DE LA PAIE", supervisionTotal + mileageTotal],
+    [],
+    ["DETAIL DES CHARGES DE SUPERVISION"],
+    ["Date", "No dossier", "Code etudiant", "Etudiant", "Cours, groupe, session et commentaires", "Heures", "Taux horaire", "Montant", "Statut"],
+    ...charges.map((row) => [
+      row.createdAt,
+      row.stageFileId,
+      row.studentCode,
+      row.studentName,
+      row.comment,
+      row.hours,
+      row.hourlyRate,
+      row.amount,
+      row.status
+    ])
+  ];
+
+  return rows.map((row) => row.map(csvCell).join(";")).join("\r\n");
+}
+
+function csvCell(value = "") {
+  const text = value instanceof Date ? value.toISOString().slice(0, 10) : String(value ?? "");
+  return `"${text.replaceAll('"', '""')}"`;
 }
