@@ -39,7 +39,7 @@ export class AuthService {
   }
 }
 
-function toPublicUser(user) {
+export function toPublicUser(user) {
   return {
     id: user.id,
     email: user.email,
@@ -47,6 +47,7 @@ function toPublicUser(user) {
     codePermanent: user.codePermanent,
     studentCode: user.studentCode,
     employeeNumber: user.employeeNumber,
+    mileageRate: user.mileageRate,
     role: user.role,
     status: user.status
   };
