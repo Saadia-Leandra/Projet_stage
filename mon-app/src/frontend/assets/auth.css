@@ -526,6 +526,56 @@ h2 {
   font-weight: 600;
 }
 
+.mileageForm {
+  margin-top: 14px;
+}
+
+.compactHeader {
+  margin-bottom: 10px;
+}
+
+.compactHeader h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.mileageDestinations {
+  display: grid;
+  gap: 12px;
+}
+
+.destinationRow {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.7fr) minmax(240px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 7px;
+  background: #f8fafc;
+}
+
+.destinationRow .field {
+  margin-bottom: 0;
+}
+
+.mileageResult {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #bbf7d0;
+  border-radius: 7px;
+  color: #166534;
+  background: #f0fdf4;
+}
+
+.mileageResult a {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
 .studentTableWrap {
   overflow-x: auto;
 }
@@ -652,7 +702,8 @@ h2 {
   .appLayout,
   .stageInfo,
   .studentInfo,
-  .studentFormGrid {
+  .studentFormGrid,
+  .destinationRow {
     grid-template-columns: 1fr;
   }
 
