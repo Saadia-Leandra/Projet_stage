@@ -6,25 +6,23 @@ export class MileageService {
     const originAddress = normalizeAddress(data.origin);
     const destinations = normalizeDestinations(data.destinations);
     const tripType = data.tripType === "ALLER_SIMPLE" ? "ALLER_SIMPLE" : "ALLER_RETOUR";
-    const oneWayRoute = await calculateGoogleRoute(originAddress, destinations);
-    const multiplier = tripType === "ALLER_RETOUR" ? 2 : 1;
+    const route = await calculateGoogleRoute(originAddress, destinations, tripType);
 
     return {
       originAddress,
       destinations,
-      distanceKm: round(oneWayRoute.distanceKm * multiplier, 2),
-      oneWayDistanceKm: oneWayRoute.distanceKm,
-      durationMinutes: oneWayRoute.durationMinutes * multiplier,
-      oneWayDurationMinutes: oneWayRoute.durationMinutes,
-      provider: oneWayRoute.provider,
+      distanceKm: route.distanceKm,
+      durationMinutes: route.durationMinutes,
+      durationLabel: route.durationLabel,
+      provider: route.provider,
       tripType,
-      mapUrl: oneWayRoute.mapUrl,
+      mapUrl: route.mapUrl,
       calculatedAt: new Date().toISOString()
     };
   }
 }
 
-async function calculateGoogleRoute(originAddress, destinations) {
+async function calculateGoogleRoute(originAddress, destinations, tripType) {
   if (!process.env.GOOGLE_MAPS_API_KEY) {
     throw createError("Cle Google Maps manquante.", 500);
   }
@@ -37,8 +35,14 @@ async function calculateGoogleRoute(originAddress, destinations) {
     throw createError("Au moins une destination est requise.", 400);
   }
 
-  const originCoordinates = await geocode(originAddress);
-  const destinationCoordinates = await geocode(destinations[destinations.length - 1].address);
+  const [originCoordinates, ...destinationCoordinates] = await Promise.all([
+    geocode(originAddress),
+    ...destinations.map((destination) => geocode(destination.address))
+  ]);
+  const routeCoordinates = tripType === "ALLER_RETOUR"
+    ? [...destinationCoordinates, originCoordinates]
+    : destinationCoordinates;
+  const finalCoordinates = routeCoordinates[routeCoordinates.length - 1];
   const response = await fetch(ROUTES_URL, {
     method: "POST",
     headers: {
@@ -58,14 +62,12 @@ async function calculateGoogleRoute(originAddress, destinations) {
       destination: {
         location: {
           latLng: {
-            latitude: destinationCoordinates.lat,
-            longitude: destinationCoordinates.lng
+            latitude: finalCoordinates.lat,
+            longitude: finalCoordinates.lng
           }
         }
       },
-      intermediates: destinations.slice(0, -1).map((destination) => ({
-        address: destination.address
-      }))
+      intermediates: routeCoordinates.slice(0, -1).map(toWaypoint)
     })
   });
   const payload = await response.json().catch(() => ({}));
@@ -86,7 +88,7 @@ async function calculateGoogleRoute(originAddress, destinations) {
     distanceKm: round(route.distanceMeters / 1000, 2),
     durationMinutes,
     durationLabel: formatDuration(durationMinutes),
-    mapUrl: buildMapUrl(originAddress, destinations),
+    mapUrl: buildMapUrl(originCoordinates, routeCoordinates),
     provider: "GOOGLE_ROUTES"
   };
 }
@@ -143,11 +145,36 @@ function round(value, decimals) {
   return Number(value.toFixed(decimals));
 }
 
-function buildMapUrl(originAddress, destinations) {
-  const addresses = [originAddress, ...destinations.map((destination) => destination.address)];
-  const encodedPath = addresses.map((address) => encodeURIComponent(address)).join("/");
+function toWaypoint(coordinates) {
+  return {
+    location: {
+      latLng: {
+        latitude: coordinates.lat,
+        longitude: coordinates.lng
+      }
+    }
+  };
+}
 
-  return `https://www.google.com/maps/dir/${encodedPath}`;
+function formatCoordinates(coordinates) {
+  return `${coordinates.lat},${coordinates.lng}`;
+}
+
+function buildMapUrl(originCoordinates, routeCoordinates) {
+  const url = new URL("https://www.google.com/maps/dir/");
+  const destinationCoordinates = routeCoordinates[routeCoordinates.length - 1];
+
+  url.searchParams.set("api", "1");
+  url.searchParams.set("origin", formatCoordinates(originCoordinates));
+  url.searchParams.set("destination", formatCoordinates(destinationCoordinates));
+  url.searchParams.set("travelmode", "driving");
+
+  const waypoints = routeCoordinates.slice(0, -1);
+  if (waypoints.length) {
+    url.searchParams.set("waypoints", waypoints.map(formatCoordinates).join("|"));
+  }
+
+  return url.toString();
 }
 
 function durationToMinutes(duration) {
