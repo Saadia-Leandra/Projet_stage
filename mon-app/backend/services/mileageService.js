@@ -62,7 +62,10 @@ async function calculateGoogleRoute(originAddress, destinations) {
             longitude: destinationCoordinates.lng
           }
         }
-      }
+      },
+      intermediates: destinations.slice(0, -1).map((destination) => ({
+        address: destination.address
+      }))
     })
   });
   const payload = await response.json().catch(() => ({}));

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import SupervisorStageRequests from "./SupervisorStageRequests.jsx";
 
 const CAMPUS_OPTIONS = {
@@ -209,6 +209,13 @@ function MileageForm({ user, students, onCreated }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [calculation, setCalculation] = useState(null);
+  const [additionalStops, setAdditionalStops] = useState([]);
+  const [gpsTrace, setGpsTrace] = useState([]);
+  const [tracking, setTracking] = useState(false);
+  const [startedAt, setStartedAt] = useState(null);
+  const [endedAt, setEndedAt] = useState(null);
+  const [parkingReceipt, setParkingReceipt] = useState(null);
+  const watchId = useRef(null);
 
   const selectedCampus = CAMPUS_OPTIONS[form.campus] || DEFAULT_CAMPUS;
   const reimbursementPreview = calculation
@@ -268,6 +275,51 @@ function MileageForm({ user, students, onCreated }) {
     setForm((current) => ({ ...current, [name]: value }));
   }
 
+  function addStop() {
+    if (additionalStops.length < 3) {
+      setAdditionalStops((current) => [...current, { studentId: "", label: "", address: "" }]);
+    }
+  }
+
+  function updateStop(index, field, value) {
+    setAdditionalStops((current) => current.map((stop, stopIndex) => {
+      if (stopIndex !== index) return stop;
+      if (field !== "studentId") return { ...stop, [field]: value };
+      const student = students.find((item) => String(item.id) === value);
+      return { studentId: value, label: student?.studentName || "", address: formatCompanyAddress(student || {}) };
+    }));
+  }
+
+  function removeStop(index) {
+    setAdditionalStops((current) => current.filter((_, stopIndex) => stopIndex !== index));
+  }
+
+  function startTracking() {
+    setError("");
+    if (!navigator.geolocation) {
+      setError("La geolocalisation n'est pas disponible sur cet appareil.");
+      return;
+    }
+    setGpsTrace([]);
+    setStartedAt(new Date().toISOString());
+    setEndedAt(null);
+    watchId.current = navigator.geolocation.watchPosition(
+      ({ coords, timestamp }) => setGpsTrace((current) => [...current, {
+        lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy,
+        recordedAt: new Date(timestamp).toISOString()
+      }]),
+      () => setError("Impossible de capturer la position. Autorisez la geolocalisation."),
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+    );
+    setTracking(true);
+  }
+
+  function stopTracking() {
+    if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
+    watchId.current = null;
+    setEndedAt(new Date().toISOString());
+    setTracking(false);
+  }
   async function submitForm(event) {
     event.preventDefault();
     setSubmitting(true);
@@ -293,12 +345,21 @@ function MileageForm({ user, students, onCreated }) {
         body: JSON.stringify({
           ...form,
           parkingAmount: Number(form.parkingAmount),
+          gpsTrace,
+          startedAt,
+          endedAt,
+          parkingReceipt: parkingReceipt ? await fileToPayload(parkingReceipt) : null,
           destinations: [
             {
               companyId: selectedStudentCompanyId(students, form.studentId),
               label: form.companyName || form.studentName || "Destination",
               address: form.destinationAddress
-            }
+            },
+            ...additionalStops.map((stop) => ({
+              companyId: selectedStudentCompanyId(students, stop.studentId),
+              label: stop.label || "Destination",
+              address: stop.address
+            }))
           ]
         })
       });
@@ -413,6 +474,21 @@ function MileageForm({ user, students, onCreated }) {
             />
           </label>
 
+          {additionalStops.map((stop, index) => (
+            <div className="destinationRow wide" key={index}>
+              <label className="field">Etudiant - arret {index + 2}
+                <select value={stop.studentId} onChange={(event) => updateStop(index, "studentId", event.target.value)} required>
+                  <option value="">Choisir un etudiant</option>
+                  {students.map((student) => <option key={student.id} value={student.id}>{student.studentName}</option>)}
+                </select>
+              </label>
+              <label className="field">Adresse
+                <input value={stop.address} onChange={(event) => updateStop(index, "address", event.target.value)} required />
+              </label>
+              <button className="dangerButton fitButton" type="button" onClick={() => removeStop(index)}>Retirer</button>
+            </div>
+          ))}
+          {additionalStops.length < 3 && <button className="secondaryButton fitButton" type="button" onClick={addStop}>Ajouter une destination</button>}
           <label className="field">
             Type de trajet
             <select name="tripType" value={form.tripType} onChange={updateField}>
@@ -435,7 +511,7 @@ function MileageForm({ user, students, onCreated }) {
           </label>
 
           <label className="field">
-            Stationnement
+            Frais de stationnement
             <input
               name="parkingAmount"
               type="number"
@@ -445,6 +521,17 @@ function MileageForm({ user, students, onCreated }) {
               onChange={updateField}
             />
           </label>
+        </div>
+
+        <label className="field wide">
+          Preuve des frais de stationnement
+          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setParkingReceipt(event.target.files?.[0] || null)} />
+        </label>
+        <div className="formContext">
+          <button className="secondaryButton fitButton" type="button" onClick={tracking ? stopTracking : startTracking}>
+            {tracking ? "Arreter la capture du trajet" : "Demarrer la capture du trajet"}
+          </button>
+          <span>{gpsTrace.length} position(s) capturee(s)</span>
         </div>
 
         {calculation && (
@@ -550,3 +637,17 @@ function selectedStudentCompanyId(students, studentId) {
 
   return student?.companyId || null;
 }
+
+
+
+async function fileToPayload(file) {
+  if (file.size > 10 * 1024 * 1024) throw new Error("La preuve depasse 10 Mo.");
+  return await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({ name: file.name, type: file.type, data: reader.result });
+    reader.onerror = () => reject(new Error("Lecture de la preuve impossible."));
+    reader.readAsDataURL(file);
+  });
+}
+
+

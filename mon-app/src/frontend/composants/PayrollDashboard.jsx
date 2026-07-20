@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 
 const FIXED_SUPERVISION_HOURS = 4;
 
 export default function PayrollDashboard({ user }) {
   const [supervisors, setSupervisors] = useState([]);
   const [charges, setCharges] = useState([]);
+  const [trips, setTrips] = useState([]);
   const [settings, setSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState(null);
@@ -32,17 +33,21 @@ export default function PayrollDashboard({ user }) {
     }
 
     try {
-      const [supervisorsResponse, chargesResponse] = await Promise.all([
+      const [supervisorsResponse, chargesResponse, tripsResponse] = await Promise.all([
         fetch("/api/payroll/supervisors", {
           headers: { Authorization: `Bearer ${token}` }
         }),
         fetch("/api/payroll/supervision-charges", {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        fetch("/api/mileage/trips", {
           headers: { Authorization: `Bearer ${token}` }
         })
       ]);
 
       const supervisorsData = await supervisorsResponse.json().catch(() => ({}));
       const chargesData = await chargesResponse.json().catch(() => ({}));
+      const tripsData = await tripsResponse.json().catch(() => ({}));
 
       if (!supervisorsResponse.ok) {
         setError(supervisorsData.error || "Impossible de charger les totaux de paie.");
@@ -56,6 +61,7 @@ export default function PayrollDashboard({ user }) {
 
       setSupervisors(supervisorsData.supervisors || []);
       setCharges(chargesData.charges || []);
+      setTrips(tripsData.trips || []);
       setError("");
     } catch {
       setError("Erreur de connexion au serveur.");
@@ -129,6 +135,23 @@ export default function PayrollDashboard({ user }) {
     }
   }
 
+  async function openParkingReceipt(tripId) {
+    const response = await fetch(`/api/mileage/trips/${tripId}/parking-receipt`, { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+    if (!response.ok) return setError("Impossible d'ouvrir la preuve de stationnement.");
+    window.open(URL.createObjectURL(await response.blob()), "_blank", "noopener,noreferrer");
+  }
+  async function updateTripStatus(tripId, status) {
+    const token = localStorage.getItem("token");
+    setActionLoadingId(`trip-${tripId}`);
+    const response = await fetch(`/api/mileage/trips/${tripId}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ status })
+    });
+    if (!response.ok) setError("Impossible de mettre a jour le deplacement.");
+    else await loadPayroll();
+    setActionLoadingId(null);
+  }
   async function downloadReport(supervisor) {
     const token = localStorage.getItem("token");
     setError("");
@@ -250,6 +273,18 @@ export default function PayrollDashboard({ user }) {
         </div>
       </section>
 
+      <section className="studentPanel">
+        <div className="panelHeader"><h2>Deplacements a valider</h2><span className="statusPill">{trips.length} trajet(s)</span></div>
+        <div className="studentTableWrap"><table>
+          <thead><tr><th>Enseignant</th><th>Date et heure</th><th>Distance</th><th>Frais de stationnement</th><th>Preuves</th><th>Statut</th>{canValidate && <th>Actions</th>}</tr></thead>
+          <tbody>{trips.map((trip) => <tr key={trip.id}>
+            <td>{trip.supervisorName}</td><td>{new Date(trip.startedAt || trip.calculatedAt).toLocaleString("fr-CA")}</td><td>{formatNumber(trip.distanceKm)} km</td><td>{formatCurrency(trip.parkingAmount)}</td>
+            <td>{trip.mapUrl ? <a href={trip.mapUrl} target="_blank" rel="noreferrer">Itineraire</a> : "-"}<span className="tableSubtext">{trip.gpsTrace?.length || 0} points GPS</span>{trip.hasParkingReceipt && <button className="secondaryButton fitButton" type="button" onClick={() => openParkingReceipt(trip.id)}>Voir le recu</button>}</td>
+            <td><span className={`statusPill ${statusClass(trip.status)}`}>{statusLabel(trip.status)}</span></td>
+            {canValidate && <td><div className="tableActions"><button className="secondaryButton fitButton" type="button" onClick={() => updateTripStatus(trip.id, "VALIDE")}>Valider</button><button className="dangerButton fitButton" type="button" onClick={() => updateTripStatus(trip.id, "REJETE")}>Rejeter</button></div></td>}
+          </tr>)}</tbody>
+        </table></div>
+      </section>
       <section className="studentPanel">
         <div className="panelHeader">
           <h2>Liste des stagiaires supervises</h2>
@@ -575,3 +610,8 @@ function formatCurrency(value) {
 function displayName(user) {
   return user?.fullName || user?.email?.split("@")[0] || "Utilisateur";
 }
+
+
+
+
+
