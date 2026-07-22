@@ -1,5 +1,14 @@
 import { createDbPool } from "../config/db.js";
-import { syncContractSignersForContract } from "./contractService.js";
+import {
+  generateContractPdfForContract,
+  syncContractSignersForContract
+} from "./contractService.js";
+import { createNotificationForUsers } from "./notificationService.js";
+import {
+  getActiveRequestDocuments,
+  getRequestWorkflowHistory,
+  parseDocumentList
+} from "./stageRequestCorrectionService.js";
 
 const db = createDbPool();
 
@@ -24,9 +33,19 @@ export async function getSupervisorStageRequests(
         d.salaire_horaire AS hourlySalary,
         d.autre_compensation AS otherCompensation,
         d.motif_refus AS refusalReason,
+        d.correction_raison AS correctionReason,
+        d.correction_elements AS correctionItems,
+        d.correction_documents_demandes AS correctionMissingDocuments,
+        d.correction_commentaire_etudiant AS correctionStudentComment,
+        d.correction_demandee_le AS correctionRequestedAt,
+        d.resoumis_le AS resubmittedAt,
         d.cree_le AS createdAt,
         d.modifie_le AS updatedAt,
         d.decide_le AS decidedAt,
+
+        correction_user.prenom AS correctionRequestedByFirstName,
+        correction_user.nom AS correctionRequestedByLastName,
+        correction_user.role AS correctionRequestedByRole,
 
         etudiant_user.id AS studentId,
         etudiant_user.prenom AS studentFirstName,
@@ -45,6 +64,7 @@ export async function getSupervisorStageRequests(
         ent.neq AS companyNeq,
         ent.adresse AS companyAddress,
         ent.ville AS companyCity,
+        ent.province AS companyProvince,
         ent.code_postal AS companyPostalCode,
         ent.telephone AS companyPhone,
         ent.poste_telephonique AS companyPhoneExtension,
@@ -77,17 +97,23 @@ export async function getSupervisorStageRequests(
       INNER JOIN entreprises ent
         ON ent.id = d.entreprise_id
 
+      LEFT JOIN utilisateurs correction_user
+        ON correction_user.id =
+          d.correction_demandee_par_utilisateur_id
+
       WHERE ds.superviseur_id = ?
 
       ORDER BY
         CASE d.statut
           WHEN 'SOUMISE' THEN 1
-          WHEN 'REFUSEE' THEN 2
-          WHEN 'APPROUVEE' THEN 3
-          WHEN 'BROUILLON' THEN 4
-          ELSE 5
+          WHEN 'A_REVISER' THEN 2
+          WHEN 'DOCUMENTS_MANQUANTS' THEN 3
+          WHEN 'APPROUVEE' THEN 4
+          WHEN 'REFUSEE' THEN 5
+          WHEN 'BROUILLON' THEN 6
+          ELSE 7
         END,
-        d.cree_le DESC
+        COALESCE(d.resoumis_le, d.modifie_le, d.cree_le) DESC
     `,
     [supervisorId]
   );
@@ -117,9 +143,19 @@ export async function getSupervisorStageRequestById(
         d.salaire_horaire AS hourlySalary,
         d.autre_compensation AS otherCompensation,
         d.motif_refus AS refusalReason,
+        d.correction_raison AS correctionReason,
+        d.correction_elements AS correctionItems,
+        d.correction_documents_demandes AS correctionMissingDocuments,
+        d.correction_commentaire_etudiant AS correctionStudentComment,
+        d.correction_demandee_le AS correctionRequestedAt,
+        d.resoumis_le AS resubmittedAt,
         d.cree_le AS createdAt,
         d.modifie_le AS updatedAt,
         d.decide_le AS decidedAt,
+
+        correction_user.prenom AS correctionRequestedByFirstName,
+        correction_user.nom AS correctionRequestedByLastName,
+        correction_user.role AS correctionRequestedByRole,
 
         etudiant_user.id AS studentId,
         etudiant_user.prenom AS studentFirstName,
@@ -138,6 +174,7 @@ export async function getSupervisorStageRequestById(
         ent.neq AS companyNeq,
         ent.adresse AS companyAddress,
         ent.ville AS companyCity,
+        ent.province AS companyProvince,
         ent.code_postal AS companyPostalCode,
         ent.telephone AS companyPhone,
         ent.poste_telephonique AS companyPhoneExtension,
@@ -170,6 +207,10 @@ export async function getSupervisorStageRequestById(
       INNER JOIN entreprises ent
         ON ent.id = d.entreprise_id
 
+      LEFT JOIN utilisateurs correction_user
+        ON correction_user.id =
+          d.correction_demandee_par_utilisateur_id
+
       WHERE d.id = ?
         AND ds.superviseur_id = ?
 
@@ -187,7 +228,24 @@ export async function getSupervisorStageRequestById(
     );
   }
 
-  return formatRequest(request);
+  const formattedRequest = formatRequest(request);
+  const [documents, history] = await Promise.all([
+    getActiveRequestDocuments(
+      db,
+      formattedRequest.id,
+      formattedRequest.folderId
+    ),
+    getRequestWorkflowHistory(
+      db,
+      formattedRequest.folderId
+    )
+  ]);
+
+  return {
+    ...formattedRequest,
+    documents,
+    history
+  };
 }
 
 export async function approveStageRequest(
@@ -238,6 +296,33 @@ export async function approveStageRequest(
       connection,
       request
     );
+
+    await generateContractPdfForContract(
+      connection,
+      contractId,
+      supervisorId
+    );
+
+    await createNotificationForUsers(connection, {
+      title: "Demande de stage approuvee",
+      message:
+        "Votre demande de stage a ete approuvee.",
+      type: "DEMANDE_STAGE_APPROUVEE",
+      requestId,
+      actionUrl: `/demandes-stage/${requestId}`,
+      userIds: [request.studentId]
+    });
+
+    await createNotificationForUsers(connection, {
+      title: "Contrat a completer",
+      message:
+        "Votre demande de stage a ete approuvee. Le contrat est pret a etre complete.",
+      type: "CONTRAT_A_COMPLETER",
+      requestId,
+      contractId,
+      actionUrl: `/contracts/${contractId}`,
+      userIds: [request.studentId]
+    });
 
     await createWorkflowEvent(connection, {
       folderId: request.folderId,
@@ -340,6 +425,15 @@ export async function refuseStageRequest(
       comment: reason
     });
 
+    await createNotificationForUsers(connection, {
+      title: "Demande de stage refusee",
+      message: reason,
+      type: "DEMANDE_STAGE_REFUSEE",
+      requestId,
+      actionUrl: `/demandes-stage/${requestId}`,
+      userIds: [request.studentId]
+    });
+
     await connection.commit();
 
     return {
@@ -378,6 +472,8 @@ async function findAssignedRequest(
         d.est_remunere AS isPaid,
         d.salaire_horaire AS hourlySalary,
         d.autre_compensation AS otherCompensation,
+
+        ds.etudiant_id AS studentId,
 
         etu.programme AS program
 
@@ -441,8 +537,7 @@ async function createContractIfMissing(
           nombre_semaines = ?,
           total_heures = ?,
           type_horaire = ?,
-          statut = 'A_COMPLETER_ETUDIANT',
-          genere_le = COALESCE(genere_le, NOW())
+          statut = 'A_COMPLETER_ETUDIANT'
         WHERE id = ?
       `,
       [
@@ -481,13 +576,11 @@ async function createContractIfMissing(
         nombre_semaines,
         total_heures,
         type_horaire,
-        statut,
-        genere_le
+        statut
       )
       VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        'A_COMPLETER_ETUDIANT',
-        NOW()
+        'A_COMPLETER_ETUDIANT'
       )
     `,
     [
@@ -548,9 +641,27 @@ async function createWorkflowEvent(
 }
 
 function formatRequest(row) {
+  const correctionMissingDocuments =
+    parseDocumentList(
+      row.correctionMissingDocuments
+    );
+  const correctionRequestedByName = [
+    row.correctionRequestedByFirstName,
+    row.correctionRequestedByLastName
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
   return {
     ...row,
     isPaid: Boolean(row.isPaid),
+    correctionMissingDocuments,
+    correctionRequestedByName,
+    correctionRequestedByLabel:
+      correctionRequestedByName ||
+      row.correctionRequestedByRole ||
+      "",
     studentFullName:
       `${row.studentFirstName || ""} ${
         row.studentLastName || ""

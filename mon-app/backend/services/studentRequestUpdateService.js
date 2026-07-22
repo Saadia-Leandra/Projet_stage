@@ -1,4 +1,14 @@
 import { createDbPool } from "../config/db.js";
+import {
+  compareRequestChanges,
+  createResubmissionWorkflowEvent,
+  assertSameRequestOnResubmission,
+  ensureRequestedDocumentsPresent,
+  ensureStudentCanModifyStatus,
+  listActiveUploadedDocumentTypes,
+  notifySupervisorOfResubmission
+} from "./stageRequestCorrectionService.js";
+import { updateStudentProfileForStage } from "./studentService.js";
 
 const db = createDbPool();
 
@@ -19,10 +29,63 @@ export async function updateInternshipRequest(
           d.id,
           d.entreprise_id AS companyId,
           d.dossier_stage_id AS folderId,
-          d.statut AS status
+          d.statut AS status,
+          d.resume_taches AS taskSummary,
+          d.date_debut AS startDate,
+          d.date_fin AS endDate,
+          d.horaire_stage AS workSchedule,
+          d.heures_semaine AS hoursPerWeek,
+          d.langue_travail AS workLanguage,
+          d.type_horaire AS scheduleType,
+          d.nombre_semaines AS numberOfWeeks,
+          d.est_remunere AS isPaid,
+          d.salaire_horaire AS hourlySalary,
+          d.autre_compensation AS otherCompensation,
+          d.correction_documents_demandes AS correctionMissingDocuments,
+
+          ds.superviseur_id AS supervisorId,
+
+          student_user.prenom AS studentFirstName,
+          student_user.nom AS studentLastName,
+          student_user.telephone AS studentPhone,
+
+          etu.adresse AS studentAddress,
+          etu.ville AS studentCity,
+          etu.province AS studentProvince,
+          etu.code_postal AS studentPostalCode,
+          etu.expiration_caq AS expirationCaq,
+          etu.expiration_permis_etudes AS expirationStudyPermit,
+          etu.expiration_assurance AS expirationInsurance,
+
+          ent.nom AS companyName,
+          ent.neq AS companyNeq,
+          ent.adresse AS companyAddress,
+          ent.ville AS companyCity,
+          ent.province AS companyProvince,
+          ent.code_postal AS companyPostalCode,
+          ent.telephone AS companyPhone,
+          ent.poste_telephonique AS companyPhoneExtension,
+          ent.courriel AS companyEmail,
+          ent.site_web AS companyWebsite,
+          ent.type_organisation AS organizationType,
+          ent.secteur_activite AS businessSector,
+          ent.contact_rh_nom AS hrName,
+          ent.contact_rh_courriel AS hrEmail,
+          ent.contact_rh_telephone AS hrPhone,
+          ent.contact_rh_poste AS hrExtension,
+          ent.superviseur_nom AS supervisorName,
+          ent.superviseur_titre AS supervisorTitle,
+          ent.superviseur_courriel AS supervisorEmail,
+          ent.superviseur_telephone AS supervisorPhone
         FROM demandes_stage d
         INNER JOIN dossiers_stage ds
           ON ds.id = d.dossier_stage_id
+        INNER JOIN utilisateurs student_user
+          ON student_user.id = ds.etudiant_id
+        INNER JOIN etudiants etu
+          ON etu.utilisateur_id = ds.etudiant_id
+        INNER JOIN entreprises ent
+          ON ent.id = d.entreprise_id
         WHERE d.id = ?
           AND ds.etudiant_id = ?
         LIMIT 1
@@ -39,16 +102,29 @@ export async function updateInternshipRequest(
       );
     }
 
-    if (
-      !["SOUMISE", "REFUSEE"].includes(
-        request.status
-      )
-    ) {
-      throw createError(
-        "Cette demande ne peut plus être modifiée.",
-        403
+    ensureStudentCanModifyStatus(request.status);
+
+    await ensureRequestedDocumentsPresent(
+      connection,
+      request
+    );
+
+    const changedFields = compareRequestChanges(
+      request,
+      requestData
+    );
+    const uploadedDocuments =
+      await listActiveUploadedDocumentTypes(
+        connection,
+        request.id,
+        request.folderId
       );
-    }
+
+    await updateStudentProfileForStage(
+      connection,
+      studentId,
+      requestData
+    );
 
     await connection.execute(
       `
@@ -58,6 +134,7 @@ export async function updateInternshipRequest(
           neq = ?,
           adresse = ?,
           ville = ?,
+          province = ?,
           code_postal = ?,
           telephone = ?,
           poste_telephonique = ?,
@@ -83,6 +160,7 @@ export async function updateInternshipRequest(
         requestData.companyNeq,
         requestData.companyAddress,
         requestData.companyCity,
+        requestData.companyProvince,
         requestData.companyPostalCode,
         requestData.companyPhone,
         requestData.companyPhoneExtension,
@@ -124,6 +202,7 @@ export async function updateInternshipRequest(
           autre_compensation = ?,
           statut = 'SOUMISE',
           motif_refus = NULL,
+          resoumis_le = NOW(),
           decide_par_utilisateur_id = NULL,
           decide_le = NULL
         WHERE id = ?
@@ -155,13 +234,48 @@ export async function updateInternshipRequest(
       [request.folderId]
     );
 
+    await createResubmissionWorkflowEvent(
+      connection,
+      {
+        folderId: request.folderId,
+        actorId: studentId,
+        oldStatus: request.status,
+        changedFields,
+        uploadedDocuments
+      }
+    );
+
+    assertSameRequestOnResubmission(
+      request.id,
+      requestId
+    );
+
+    await notifySupervisorOfResubmission(
+      connection,
+      {
+        supervisorId: request.supervisorId,
+        studentFullName: [
+          request.studentFirstName,
+          request.studentLastName
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .trim(),
+        requestId,
+        changedFields,
+        uploadedDocuments
+      }
+    );
+
     await connection.commit();
 
     return {
       id: Number(requestId),
+      folderId: request.folderId,
       ...requestData,
       status: "SOUMISE",
-      refusalReason: null
+      refusalReason: null,
+      resubmittedAt: new Date().toISOString()
     };
   } catch (error) {
     await connection.rollback();
@@ -177,10 +291,31 @@ function validateRequestData(data = {}) {
     startDate: clean(data.startDate),
     endDate: clean(data.endDate),
 
+    studentPhone: optional(data.studentPhone),
+    studentAddress: optional(data.studentAddress),
+    studentCity: optional(data.studentCity),
+    studentProvince: clean(data.studentProvince),
+    studentPostalCode: optional(
+      data.studentPostalCode
+    ),
+    expirationCaq: optionalDate(
+      data.expirationCaq,
+      "La date d'expiration du CAQ"
+    ),
+    expirationStudyPermit: optionalDate(
+      data.expirationStudyPermit,
+      "La date d'expiration du permis d'etudes"
+    ),
+    expirationInsurance: optionalDate(
+      data.expirationInsurance,
+      "La date d'expiration de l'assurance"
+    ),
+
     companyName: clean(data.companyName),
     companyNeq: optional(data.companyNeq),
     companyAddress: clean(data.companyAddress),
     companyCity: clean(data.companyCity),
+    companyProvince: clean(data.companyProvince),
     companyPostalCode: clean(
       data.companyPostalCode
     ),
@@ -239,9 +374,15 @@ function validateRequestData(data = {}) {
     requestData.taskSummary,
     requestData.startDate,
     requestData.endDate,
+    requestData.studentPhone,
+    requestData.studentAddress,
+    requestData.studentCity,
+    requestData.studentProvince,
+    requestData.studentPostalCode,
     requestData.companyName,
     requestData.companyAddress,
     requestData.companyCity,
+    requestData.companyProvince,
     requestData.companyPostalCode,
     requestData.companyPhone,
     requestData.businessSector,
@@ -376,6 +517,23 @@ function clean(value) {
 function optional(value) {
   const cleanedValue = clean(value);
   return cleanedValue || null;
+}
+
+function optionalDate(value, fieldName) {
+  const dateValue = optional(value);
+
+  if (!dateValue) {
+    return null;
+  }
+
+  if (!isValidDate(dateValue)) {
+    throw createError(
+      `${fieldName} est invalide.`,
+      400
+    );
+  }
+
+  return dateValue;
 }
 
 function toPositiveNumber(value, fieldName) {

@@ -1,88 +1,26 @@
 # StageTec
 
-Application React + Express pour extraire progressivement la plateforme StageTec.
-La version actuelle contient seulement l'authentification.
+Application React + Express pour la gestion des demandes de stage, contrats, documents, notifications internes et signatures Documenso.
+
+Le README principal du depot documente le workflow complet, les variables d'environnement, le webhook Documenso et la procedure de test manuel.
 
 ## Demarrage
 
 ```bash
-npm.cmd run dev:backend
+npm install
+npm run dev
 ```
 
-Le serveur Express sert l'API et le frontend Vite en middleware sur `http://localhost:3000`.
+Le serveur Express sert l'API et le frontend Vite sur `http://localhost:3000`.
 
-## Base de donnees
+## Verification
 
-La connexion MySQL utilise `backend/.env`.
-
-```env
-PORT=3000
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_NAME=stagetec
-DB_USER=root
-DB_PASSWORD=
-JWT_SECRET=dev-secret
+```bash
+npm test
+npm run build
+npm run lint
 ```
 
-Le schema de reference est dans `../config/dbstage.sql`.
-Les donnees de test sont dans `../config/seed.sql`.
+## Configuration
 
-## Authentification
-
-Routes disponibles:
-
-- `POST /api/auth/login`
-- `GET /api/auth/me`
-
-Le login accepte:
-
-- `utilisateurs.courriel`
-- `etudiants.code_permanent`
-- `etudiants.code_etudiant`
-- `superviseurs.numero_employe`
-
-Les mots de passe en base peuvent etre verifies avec les formats:
-
-- `scrypt:...` utilise par le seed SQL actuel
-
-Comptes presents dans `../config/seed.sql`:
-
-- `marie@teccart.com`
-- `samir@teccart.com`
-- `tom@teccart.com`
-- `jessica@teccart.com`
-- `claire@teccart.com`
-- `compta@teccart.com`
-- `direction@teccart.com`
-
-Le mot de passe de test de ces comptes est `secret123`.
-
-## Dependances installees
-
-Dependances runtime:
-
-- `react`: librairie frontend.
-- `react-dom`: rendu React dans le navigateur.
-- `express`: serveur backend et routes API.
-- `mysql2`: connexion MySQL avec promesses.
-- `dotenv`: chargement des variables depuis `.env`.
-- `jsonwebtoken`: creation et verification des tokens JWT.
-
-Dependances de developpement:
-
-- `vite`: serveur de developpement et build frontend.
-- `@vitejs/plugin-react`: integration React pour Vite.
-- `oxlint`: verification statique du code.
-- `@types/react`: types React.
-- `@types/react-dom`: types React DOM.
-
-## Scripts npm
-
-- `npm.cmd run dev`: lance le serveur Express complet.
-- `npm.cmd run dev:frontend`: lance Vite seul.
-- `npm.cmd run dev:backend`: lance le serveur Express complet.
-- `npm.cmd run start`: lance le serveur Express complet.
-- `npm.cmd run build`: compile le frontend.
-- `npm.cmd run lint`: lance Oxlint.
-- `npm.cmd run preview`: preview du build Vite.
+Utiliser `backend/.env.example` comme base pour `backend/.env`. Ne jamais committer `backend/.env` ni les fichiers generes dans `backend/storage/`.

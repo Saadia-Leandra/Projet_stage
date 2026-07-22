@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Login from "../src/frontend/composants/Login.jsx";
 import Dashboard from "../src/frontend/composants/Dashboard.jsx";
+import "./App.css";
 
 export default function App() {
   const [user, setUser] = useState(getSavedUser);

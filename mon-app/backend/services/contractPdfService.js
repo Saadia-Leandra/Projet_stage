@@ -3,6 +3,12 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  PDFDocument,
+  StandardFonts,
+  rgb
+} from "pdf-lib";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -13,25 +19,73 @@ export const contractStorageRoot = path.resolve(
   "contracts"
 );
 
+const stageTemplateRoot = path.resolve(
+  __dirname,
+  "..",
+  "templates",
+  "stage"
+);
+
+const contractTemplatePath = path.join(
+  stageTemplateRoot,
+  "contrat-stage-officiel.pdf"
+);
+
+const requestTemplatePath = path.join(
+  stageTemplateRoot,
+  "demande-stage-officielle.pdf"
+);
+
 export async function generateContractPdf(
   contract,
-  signers
+  _signers = []
 ) {
-  const fileName = makePdfFileName(contract, "original");
+  const fileName = makePdfFileName(
+    contract,
+    "contrat-original"
+  );
   const relativePath = path.join("original", fileName);
   const absolutePath =
     resolveContractStoragePath(relativePath);
 
-  await fs.mkdir(path.dirname(absolutePath), {
-    recursive: true
-  });
-
-  const pdfBuffer = createPdfBuffer(
-    buildContractPdfPages(contract, signers)
+  const pdfBuffer = await fillTemplatePdf(
+    contractTemplatePath,
+    (pdfDoc, font) => {
+      drawContractValues(pdfDoc, font, contract);
+    }
   );
 
-  await fs.writeFile(absolutePath, pdfBuffer);
-  await assertValidPdf(absolutePath);
+  await savePdfBuffer(absolutePath, pdfBuffer);
+
+  return {
+    fileName,
+    relativePath: normalizeStoragePath(relativePath),
+    absolutePath
+  };
+}
+
+export async function generateInternshipRequestPdf(
+  request
+) {
+  const fileName = makePdfFileName(
+    {
+      id: request.id,
+      externalId: `demande-stage-${request.id}`
+    },
+    "demande"
+  );
+  const relativePath = path.join("requests", fileName);
+  const absolutePath =
+    resolveContractStoragePath(relativePath);
+
+  const pdfBuffer = await fillTemplatePdf(
+    requestTemplatePath,
+    (pdfDoc, font) => {
+      drawRequestValues(pdfDoc, font, request);
+    }
+  );
+
+  await savePdfBuffer(absolutePath, pdfBuffer);
 
   return {
     fileName,
@@ -56,12 +110,7 @@ export async function saveSignedContractPdf(
   const absolutePath =
     resolveContractStoragePath(relativePath);
 
-  await fs.mkdir(path.dirname(absolutePath), {
-    recursive: true
-  });
-
-  await fs.writeFile(absolutePath, pdfBuffer);
-  await assertValidPdf(absolutePath);
+  await savePdfBuffer(absolutePath, pdfBuffer);
 
   return {
     fileName,
@@ -118,200 +167,671 @@ export async function assertValidPdf(filePath) {
   }
 }
 
-function buildContractPdfPages(contract, signers) {
-  const studentName = [
-    contract.studentFirstName,
-    contract.studentLastName
-  ]
-    .filter(Boolean)
-    .join(" ");
+async function fillTemplatePdf(
+  templatePath,
+  drawValues
+) {
+  const templateBytes = await fs.readFile(templatePath);
+  const pdfDoc = await PDFDocument.load(templateBytes);
+  const font = await pdfDoc.embedFont(
+    StandardFonts.Helvetica
+  );
 
-  const teacherName = [
-    contract.teacherFirstName,
-    contract.teacherLastName
-  ]
-    .filter(Boolean)
-    .join(" ");
+  drawValues(pdfDoc, font);
 
-  const firstPage = [
-    "CONTRAT DE STAGE - StageTec",
-    "",
-    `Reference: ${contract.externalId || contract.id}`,
-    `Etudiant: ${studentName || "-"}`,
-    `Code etudiant: ${contract.studentCode || "-"}`,
-    `Programme: ${contract.codeProgram || contract.program || "-"}`,
-    `Session: ${contract.session || "-"}`,
-    `Annee scolaire: ${contract.schoolYear || "-"}`,
-    "",
-    `Milieu de stage: ${contract.companyName || "-"}`,
-    `Adresse: ${formatAddress(contract)}`,
-    `Superviseur en entreprise: ${contract.companySupervisorName || "-"}`,
-    `Courriel: ${contract.companySupervisorEmail || "-"}`,
-    "",
-    `Enseignant: ${teacherName || "-"}`,
-    "",
-    `Periode: ${formatDate(contract.startDate)} au ${formatDate(contract.endDate)}`,
-    `Horaire: ${contract.workSchedule || "-"}`,
-    `Type d'horaire: ${scheduleTypeLabel(contract.scheduleType)}`,
-    `Heures par semaine: ${displayNumber(contract.hoursPerWeek)}`,
-    `Nombre de semaines: ${displayNumber(contract.numberOfWeeks)}`,
-    `Total d'heures: ${displayNumber(contract.totalHours)}`,
-    "",
-    "Fonction de stage:",
-    contract.functionStage || "-",
-    "",
-    "Description du stage:",
-    contract.descriptionStage || contract.taskSummary || "-"
-  ];
-
-  const secondPage = [
-    "REMUNERATION ET SIGNATURES",
-    "",
-    `Stage remunere: ${contract.isPaid ? "Oui" : "Non"}`,
-    `Salaire horaire: ${contract.isPaid ? displayMoney(contract.hourlySalary) : "-"}`,
-    `Compensation monetaire: ${contract.monetaryCompensation || "-"}`,
-    `Autre compensation: ${contract.otherCompensation || "-"}`,
-    "",
-    "Signataires Documenso dans l'ordre:",
-    ...signers.flatMap((signer) => [
-      "",
-      `${signer.signingOrder}. ${signerRoleLabel(signer.role)}`,
-      `Nom: ${signer.name || "-"}`,
-      `Courriel: ${signer.email || "-"}`,
-      "Signature: ________________________________",
-      "Date: ____________________"
-    ])
-  ];
-
-  return [firstPage, secondPage];
+  return Buffer.from(await pdfDoc.save());
 }
 
-function createPdfBuffer(pages) {
-  const pageCount = pages.length;
-  const fontObjectId = 3;
-  const objects = [];
-  const pageObjectIds = [];
-  const contentObjectIds = [];
-
-  objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
-
-  for (let index = 0; index < pageCount; index += 1) {
-    pageObjectIds.push(4 + index * 2);
-    contentObjectIds.push(5 + index * 2);
-  }
-
-  objects[2] =
-    `<< /Type /Pages /Kids [${pageObjectIds
-      .map((id) => `${id} 0 R`)
-      .join(" ")}] /Count ${pageCount} >>`;
-
-  objects[fontObjectId] =
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
-
-  pages.forEach((pageLines, index) => {
-    const pageObjectId = pageObjectIds[index];
-    const contentObjectId = contentObjectIds[index];
-    const content = createPageContent(pageLines);
-
-    objects[pageObjectId] = [
-      "<<",
-      "/Type /Page",
-      "/Parent 2 0 R",
-      "/MediaBox [0 0 612 792]",
-      "/Resources << /Font << /F1 3 0 R >> >>",
-      `/Contents ${contentObjectId} 0 R`,
-      ">>"
-    ].join("\n");
-
-    objects[contentObjectId] = [
-      `<< /Length ${Buffer.byteLength(content, "utf8")} >>`,
-      "stream",
-      content,
-      "endstream"
-    ].join("\n");
+async function savePdfBuffer(absolutePath, pdfBuffer) {
+  await fs.mkdir(path.dirname(absolutePath), {
+    recursive: true
   });
 
-  let pdf = "%PDF-1.4\n";
-  const offsets = [0];
-
-  for (let id = 1; id < objects.length; id += 1) {
-    offsets[id] = Buffer.byteLength(pdf, "utf8");
-    pdf += `${id} 0 obj\n${objects[id]}\nendobj\n`;
-  }
-
-  const xrefOffset = Buffer.byteLength(pdf, "utf8");
-
-  pdf += `xref\n0 ${objects.length}\n`;
-  pdf += "0000000000 65535 f \n";
-
-  for (let id = 1; id < objects.length; id += 1) {
-    pdf += `${String(offsets[id]).padStart(10, "0")} 00000 n \n`;
-  }
-
-  pdf += [
-    "trailer",
-    `<< /Size ${objects.length} /Root 1 0 R >>`,
-    "startxref",
-    String(xrefOffset),
-    "%%EOF"
-  ].join("\n");
-
-  return Buffer.from(pdf, "utf8");
+  await fs.writeFile(absolutePath, pdfBuffer);
+  await assertValidPdf(absolutePath);
 }
 
-function createPageContent(lines) {
-  const content = [
-    "BT",
-    "/F1 16 Tf",
-    "72 740 Td",
-    `(${escapePdfText(lines[0] || "")}) Tj`,
-    "/F1 10 Tf"
-  ];
+function drawContractValues(pdfDoc, font, contract) {
+  const pages = pdfDoc.getPages();
+  const firstPage = pages[0];
+  const conventionPage = pages[1];
 
-  const wrappedLines = lines
-    .slice(1)
-    .flatMap((line) => wrapLine(line, 92));
+  drawContractCover(firstPage, font, contract);
+  drawContractConvention(conventionPage, font, contract);
+}
 
-  wrappedLines.forEach((line) => {
-    content.push("0 -16 Td");
-    content.push(`(${escapePdfText(line)}) Tj`);
+function drawContractCover(page, font, contract) {
+  drawValue(page, font, fullStudentName(contract), 250, 619, {
+    maxWidth: 320
+  });
+  drawValue(page, font, contract.studentGroup, 145, 601, {
+    maxWidth: 160
+  });
+  drawValue(page, font, contract.studentEmail, 160, 584, {
+    maxWidth: 190
+  });
+  drawValue(page, font, contract.studentPhone, 395, 584, {
+    maxWidth: 150
+  });
+  drawValue(page, font, contract.program, 240, 554, {
+    maxWidth: 300
+  });
+  drawValue(page, font, dateRange(contract), 235, 522, {
+    maxWidth: 270
+  });
+  drawValue(page, font, contract.workSchedule, 210, 512, {
+    maxWidth: 140
+  });
+  drawValue(
+    page,
+    font,
+    displayNumber(contract.hoursPerWeek),
+    500,
+    512,
+    { maxWidth: 50 }
+  );
+  drawValue(
+    page,
+    font,
+    contract.descriptionStage || contract.taskSummary,
+    95,
+    462,
+    {
+      maxWidth: 410,
+      maxLines: 7,
+      lineHeight: 10
+    }
+  );
+
+  drawValue(page, font, contract.companyName, 270, 372, {
+    maxWidth: 290
+  });
+  drawValue(page, font, contract.companyNeq, 120, 354, {
+    maxWidth: 160
+  });
+  drawValue(
+    page,
+    font,
+    contract.companyWebsite,
+    370,
+    354,
+    { maxWidth: 170 }
+  );
+  drawValue(
+    page,
+    font,
+    firstValue(
+      contract.companySignatureName,
+      contract.companySupervisorName
+    ),
+    120,
+    337,
+    { maxWidth: 250 }
+  );
+  drawValue(
+    page,
+    font,
+    firstValue(
+      contract.companySignatureEmail,
+      contract.companySupervisorEmail,
+      contract.companyEmail
+    ),
+    160,
+    321,
+    { maxWidth: 320 }
+  );
+  drawValue(page, font, contract.companyAddress, 125, 302, {
+    maxWidth: 250
+  });
+  drawValue(page, font, cityWithProvince(
+    contract.companyCity,
+    contract.companyProvince
+  ), 420, 302, {
+    maxWidth: 100
+  });
+  drawValue(
+    page,
+    font,
+    contract.companyPostalCode,
+    140,
+    286,
+    { maxWidth: 90 }
+  );
+  drawValue(page, font, contract.companyPhone, 300, 286, {
+    maxWidth: 120
+  });
+  drawValue(
+    page,
+    font,
+    contract.companyPhoneExtension,
+    455,
+    286,
+    { maxWidth: 60 }
+  );
+
+  drawValue(
+    page,
+    font,
+    contract.companySupervisorName,
+    330,
+    255,
+    { maxWidth: 260 }
+  );
+  drawValue(
+    page,
+    font,
+    contract.companySupervisorTitle,
+    115,
+    238,
+    { maxWidth: 280 }
+  );
+  drawValue(
+    page,
+    font,
+    contract.companySupervisorEmail,
+    150,
+    222,
+    { maxWidth: 210 }
+  );
+  drawValue(
+    page,
+    font,
+    contract.companySupervisorPhone,
+    410,
+    222,
+    { maxWidth: 130 }
+  );
+}
+
+function drawContractConvention(page, font, contract) {
+  drawValue(page, font, contract.schoolYear, 50, 651, {
+    maxWidth: 65,
+    size: 8
+  });
+  drawSessionCheck(page, font, contract.session);
+
+  drawValue(page, font, contract.studentLastName, 24, 619, {
+    maxWidth: 200,
+    size: 8
+  });
+  drawValue(page, font, contract.studentFirstName, 248, 619, {
+    maxWidth: 190,
+    size: 8
+  });
+  drawValue(
+    page,
+    font,
+    firstValue(contract.codeProgram, contract.program),
+    500,
+    619,
+    { maxWidth: 70, size: 8 }
+  );
+  drawValue(page, font, contract.studentAddress, 24, 579, {
+    maxWidth: 170,
+    size: 8
+  });
+  drawValue(page, font, cityWithProvince(
+    contract.studentCity,
+    contract.studentProvince
+  ), 205, 579, {
+    maxWidth: 150,
+    size: 8
+  });
+  drawValue(
+    page,
+    font,
+    contract.studentPostalCode,
+    390,
+    579,
+    { maxWidth: 75, size: 8 }
+  );
+  drawValue(
+    page,
+    font,
+    contract.codeProgram,
+    500,
+    579,
+    { maxWidth: 70, size: 8 }
+  );
+  drawValue(page, font, contract.studentPhone, 24, 543, {
+    maxWidth: 130,
+    size: 8
+  });
+  drawValue(page, font, contract.studentEmail, 225, 543, {
+    maxWidth: 180,
+    size: 8
+  });
+  drawValue(
+    page,
+    font,
+    contract.studentPermanentCode,
+    450,
+    543,
+    { maxWidth: 100, size: 8 }
+  );
+
+  drawValue(page, font, contract.companyName, 78, 480, {
+    maxWidth: 450,
+    size: 8
+  });
+  drawValue(
+    page,
+    font,
+    contract.companySupervisorName,
+    78,
+    459,
+    { maxWidth: 250, size: 8 }
+  );
+  drawValue(page, font, contract.companyPhone, 410, 459, {
+    maxWidth: 130,
+    size: 8
+  });
+  drawValue(
+    page,
+    font,
+    contract.companySupervisorTitle,
+    47,
+    424,
+    { maxWidth: 265, size: 8 }
+  );
+  drawValue(
+    page,
+    font,
+    contract.companySupervisorEmail,
+    47,
+    405,
+    { maxWidth: 265, size: 8 }
+  );
+  drawValue(
+    page,
+    font,
+    contract.companyWebsite,
+    382,
+    405,
+    { maxWidth: 175, size: 8 }
+  );
+  drawValue(page, font, contract.companyAddress, 61, 385, {
+    maxWidth: 300,
+    size: 8
+  });
+  drawValue(page, font, cityWithProvince(
+    contract.companyCity,
+    contract.companyProvince
+  ), 420, 385, {
+    maxWidth: 110,
+    size: 8
+  });
+  drawValue(
+    page,
+    font,
+    contract.companyPostalCode,
+    75,
+    361,
+    { maxWidth: 110, size: 8 }
+  );
+  drawOrganizationCheck(
+    page,
+    font,
+    contract.organizationType
+  );
+  drawValue(
+    page,
+    font,
+    contract.businessSector,
+    105,
+    322,
+    { maxWidth: 290, size: 8 }
+  );
+  drawValue(
+    page,
+    font,
+    contract.functionStage,
+    70,
+    280,
+    { maxWidth: 490, size: 8 }
+  );
+  drawPaidCheck(page, font, contract);
+  drawValue(
+    page,
+    font,
+    contract.isPaid ? displayMoney(contract.hourlySalary) : "",
+    285,
+    204,
+    { maxWidth: 70, size: 8 }
+  );
+  drawValue(
+    page,
+    font,
+    contract.monetaryCompensation,
+    470,
+    212,
+    { maxWidth: 95, size: 8 }
+  );
+  drawValue(
+    page,
+    font,
+    contract.otherCompensation,
+    510,
+    197,
+    { maxWidth: 65, size: 8 }
+  );
+  drawDateParts(page, font, contract.startDate, 42, 146);
+  drawDateParts(page, font, contract.endDate, 145, 146);
+  drawValue(
+    page,
+    font,
+    displayNumber(contract.hoursPerWeek),
+    355,
+    156,
+    { maxWidth: 50, size: 8 }
+  );
+  drawValue(
+    page,
+    font,
+    displayNumber(contract.numberOfWeeks),
+    482,
+    156,
+    { maxWidth: 50, size: 8 }
+  );
+  drawScheduleCheck(page, font, contract.scheduleType);
+  drawValue(
+    page,
+    font,
+    displayNumber(contract.totalHours),
+    532,
+    120,
+    { maxWidth: 50, size: 8 }
+  );
+}
+
+function drawRequestValues(pdfDoc, font, request) {
+  const pages = pdfDoc.getPages();
+  const page = pages[0];
+
+  drawValue(page, font, request.taskSummary, 95, 660, {
+    maxWidth: 420,
+    maxLines: 9,
+    lineHeight: 10,
+    size: 8
+  });
+  drawValue(page, font, formatDate(request.startDate), 130, 536, {
+    maxWidth: 140
+  });
+  drawValue(page, font, formatDate(request.endDate), 340, 536, {
+    maxWidth: 140
   });
 
-  content.push("ET");
+  drawValue(page, font, request.companyName, 235, 493, {
+    maxWidth: 300
+  });
+  drawValue(page, font, request.companyAddress, 130, 462, {
+    maxWidth: 170
+  });
+  drawValue(page, font, cityWithProvince(
+    request.companyCity,
+    request.companyProvince
+  ), 330, 462, {
+    maxWidth: 150
+  });
+  drawValue(
+    page,
+    font,
+    request.companyPostalCode,
+    150,
+    431,
+    { maxWidth: 85 }
+  );
+  drawValue(page, font, request.companyPhone, 270, 431, {
+    maxWidth: 100
+  });
+  drawValue(
+    page,
+    font,
+    request.companyPhoneExtension,
+    410,
+    431,
+    { maxWidth: 65 }
+  );
+  drawValue(page, font, request.hrName, 220, 374, {
+    maxWidth: 100,
+    maxLines: 2,
+    lineHeight: 10
+  });
+  drawValue(page, font, request.hrEmail, 410, 386, {
+    maxWidth: 110,
+    maxLines: 2,
+    lineHeight: 10
+  });
+  drawValue(page, font, request.hrPhone, 150, 345, {
+    maxWidth: 120
+  });
+  drawValue(page, font, request.hrExtension, 410, 345, {
+    maxWidth: 65
+  });
+  drawValue(page, font, request.workSchedule, 185, 307, {
+    maxWidth: 90,
+    maxLines: 2,
+    lineHeight: 10
+  });
+  drawValue(
+    page,
+    font,
+    displayNumber(request.hoursPerWeek),
+    310,
+    297,
+    { maxWidth: 60 }
+  );
+  drawValue(page, font, request.workLanguage, 455, 307, {
+    maxWidth: 70,
+    maxLines: 2,
+    lineHeight: 10
+  });
+  drawValue(page, font, request.companyWebsite, 220, 282, {
+    maxWidth: 80
+  });
 
-  return content.join("\n");
+  drawValue(page, font, request.supervisorName, 135, 212, {
+    maxWidth: 180
+  });
+  drawValue(page, font, request.supervisorTitle, 420, 212, {
+    maxWidth: 170
+  });
+  drawValue(page, font, request.supervisorEmail, 135, 192, {
+    maxWidth: 250
+  });
+
+  drawValue(page, font, fullStudentName(request), 130, 162, {
+    maxWidth: 240
+  });
+  drawValue(page, font, request.studentGroup, 440, 162, {
+    maxWidth: 80
+  });
+  drawValue(page, font, request.studentEmail, 100, 138, {
+    maxWidth: 170
+  });
+  drawValue(page, font, request.studentPhone, 290, 138, {
+    maxWidth: 100
+  });
+  drawValue(
+    page,
+    font,
+    formatDate(request.expirationCaq),
+    260,
+    96,
+    { maxWidth: 90 }
+  );
+  drawValue(
+    page,
+    font,
+    formatDate(request.expirationStudyPermit),
+    300,
+    83,
+    { maxWidth: 90 }
+  );
+  drawValue(
+    page,
+    font,
+    formatDate(request.expirationInsurance),
+    420,
+    102,
+    { maxWidth: 90 }
+  );
 }
 
-function wrapLine(value, maxLength) {
-  const text = toPdfText(value);
+function drawValue(
+  page,
+  font,
+  value,
+  x,
+  y,
+  {
+    maxWidth = 120,
+    maxLines = 1,
+    size = 8,
+    lineHeight = 11
+  } = {}
+) {
+  const text = cleanPdfText(value);
 
   if (!text) {
-    return [""];
+    return;
   }
 
+  const lines = wrapText(text, font, size, maxWidth)
+    .slice(0, maxLines);
+
+  lines.forEach((line, index) => {
+    page.drawText(line, {
+      x,
+      y: y - index * lineHeight,
+      size,
+      font,
+      color: rgb(0, 0, 0),
+      maxWidth
+    });
+  });
+}
+
+function wrapText(text, font, size, maxWidth) {
   const words = text.split(/\s+/);
   const lines = [];
   let currentLine = "";
 
-  words.forEach((word) => {
-    const nextLine = currentLine
+  for (const word of words) {
+    const candidate = currentLine
       ? `${currentLine} ${word}`
       : word;
 
-    if (nextLine.length > maxLength && currentLine) {
+    if (
+      font.widthOfTextAtSize(candidate, size) > maxWidth &&
+      currentLine
+    ) {
       lines.push(currentLine);
       currentLine = word;
-      return;
+    } else {
+      currentLine = candidate;
     }
-
-    currentLine = nextLine;
-  });
+  }
 
   if (currentLine) {
     lines.push(currentLine);
   }
 
-  return lines;
+  return lines.length ? lines : [text];
+}
+
+function drawCheck(page, font, x, y) {
+  page.drawText("X", {
+    x,
+    y,
+    size: 12,
+    font,
+    color: rgb(0, 0, 0)
+  });
+}
+
+function drawSessionCheck(page, font, session) {
+  const value = String(session || "").toUpperCase();
+
+  if (value.includes("AUTOMNE")) {
+    drawCheck(page, font, 205, 637);
+    return;
+  }
+
+  if (value.includes("HIVER")) {
+    drawCheck(page, font, 266, 637);
+    return;
+  }
+
+  if (value.includes("ETE") || value.includes("ÉTÉ")) {
+    drawCheck(page, font, 315, 637);
+    return;
+  }
+
+  drawValue(page, font, session, 155, 648, {
+    maxWidth: 70,
+    size: 8
+  });
+}
+
+function drawOrganizationCheck(page, font, value) {
+  const type = String(value || "").toUpperCase();
+
+  if (type === "PUBLIC") {
+    drawCheck(page, font, 478, 354);
+  }
+
+  if (type === "PRIVE" || type === "PRIVÉ") {
+    drawCheck(page, font, 535, 354);
+  }
+}
+
+function drawPaidCheck(page, font, contract) {
+  if (contract.isPaid) {
+    drawCheck(page, font, 167, 197);
+    return;
+  }
+
+  drawCheck(page, font, 125, 197);
+}
+
+function drawScheduleCheck(page, font, scheduleType) {
+  if (scheduleType === "TEMPS_PARTIEL") {
+    drawCheck(page, font, 188, 113);
+  }
+
+  if (scheduleType === "TEMPS_PLEIN") {
+    drawCheck(page, font, 418, 113);
+  }
+}
+
+function drawDateParts(page, font, value, x, y) {
+  const parts = parseDateParts(value);
+
+  drawValue(page, font, parts.day, x, y, {
+    maxWidth: 22,
+    size: 7
+  });
+  drawValue(page, font, parts.month, x + 31, y, {
+    maxWidth: 22,
+    size: 7
+  });
+  drawValue(page, font, parts.year, x + 61, y, {
+    maxWidth: 32,
+    size: 7
+  });
+}
+
+function parseDateParts(value) {
+  const formatted = formatDate(value);
+
+  if (!formatted) {
+    return { day: "", month: "", year: "" };
+  }
+
+  const [year, month, day] = formatted.split("-");
+
+  return { day, month, year };
 }
 
 function makePdfFileName(contract, suffix) {
@@ -346,65 +866,80 @@ function isPdfBuffer(buffer) {
     buffer.slice(0, 5).toString("ascii") === "%PDF-";
 }
 
-function escapePdfText(value) {
-  return toPdfText(value)
-    .replace(/\\/g, "\\\\")
-    .replace(/\(/g, "\\(")
-    .replace(/\)/g, "\\)");
-}
-
-function toPdfText(value) {
+function cleanPdfText(value) {
   return String(value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\x20-\x7E]/g, " ")
+    .replace(/\u2018|\u2019/g, "'")
+    .replace(/\u201C|\u201D/g, '"')
+    .replace(/\u0152/g, "OE")
+    .replace(/\u0153/g, "oe")
+    .split("")
+    .map((character) =>
+      isSupportedPdfCharacter(character)
+        ? character
+        : " "
+    )
+    .join("")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function formatAddress(contract) {
+function isSupportedPdfCharacter(character) {
+  const code = character.charCodeAt(0);
+
+  return code === 9 ||
+    code === 10 ||
+    code === 13 ||
+    (code >= 32 && code <= 255);
+}
+
+function fullStudentName(source) {
   return [
-    contract.companyAddress,
-    contract.companyCity,
-    contract.companyPostalCode
+    source.studentFirstName,
+    source.studentLastName
   ]
     .filter(Boolean)
-    .join(", ") || "-";
+    .join(" ")
+    .trim();
+}
+
+function cityWithProvince(city, province) {
+  return [city, province]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(", ");
+}
+
+function dateRange(source) {
+  const startDate = formatDate(source.startDate);
+  const endDate = formatDate(source.endDate);
+
+  if (!startDate && !endDate) {
+    return "";
+  }
+
+  return `${startDate || "-"} au ${endDate || "-"}`;
 }
 
 function formatDate(value) {
   if (!value) {
-    return "-";
+    return "";
   }
 
-  return String(value).slice(0, 10);
-}
+  const dateValue = String(value).slice(0, 10);
+  const date = new Date(`${dateValue}T00:00:00`);
 
-function scheduleTypeLabel(value) {
-  const labels = {
-    TEMPS_PARTIEL: "Temps partiel",
-    TEMPS_PLEIN: "Temps plein"
-  };
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
 
-  return labels[value] || "-";
-}
-
-function signerRoleLabel(value) {
-  const labels = {
-    ENTREPRISE: "Milieu de stage",
-    SUPERVISEUR: "Enseignant",
-    CONSEILLERE: "Conseillere",
-    DIRECTION: "Direction"
-  };
-
-  return labels[value] || value || "-";
+  return dateValue;
 }
 
 function displayNumber(value) {
   const numberValue = Number(value);
 
   if (!Number.isFinite(numberValue)) {
-    return "-";
+    return "";
   }
 
   return String(numberValue);
@@ -414,10 +949,19 @@ function displayMoney(value) {
   const numberValue = Number(value);
 
   if (!Number.isFinite(numberValue)) {
-    return "-";
+    return "";
   }
 
-  return `${numberValue.toFixed(2)} CAD`;
+  return `${numberValue.toFixed(2)} $`;
+}
+
+function firstValue(...values) {
+  return values.find(
+    (value) =>
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+  );
 }
 
 function createError(message, status) {

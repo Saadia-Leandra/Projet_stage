@@ -1,0 +1,13 @@
+node_modules/
+mon-app/node_modules/
+mon-app/dist/
+mon-app/backend/.env
+mon-app/backend/storage/
+mon-app/scripts/start-dev-server.ps1
+*.log
+*.local
+
+# Source documents kept locally for audit; runtime templates live under mon-app/backend/templates/stage/.
+Contrat_de_stage_en_entreprise_.pdf
+Demande de stage en entreprise .pdf
+proposition de stage - automatisation des outils en stage.docx

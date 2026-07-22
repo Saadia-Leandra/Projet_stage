@@ -32,6 +32,14 @@ export default function SupervisorRefusalModal({
       return;
     }
 
+    const confirmed = window.confirm(
+      "Confirmer le refus definitif de cette demande ? L'etudiant ne pourra plus la modifier."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     setError("");
 
     const success = await onConfirm(
@@ -55,7 +63,7 @@ export default function SupervisorRefusalModal({
         <div className="panelHeader">
           <div>
             <h2 id="refusal-modal-title">
-              Refuser la demande
+              Refuser definitivement
             </h2>
 
             <p>
@@ -89,7 +97,7 @@ export default function SupervisorRefusalModal({
               rows={7}
               minLength={10}
               maxLength={2000}
-              placeholder="Expliquez clairement les corrections que l’étudiant doit apporter."
+              placeholder="Expliquez clairement pourquoi cette demande est fermee definitivement."
               disabled={loading}
               required
             />
@@ -122,7 +130,7 @@ export default function SupervisorRefusalModal({
             >
               {loading
                 ? "Envoi en cours..."
-                : "Confirmer le refus"}
+                : "Refuser definitivement"}
             </button>
           </div>
         </form>

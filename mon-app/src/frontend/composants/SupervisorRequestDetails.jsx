@@ -2,6 +2,7 @@ export default function SupervisorRequestDetails({
   request,
   actionLoading,
   onApprove,
+  onRequestCorrections,
   onRefuse,
   onClose
 }) {
@@ -40,9 +41,52 @@ export default function SupervisorRequestDetails({
 
       {request.refusalReason && (
         <div className="studentError">
-          <strong>Motif du refus :</strong>{" "}
+          <strong>Motif du refus definitif :</strong>{" "}
           {request.refusalReason}
         </div>
+      )}
+
+      {isCorrectionStatus(request.status) && (
+        <div className="studentError">
+          <strong>Correction demandee :</strong>{" "}
+          {request.correctionStudentComment ||
+            request.correctionReason}
+        </div>
+      )}
+
+      {request.correctionReason && (
+        <DetailsSection title="Correction demandee">
+          <DetailItem
+            label="Raison"
+            value={request.correctionReason}
+            wide
+          />
+          <DetailItem
+            label="Elements a corriger"
+            value={request.correctionItems}
+            wide
+          />
+          <DetailItem
+            label="Documents demandes"
+            value={formatDocumentTypes(
+              request.correctionMissingDocuments
+            )}
+            wide
+          />
+          <DetailItem
+            label="Demandee le"
+            value={formatDateTime(
+              request.correctionRequestedAt
+            )}
+          />
+          <DetailItem
+            label="Demandee par"
+            value={
+              request.correctionRequestedByLabel ||
+              request.correctionRequestedByRole
+            }
+          />
+        </DetailsSection>
       )}
 
       <DetailsSection title="1. Étudiant">
@@ -157,6 +201,11 @@ export default function SupervisorRequestDetails({
         <DetailItem
           label="Ville"
           value={request.companyCity}
+        />
+
+        <DetailItem
+          label="Province"
+          value={request.companyProvince}
         />
 
         <DetailItem
@@ -283,6 +332,82 @@ export default function SupervisorRequestDetails({
         />
       </DetailsSection>
 
+      <DetailsSection title="Documents de correction">
+        {request.documents?.length ? (
+          request.documents.map((document) => (
+            <div
+              className="requestDetailItem"
+              key={document.id}
+            >
+              <strong>
+                {documentTypeLabel(document.type)}
+              </strong>
+
+              <span>{document.fileName}</span>
+              <small>
+                Version {document.version} -{" "}
+                {formatDateTime(document.uploadedAt)}
+              </small>
+
+              <button
+                className="secondaryButton fitButton"
+                type="button"
+                onClick={() =>
+                  downloadDocument(
+                    request.id,
+                    document.id
+                  )
+                }
+              >
+                Telecharger
+              </button>
+            </div>
+          ))
+        ) : (
+          <div className="emptyState">
+            Aucun document depose pour cette demande.
+          </div>
+        )}
+      </DetailsSection>
+
+      <DetailsSection title="Dernieres modifications">
+        {request.history?.length ? (
+          request.history.map((event) => (
+            <div
+              className="requestDetailItem requestDetailWide"
+              key={event.id}
+            >
+              <strong>
+                {workflowEventLabel(event.type)}
+              </strong>
+
+              <span>
+                {statusLabel(event.oldStatus)} vers{" "}
+                {statusLabel(event.newStatus)}
+              </span>
+
+              <small>
+                {formatDateTime(event.createdAt)} -{" "}
+                {event.actorName ||
+                  roleLabel(event.actorRole)}
+              </small>
+
+              {event.comment && (
+                <small>
+                  {formatWorkflowComment(
+                    event.comment
+                  )}
+                </small>
+              )}
+            </div>
+          ))
+        ) : (
+          <div className="emptyState">
+            Aucun historique disponible.
+          </div>
+        )}
+      </DetailsSection>
+
       {canDecide && (
         <div className="supervisorDecisionActions">
           <button
@@ -302,12 +427,79 @@ export default function SupervisorRequestDetails({
             onClick={() => onRefuse(request)}
             disabled={actionLoading}
           >
-            Refuser la demande
+            Refuser definitivement
+          </button>
+
+          <button
+            className="secondaryButton"
+            type="button"
+            onClick={() =>
+              onRequestCorrections(
+                request,
+                "A_REVISER"
+              )
+            }
+            disabled={actionLoading}
+          >
+            Demander des corrections
+          </button>
+
+          <button
+            className="secondaryButton"
+            type="button"
+            onClick={() =>
+              onRequestCorrections(
+                request,
+                "DOCUMENTS_MANQUANTS"
+              )
+            }
+            disabled={actionLoading}
+          >
+            Documents manquants
           </button>
         </div>
       )}
     </section>
   );
+}
+
+async function downloadDocument(
+  requestId,
+  documentId
+) {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    return;
+  }
+
+  try {
+    const response = await fetch(
+      `/api/supervisor/stages/requests/${requestId}/documents/${documentId}/download`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    if (!response.ok) {
+      return;
+    }
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `document-${documentId}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error(error);
+  }
 }
 
 function DetailsSection({
@@ -347,6 +539,8 @@ function statusLabel(status) {
   const labels = {
     BROUILLON: "Brouillon",
     SOUMISE: "À traiter",
+    A_REVISER: "A reviser",
+    DOCUMENTS_MANQUANTS: "Documents manquants",
     APPROUVEE: "Approuvée",
     REFUSEE: "Refusée",
     ANNULEE: "Annulée"
@@ -364,11 +558,100 @@ function statusClass(status) {
     return "statusRed";
   }
 
+  if (
+    status === "A_REVISER" ||
+    status === "DOCUMENTS_MANQUANTS"
+  ) {
+    return "statusYellow";
+  }
+
   if (status === "SOUMISE") {
     return "statusOrange";
   }
 
   return "statusYellow";
+}
+
+function isCorrectionStatus(status) {
+  return [
+    "A_REVISER",
+    "DOCUMENTS_MANQUANTS"
+  ].includes(status);
+}
+
+function documentTypeLabel(type) {
+  const labels = {
+    ATTESTATION: "Attestation",
+    CAQ: "CAQ",
+    PERMIS_ETUDES: "Permis d'etudes",
+    ASSURANCE: "Assurance",
+    PIECE_IDENTITE: "Piece d'identite",
+    CV: "CV",
+    AUTRE: "Autre document"
+  };
+
+  return labels[type] || type || "-";
+}
+
+function formatDocumentTypes(types) {
+  if (!types?.length) {
+    return "-";
+  }
+
+  return types.map(documentTypeLabel).join(", ");
+}
+
+function workflowEventLabel(type) {
+  const labels = {
+    DEMANDE_APPROUVEE: "Demande approuvee",
+    DEMANDE_REFUSEE: "Refus definitif",
+    CORRECTIONS_DEMANDEES: "Corrections demandees",
+    DOCUMENTS_MANQUANTS_DEMANDES:
+      "Documents manquants demandes",
+    DEMANDE_RESOUMISE: "Demande resoumise",
+    DOCUMENT_STAGE_AJOUTE: "Document ajoute",
+    DOCUMENT_STAGE_REMPLACE: "Document remplace",
+    DOCUMENT_STAGE_SUPPRIME: "Document supprime"
+  };
+
+  return labels[type] || type || "Evenement";
+}
+
+function formatWorkflowComment(comment) {
+  try {
+    const parsed = JSON.parse(comment);
+
+    if (parsed.studentComment) {
+      return parsed.studentComment;
+    }
+
+    if (parsed.reason) {
+      return parsed.reason;
+    }
+
+    if (parsed.changedFields?.length) {
+      return `Champs modifies : ${parsed.changedFields.join(", ")}`;
+    }
+
+    if (parsed.documentType) {
+      return `${documentTypeLabel(parsed.documentType)} - ${parsed.fileName || ""}`;
+    }
+  } catch {
+    return comment;
+  }
+
+  return comment;
+}
+
+function roleLabel(role) {
+  const labels = {
+    SUPERVISEUR: "Superviseur",
+    ETUDIANT: "Etudiant",
+    CONSEILLERE: "Conseillere",
+    DIRECTION: "Direction"
+  };
+
+  return labels[role] || role || "-";
 }
 
 function scheduleTypeLabel(value) {
@@ -448,7 +731,7 @@ function formatPhoneWithExtension(
     return phone;
   }
 
-  return `${phone}, poste ${extension}`;
+  return `${phone}, numero de poste ${extension}`;
 }
 
 function displayValue(value) {

@@ -6,12 +6,17 @@ import {
 } from "../middlewares/auth.js";
 
 import {
+  generateStudentContractPdf,
   getStudentContractById,
   getStudentContractFile,
+  getStudentContractReceipt,
   getStudentContracts,
+  MAX_MILIEU_SIGNED_PDF_SIZE_BYTES,
   submitStudentContract,
+  uploadMilieuSignedContract,
   updateStudentContract
 } from "../services/contractService.js";
+import { readMultipartFormData } from "../services/multipartService.js";
 
 const router = Router();
 
@@ -66,6 +71,26 @@ router.put("/:contractId", async (req, res, next) => {
 });
 
 router.post(
+  "/:contractId/generate-pdf",
+  async (req, res, next) => {
+    try {
+      const contractId = validateContractId(
+        req.params.contractId
+      );
+
+      const contract = await generateStudentContractPdf(
+        req.user.id,
+        contractId
+      );
+
+      res.json({ contract });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
   "/:contractId/submit",
   async (req, res, next) => {
     try {
@@ -79,6 +104,62 @@ router.post(
       );
 
       res.json({ contract });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/:contractId/milieu-signed-document",
+  async (req, res, next) => {
+    try {
+      const contractId = validateContractId(
+        req.params.contractId
+      );
+      const multipart =
+        await readMultipartFormData(req, {
+          maxBytes:
+            MAX_MILIEU_SIGNED_PDF_SIZE_BYTES +
+            1024 * 1024
+        });
+      const uploadedFile =
+        multipart.files.file ||
+        Object.values(multipart.files)[0];
+
+      const contract =
+        await uploadMilieuSignedContract(
+          req.user.id,
+          contractId,
+          {
+            originalName: uploadedFile?.fileName,
+            mimeType: uploadedFile?.contentType,
+            size: uploadedFile?.buffer.length,
+            buffer: uploadedFile?.buffer
+          }
+        );
+
+      res.status(201).json({ contract });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/:contractId/receipt",
+  async (req, res, next) => {
+    try {
+      const contractId = validateContractId(
+        req.params.contractId
+      );
+
+      const receipt = await getStudentContractReceipt(
+        req.user.id,
+        contractId
+      );
+
+      res.json({ receipt });
     } catch (error) {
       next(error);
     }

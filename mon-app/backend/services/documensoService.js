@@ -78,7 +78,9 @@ export async function createDocumentFromPdf({
   const payload = {
     title,
     externalId,
-    visibility: "EVERYONE"
+    visibility: "EVERYONE",
+    type: "DOCUMENT",
+    signingOrder: "SEQUENTIAL"
   };
 
   const formData = new FormData();
@@ -121,9 +123,11 @@ export async function createDocumentFromPdf({
       response?.documentId,
       response?.document?.id,
       response?.documents?.[0]?.id,
+      response?.envelopeItems?.[0]?.id,
       response?.items?.[0]?.id,
       response?.data?.documentId,
       response?.data?.documents?.[0]?.id,
+      response?.data?.envelopeItems?.[0]?.id,
       response?.data?.items?.[0]?.id
     )
   };
@@ -141,7 +145,7 @@ export async function addRecipients({
       method: "POST",
       json: {
         envelopeId,
-        recipients: recipients.map((recipient) => ({
+        data: recipients.map((recipient) => ({
           name: recipient.name,
           email: recipient.email,
           role: "SIGNER",
@@ -160,16 +164,25 @@ export async function addSignatureFields({
 }) {
   ensureConfigured();
 
-  const fields = recipients.map((recipient, index) => ({
-    documentId,
-    recipientId: recipient.documensoRecipientId,
-    type: "SIGNATURE",
-    page: 1,
-    positionX: 12,
-    positionY: 68 + index * 7,
-    width: 34,
-    height: 6
-  }));
+  const fields = recipients.map((recipient, index) => {
+    const position =
+      signatureFieldPositionByRole(recipient.role) ||
+      fallbackSignatureFieldPosition(index);
+
+    return {
+      documentId,
+      recipientId: recipient.documensoRecipientId,
+      type: "SIGNATURE",
+      pageNumber: position.page,
+      pageX: position.positionX,
+      pageY: position.positionY,
+      page: position.page,
+      positionX: position.positionX,
+      positionY: position.positionY,
+      width: position.width,
+      height: position.height
+    };
+  });
 
   const response = await documensoRequest(
     "/envelope/field/create-many",
@@ -177,12 +190,65 @@ export async function addSignatureFields({
       method: "POST",
       json: {
         documentId,
+        data: fields,
         fields
       }
     }
   );
 
   return response;
+}
+
+function signatureFieldPositionByRole(role) {
+  const positions = {
+    ETUDIANT: {
+      page: 3,
+      positionX: 4,
+      positionY: 5,
+      width: 28,
+      height: 6
+    },
+    ENTREPRISE: {
+      page: 3,
+      positionX: 4,
+      positionY: 11,
+      width: 28,
+      height: 6
+    },
+    SUPERVISEUR: {
+      page: 3,
+      positionX: 52,
+      positionY: 5,
+      width: 28,
+      height: 6
+    },
+    CONSEILLERE: {
+      page: 1,
+      positionX: 34,
+      positionY: 9,
+      width: 20,
+      height: 6
+    },
+    DIRECTION: {
+      page: 3,
+      positionX: 52,
+      positionY: 11,
+      width: 28,
+      height: 6
+    }
+  };
+
+  return positions[role] || null;
+}
+
+function fallbackSignatureFieldPosition(index) {
+  return {
+    page: 1,
+    positionX: 12,
+    positionY: 68 + index * 7,
+    width: 34,
+    height: 6
+  };
 }
 
 export async function sendDocumentForSignature(
