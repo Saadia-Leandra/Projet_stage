@@ -8,7 +8,10 @@ export default function StudentDashboard({
 }) {
   const [student, setStudent] = useState(null);
   const [requests, setRequests] = useState([]);
+  const [contracts, setContracts] = useState([]);
   const [error, setError] = useState("");
+  const [contractError, setContractError] =
+    useState("");
   const [loading, setLoading] = useState(true);
 
   const latestRequest = useMemo(
@@ -54,6 +57,31 @@ export default function StudentDashboard({
       setStudent(data.student);
       setRequests(data.requests || []);
       setError("");
+
+      const contractsResponse = await fetch(
+        "/api/contracts",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const contractsData = await contractsResponse
+        .json()
+        .catch(() => ({}));
+
+      if (!contractsResponse.ok) {
+        setContractError(
+          contractsData.error ||
+            "Impossible de charger les contrats."
+        );
+        setContracts([]);
+        return;
+      }
+
+      setContracts(contractsData.contracts || []);
+      setContractError("");
     } catch (requestError) {
       console.error(requestError);
 
@@ -77,6 +105,12 @@ export default function StudentDashboard({
         </div>
       )}
 
+      {contractError && (
+        <div className="studentError">
+          {contractError}
+        </div>
+      )}
+
       {view === "requests" && (
         <RequestsView
           loading={loading}
@@ -88,8 +122,11 @@ export default function StudentDashboard({
 
       {view === "contracts" && (
         <ContractsView
+          student={student}
+          contracts={contracts}
           requests={requests}
           onNavigate={onNavigate}
+          onReload={loadDashboard}
         />
       )}
 
@@ -99,6 +136,7 @@ export default function StudentDashboard({
           student={student}
           latestRequest={latestRequest}
           requests={requests}
+          contracts={contracts}
           onNavigate={onNavigate}
         />
       )}
@@ -111,6 +149,7 @@ function OverviewView({
   student,
   latestRequest,
   requests,
+  contracts,
   onNavigate
 }) {
   return (
@@ -207,6 +246,7 @@ function OverviewView({
 
       <div className="studentDashboardGrid">
         <ContractsSummary
+          contracts={contracts}
           requests={requests}
           onNavigate={onNavigate}
         />
@@ -296,12 +336,34 @@ function RequestsView({
 }
 
 function ContractsView({
+  student,
+  contracts,
   requests,
-  onNavigate
+  onNavigate,
+  onReload
 }) {
+  const [selectedContractId, setSelectedContractId] =
+    useState(null);
+
+  useEffect(() => {
+    if (!selectedContractId && contracts[0]) {
+      setSelectedContractId(contracts[0].id);
+    }
+  }, [contracts, selectedContractId]);
+
+  const selectedContract = useMemo(
+    () =>
+      contracts.find(
+        (contract) =>
+          contract.id === selectedContractId
+      ) || contracts[0],
+    [contracts, selectedContractId]
+  );
+
   return (
     <>
       <ContractsSummary
+        contracts={contracts}
         requests={requests}
         onNavigate={onNavigate}
         expanded
@@ -312,18 +374,671 @@ function ContractsView({
           <h2>Documents de contrat</h2>
 
           <span className="statusPill">
-            À venir
+            {contracts.length} contrat(s)
           </span>
         </div>
 
-        <p className="notice">
-          Le module des contrats sera disponible
-          après l’approbation de la demande de
-          stage.
-        </p>
+        {contracts.length > 1 && (
+          <div className="contractSelector">
+            <label htmlFor="contractSelect">
+              Contrat
+            </label>
+
+            <select
+              id="contractSelect"
+              value={selectedContract?.id || ""}
+              onChange={(event) =>
+                setSelectedContractId(
+                  Number(event.target.value)
+                )
+              }
+            >
+              {contracts.map((contract) => (
+                <option
+                  key={contract.id}
+                  value={contract.id}
+                >
+                  {contract.companyName || "Contrat"} -{" "}
+                  {contractStatusLabel(contract)}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {selectedContract ? (
+          <ContractDetails
+            student={student}
+            contract={selectedContract}
+            onReload={onReload}
+          />
+        ) : (
+          <p className="notice">
+            Aucun contrat disponible pour le moment.
+          </p>
+        )}
       </section>
     </>
   );
+}
+
+function ContractDetails({
+  student,
+  contract,
+  onReload
+}) {
+  const [formData, setFormData] = useState(() =>
+    contractToForm(contract)
+  );
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [submitting, setSubmitting] =
+    useState(false);
+  const [downloading, setDownloading] =
+    useState("");
+
+  useEffect(() => {
+    setFormData(contractToForm(contract));
+    setMessage("");
+    setError("");
+  }, [contract]);
+
+  const isEditable =
+    contract.status === "A_COMPLETER_ETUDIANT";
+
+  const currentSigner = contract.signers?.find(
+    (signer) =>
+      ["ENVOYE", "EN_ATTENTE"].includes(
+        signer.status
+      )
+  );
+
+  const studentSigner = contract.signers?.find(
+    (signer) =>
+      signer.email &&
+      student?.email &&
+      signer.email.toLowerCase() ===
+        student.email.toLowerCase() &&
+      signer.status === "ENVOYE"
+  );
+
+  function updateField(name, value) {
+    setFormData((current) => ({
+      ...current,
+      [name]: value
+    }));
+  }
+
+  async function saveContract() {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setError("Session expiree.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch(
+        `/api/contracts/${contract.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(formData)
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        setError(
+          data.error ||
+            "Impossible d'enregistrer le contrat."
+        );
+        return;
+      }
+
+      setMessage("Contrat enregistre.");
+      await onReload();
+    } catch (requestError) {
+      console.error(requestError);
+      setError("Erreur de connexion au serveur.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitContract() {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setError("Session expiree.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const saveResponse = await fetch(
+        `/api/contracts/${contract.id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify(formData)
+        }
+      );
+
+      const saveData = await saveResponse
+        .json()
+        .catch(() => ({}));
+
+      if (!saveResponse.ok) {
+        setError(
+          saveData.error ||
+            "Impossible d'enregistrer le contrat."
+        );
+        return;
+      }
+
+      const response = await fetch(
+        `/api/contracts/${contract.id}/submit`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        setError(
+          data.error ||
+            "Impossible de demarrer la signature."
+        );
+        return;
+      }
+
+      setMessage(
+        "Le contrat a ete envoye pour signature."
+      );
+      await onReload();
+    } catch (requestError) {
+      console.error(requestError);
+      setError("Erreur de connexion au serveur.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function downloadContract(type) {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setError("Session expiree.");
+      return;
+    }
+
+    setDownloading(type);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `/api/contracts/${contract.id}/download?type=${type}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response
+          .json()
+          .catch(() => ({}));
+        setError(
+          data.error ||
+            "Impossible de telecharger le document."
+        );
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${type}-contrat-${contract.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (requestError) {
+      console.error(requestError);
+      setError("Erreur de connexion au serveur.");
+    } finally {
+      setDownloading("");
+    }
+  }
+
+  return (
+    <div className="contractDetails">
+      <div className="contractStatusHeader">
+        <div>
+          <strong>
+            {contract.companyName || "Contrat"}
+          </strong>
+          <span>
+            {formatDate(contract.startDate)} au{" "}
+            {formatDate(contract.endDate)}
+          </span>
+        </div>
+
+        <span
+          className={`statusPill ${contractStatusClass(
+            contract
+          )}`}
+        >
+          {contractStatusLabel(contract)}
+        </span>
+      </div>
+
+      {contract.documensoMessage && (
+        <p className="notice">
+          {contract.documensoMessage}
+        </p>
+      )}
+
+      {studentSigner && (
+        <p className="notice">
+          Une signature est en attente pour votre
+          courriel.
+        </p>
+      )}
+
+      {currentSigner && !studentSigner && (
+        <p className="notice">
+          Signature en attente :{" "}
+          {currentSigner.label}.
+        </p>
+      )}
+
+      {message && (
+        <div className="studentSuccess">
+          {message}
+        </div>
+      )}
+
+      {error && (
+        <div className="studentError">
+          {error}
+        </div>
+      )}
+
+      <div className="contractInfoGrid">
+        <DetailItem
+          label="Etudiant"
+          value={`${contract.studentFirstName || ""} ${
+            contract.studentLastName || ""
+          }`.trim()}
+        />
+        <DetailItem
+          label="Milieu de stage"
+          value={contract.companyName}
+        />
+        <DetailItem
+          label="Superviseur en entreprise"
+          value={contract.companySupervisorName}
+        />
+        <DetailItem
+          label="Enseignant"
+          value={`${contract.teacherFirstName || ""} ${
+            contract.teacherLastName || ""
+          }`.trim()}
+        />
+      </div>
+
+      <div className="contractFormGrid">
+        <ContractField label="Annee scolaire">
+          <input
+            value={formData.schoolYear}
+            disabled={!isEditable}
+            onChange={(event) =>
+              updateField(
+                "schoolYear",
+                event.target.value
+              )
+            }
+          />
+        </ContractField>
+
+        <ContractField label="Session">
+          <input
+            value={formData.session}
+            disabled={!isEditable}
+            onChange={(event) =>
+              updateField(
+                "session",
+                event.target.value
+              )
+            }
+          />
+        </ContractField>
+
+        <ContractField label="Code programme">
+          <input
+            value={formData.codeProgram}
+            disabled={!isEditable}
+            onChange={(event) =>
+              updateField(
+                "codeProgram",
+                event.target.value
+              )
+            }
+          />
+        </ContractField>
+
+        <ContractField label="Type d'horaire">
+          <select
+            value={formData.scheduleType}
+            disabled={!isEditable}
+            onChange={(event) =>
+              updateField(
+                "scheduleType",
+                event.target.value
+              )
+            }
+          >
+            <option value="">Choisir</option>
+            <option value="TEMPS_PLEIN">
+              Temps plein
+            </option>
+            <option value="TEMPS_PARTIEL">
+              Temps partiel
+            </option>
+          </select>
+        </ContractField>
+
+        <ContractField label="Heures par semaine">
+          <input
+            type="number"
+            min="0"
+            step="0.25"
+            value={formData.hoursPerWeek}
+            disabled={!isEditable}
+            onChange={(event) =>
+              updateField(
+                "hoursPerWeek",
+                event.target.value
+              )
+            }
+          />
+        </ContractField>
+
+        <ContractField label="Nombre de semaines">
+          <input
+            type="number"
+            min="0"
+            step="0.25"
+            value={formData.numberOfWeeks}
+            disabled={!isEditable}
+            onChange={(event) =>
+              updateField(
+                "numberOfWeeks",
+                event.target.value
+              )
+            }
+          />
+        </ContractField>
+
+        <ContractField label="Fonction de stage" wide>
+          <input
+            value={formData.functionStage}
+            disabled={!isEditable}
+            onChange={(event) =>
+              updateField(
+                "functionStage",
+                event.target.value
+              )
+            }
+          />
+        </ContractField>
+
+        <ContractField label="Description du stage" wide>
+          <textarea
+            rows="5"
+            value={formData.descriptionStage}
+            disabled={!isEditable}
+            onChange={(event) =>
+              updateField(
+                "descriptionStage",
+                event.target.value
+              )
+            }
+          />
+        </ContractField>
+
+        <label className="contractCheck">
+          <input
+            type="checkbox"
+            checked={formData.isPaid}
+            disabled={!isEditable}
+            onChange={(event) =>
+              updateField(
+                "isPaid",
+                event.target.checked
+              )
+            }
+          />
+          Stage remunere
+        </label>
+
+        {formData.isPaid && (
+          <ContractField label="Salaire horaire">
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.hourlySalary}
+              disabled={!isEditable}
+              onChange={(event) =>
+                updateField(
+                  "hourlySalary",
+                  event.target.value
+                )
+              }
+            />
+          </ContractField>
+        )}
+
+        <ContractField
+          label="Compensation monetaire"
+          wide
+        >
+          <input
+            value={formData.monetaryCompensation}
+            disabled={!isEditable}
+            onChange={(event) =>
+              updateField(
+                "monetaryCompensation",
+                event.target.value
+              )
+            }
+          />
+        </ContractField>
+
+        <ContractField label="Autre compensation" wide>
+          <input
+            value={formData.otherCompensation}
+            disabled={!isEditable}
+            onChange={(event) =>
+              updateField(
+                "otherCompensation",
+                event.target.value
+              )
+            }
+          />
+        </ContractField>
+      </div>
+
+      <SignatureProgress
+        signers={contract.signers || []}
+      />
+
+      <div className="contractActions">
+        {isEditable && (
+          <button
+            className="secondaryButton"
+            type="button"
+            disabled={saving}
+            onClick={saveContract}
+          >
+            {saving ? "Enregistrement..." : "Enregistrer"}
+          </button>
+        )}
+
+        {isEditable && (
+          <button
+            className="primaryButton"
+            type="button"
+            disabled={
+              submitting ||
+              !contract.documensoConfigured
+            }
+            onClick={submitContract}
+          >
+            {submitting
+              ? "Envoi..."
+              : "Envoyer pour signature"}
+          </button>
+        )}
+
+        {contract.generatedPdfAvailable && (
+          <button
+            className="secondaryButton"
+            type="button"
+            disabled={Boolean(downloading)}
+            onClick={() =>
+              downloadContract("original")
+            }
+          >
+            {downloading === "original"
+              ? "Telechargement..."
+              : "PDF genere"}
+          </button>
+        )}
+
+        {contract.signedPdfAvailable && (
+          <button
+            className="secondaryButton"
+            type="button"
+            disabled={Boolean(downloading)}
+            onClick={() => downloadContract("signed")}
+          >
+            {downloading === "signed"
+              ? "Telechargement..."
+              : "PDF signe"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ContractField({
+  label,
+  children,
+  wide = false
+}) {
+  return (
+    <label
+      className={`contractField ${
+        wide ? "contractFieldWide" : ""
+      }`}
+    >
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function SignatureProgress({ signers }) {
+  return (
+    <div className="contractSignerList">
+      {signers.map((signer) => (
+        <div
+          className="contractSignerItem"
+          key={signer.id}
+        >
+          <span>{signer.signingOrder}</span>
+
+          <div>
+            <strong>{signer.label}</strong>
+            <small>
+              {signer.name} - {signer.email}
+            </small>
+          </div>
+
+          <span
+            className={`statusPill ${signerStatusClass(
+              signer.status
+            )}`}
+          >
+            {signerStatusLabel(signer.status)}
+          </span>
+        </div>
+      ))}
+
+      {!signers.length && (
+        <p className="notice">
+          Les signataires seront prepares au moment
+          de l'envoi.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function contractToForm(contract) {
+  return {
+    schoolYear: formValue(contract.schoolYear),
+    session: formValue(contract.session),
+    codeProgram: formValue(contract.codeProgram),
+    functionStage: formValue(contract.functionStage),
+    descriptionStage: formValue(
+      contract.descriptionStage ||
+        contract.taskSummary
+    ),
+    isPaid: Boolean(contract.isPaid),
+    hourlySalary: formValue(contract.hourlySalary),
+    monetaryCompensation: formValue(
+      contract.monetaryCompensation
+    ),
+    otherCompensation: formValue(
+      contract.otherCompensation
+    ),
+    hoursPerWeek: formValue(contract.hoursPerWeek),
+    numberOfWeeks: formValue(
+      contract.numberOfWeeks
+    ),
+    scheduleType: formValue(contract.scheduleType)
+  };
 }
 
 function StudentProfile({ student }) {
@@ -751,11 +1466,12 @@ function DetailItem({
 }
 
 function ContractsSummary({
+  contracts = [],
   requests,
   onNavigate,
   expanded = false
 }) {
-  const contractRequests = requests.filter(
+  const fallbackRequests = requests.filter(
     (request) =>
       [
         "APPROUVEE",
@@ -764,52 +1480,62 @@ function ContractsSummary({
       ].includes(request.status)
   );
 
+  const summaryRows = contracts.length
+    ? contracts
+    : fallbackRequests.map((request) => ({
+        id: `request-${request.id}`,
+        companyName: request.companyName,
+        startDate: request.startDate,
+        endDate: request.endDate,
+        status: request.status
+      }));
+
   return (
     <section className="studentPanel">
       <div className="panelHeader">
         <h2>Mes contrats</h2>
 
         <span className="statusPill">
-          {contractRequests.length}
+          {summaryRows.length}
         </span>
       </div>
 
-      {contractRequests.map((request) => (
+      {summaryRows.map((contract) => (
         <div
           className="contractRow"
-          key={request.id}
+          key={contract.id}
         >
           <span
-            className={`contractDot ${statusClass(
-              request.status
+            className={`contractDot ${contractStatusClass(
+              contract
             )}`}
           />
 
           <div>
             <strong>
-              {request.companyName}
+              {contract.companyName}
             </strong>
 
             <span>
               {formatDate(
-                request.startDate
+                contract.startDate
               )}{" "}
               au{" "}
-              {formatDate(request.endDate)}
+              {formatDate(contract.endDate)}
             </span>
           </div>
 
           <span
-            className={`statusPill ${statusClass(
-              request.status
+            className={`statusPill ${contractStatusClass(
+              contract
             )}`}
           >
-            {statusLabel(request.status)}
+            {contractStatusLabel(contract)}
           </span>
         </div>
       ))}
 
-      {!contractRequests.length && (
+      {!summaryRows.length && (
         <p className="notice">
           Aucun contrat disponible pour le
           moment.
@@ -923,6 +1649,100 @@ function statusClass(status) {
   return "statusYellow";
 }
 
+function contractStatusLabel(contract) {
+  if (
+    contract.status === "A_COMPLETER_ETUDIANT" &&
+    isContractReady(contract)
+  ) {
+    return "Pret pour signature";
+  }
+
+  const labels = {
+    A_COMPLETER_ETUDIANT: "Contrat a completer",
+    SIGNATURE_ENTREPRISE:
+      "En attente du milieu de stage",
+    SIGNATURE_SUPERVISEUR:
+      "En attente de l'enseignant",
+    SIGNATURE_CONSEILLERE:
+      "En attente de la conseillere",
+    SIGNATURE_DIRECTION:
+      "En attente de la direction",
+    DOSSIER_COMPLET: "Signe et termine",
+    REJETE: "Refuse",
+    APPROUVEE: "Contrat a completer",
+    CONTRAT_EN_COURS: "Contrat a completer"
+  };
+
+  return labels[contract.status] || "Contrat a completer";
+}
+
+function contractStatusClass(contract) {
+  if (
+    contract.status === "DOSSIER_COMPLET" ||
+    contract.folderStatus === "DOSSIER_COMPLET"
+  ) {
+    return "statusGreen";
+  }
+
+  if (contract.status === "REJETE") {
+    return "statusRed";
+  }
+
+  if (
+    [
+      "SIGNATURE_ENTREPRISE",
+      "SIGNATURE_SUPERVISEUR",
+      "SIGNATURE_CONSEILLERE",
+      "SIGNATURE_DIRECTION"
+    ].includes(contract.status)
+  ) {
+    return "statusOrange";
+  }
+
+  return "statusYellow";
+}
+
+function signerStatusLabel(status) {
+  const labels = {
+    EN_ATTENTE: "En attente",
+    ENVOYE: "Envoye",
+    SIGNE: "Signe",
+    REFUSE: "Refuse",
+    EXPIRE: "Expire"
+  };
+
+  return labels[status] || status || "-";
+}
+
+function signerStatusClass(status) {
+  if (status === "SIGNE") {
+    return "statusGreen";
+  }
+
+  if (status === "REFUSE" || status === "EXPIRE") {
+    return "statusRed";
+  }
+
+  if (status === "ENVOYE") {
+    return "statusOrange";
+  }
+
+  return "statusYellow";
+}
+
+function isContractReady(contract) {
+  return Boolean(
+    contract.schoolYear &&
+      contract.session &&
+      contract.codeProgram &&
+      contract.functionStage &&
+      contract.descriptionStage &&
+      contract.hoursPerWeek &&
+      contract.numberOfWeeks &&
+      contract.scheduleType
+  );
+}
+
 function scheduleTypeLabel(value) {
   const labels = {
     TEMPS_PLEIN: "Temps plein",
@@ -1011,6 +1831,18 @@ function displayValue(value) {
     value === ""
   ) {
     return "-";
+  }
+
+  return String(value);
+}
+
+function formValue(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ""
+  ) {
+    return "";
   }
 
   return String(value);

@@ -15,6 +15,7 @@ DROP TABLE IF EXISTS etudiants_charge_paie;
 DROP TABLE IF EXISTS charges_paie_supervision;
 DROP TABLE IF EXISTS evenements_workflow;
 DROP TABLE IF EXISTS documents;
+DROP TABLE IF EXISTS documenso_webhook_events;
 DROP TABLE IF EXISTS signatures_contrat;
 DROP TABLE IF EXISTS contrats;
 DROP TABLE IF EXISTS demandes_stage;
@@ -178,6 +179,7 @@ CREATE TABLE contrats (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   dossier_stage_id BIGINT UNSIGNED NOT NULL,
   demande_stage_id BIGINT UNSIGNED NOT NULL UNIQUE,
+  external_id VARCHAR(120),
   annee_scolaire VARCHAR(20),
   session VARCHAR(20),
   code_programme VARCHAR(40),
@@ -201,15 +203,24 @@ CREATE TABLE contrats (
     'REJETE'
   ) NOT NULL DEFAULT 'A_COMPLETER_ETUDIANT',
   chemin_fichier_genere VARCHAR(255),
+  pdf_original_path VARCHAR(255),
   chemin_fichier_televerse VARCHAR(255),
-  fournisseur_signature ENUM('OPENSIGN', 'DOCUSEAL', 'SIGNWELL', 'AUTRE'),
+  pdf_signed_path VARCHAR(255),
+  fournisseur_signature ENUM('OPENSIGN', 'DOCUSEAL', 'SIGNWELL', 'DOCUMENSO', 'AUTRE'),
   enveloppe_externe_id VARCHAR(255),
   document_externe_id VARCHAR(255),
+  documenso_document_id VARCHAR(255),
+  documenso_status VARCHAR(60),
   url_signature TEXT,
   genere_le DATETIME,
   complete_le DATETIME,
+  submitted_at DATETIME,
+  completed_at DATETIME,
+  rejected_at DATETIME,
   cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   modifie_le DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_contrats_external_id (external_id),
+  INDEX idx_contrats_documenso_document_id (documenso_document_id),
   CONSTRAINT fk_contrats_dossier
     FOREIGN KEY (dossier_stage_id) REFERENCES dossiers_stage(id) ON DELETE CASCADE,
   CONSTRAINT fk_contrats_demande
@@ -225,7 +236,7 @@ CREATE TABLE signatures_contrat (
   nom_signataire VARCHAR(160) NOT NULL,
   courriel_signataire VARCHAR(255) NOT NULL,
   statut ENUM('EN_ATTENTE', 'ENVOYE', 'SIGNE', 'REFUSE', 'EXPIRE') NOT NULL DEFAULT 'EN_ATTENTE',
-  fournisseur_signature ENUM('OPENSIGN', 'DOCUSEAL', 'SIGNWELL', 'AUTRE'),
+  fournisseur_signature ENUM('OPENSIGN', 'DOCUSEAL', 'SIGNWELL', 'DOCUMENSO', 'AUTRE'),
   signature_externe_id VARCHAR(255),
   url_signature TEXT,
   signe_le DATETIME,
@@ -236,6 +247,17 @@ CREATE TABLE signatures_contrat (
     FOREIGN KEY (contrat_id) REFERENCES contrats(id) ON DELETE CASCADE,
   CONSTRAINT fk_signatures_contrat_utilisateur
     FOREIGN KEY (utilisateur_signataire_id) REFERENCES utilisateurs(id)
+) ENGINE=InnoDB;
+
+CREATE TABLE documenso_webhook_events (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  event_key CHAR(64) NOT NULL UNIQUE,
+  event_type VARCHAR(80) NOT NULL,
+  documenso_document_id VARCHAR(255),
+  external_id VARCHAR(120),
+  traite_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_documenso_webhook_document (documenso_document_id),
+  INDEX idx_documenso_webhook_external (external_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE documents (

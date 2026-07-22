@@ -728,6 +728,140 @@ h2 {
   background: #fee2e2;
 }
 
+.studentSuccess {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  color: #166534;
+  background: #f0fdf4;
+  font-weight: 700;
+}
+
+.contractSelector {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 18px;
+}
+
+.contractSelector label,
+.contractField span {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.contractSelector select,
+.contractField input,
+.contractField select,
+.contractField textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  background: #fff;
+  font: inherit;
+}
+
+.contractField textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.contractDetails {
+  display: grid;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.contractStatusHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.contractStatusHeader strong,
+.contractStatusHeader span {
+  display: block;
+}
+
+.contractStatusHeader span {
+  color: #64748b;
+}
+
+.contractInfoGrid,
+.contractFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.contractField {
+  display: grid;
+  gap: 7px;
+}
+
+.contractFieldWide {
+  grid-column: 1 / -1;
+}
+
+.contractCheck {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  color: #475569;
+  font-weight: 700;
+}
+
+.contractSignerList {
+  display: grid;
+  gap: 10px;
+}
+
+.contractSignerItem {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.contractSignerItem > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: #1d4ed8;
+  background: #dbeafe;
+  font-weight: 800;
+}
+
+.contractSignerItem strong,
+.contractSignerItem small {
+  display: block;
+}
+
+.contractSignerItem small {
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+
+.contractActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 @media (max-width: 900px) {
   .loginPage,
   .appLayout,
@@ -755,7 +889,15 @@ h2 {
   }
 
   .studentDashboardGrid,
-  .studentInfo.twoColumns {
+  .studentInfo.twoColumns,
+  .contractInfoGrid,
+  .contractFormGrid,
+  .contractSignerItem {
     grid-template-columns: 1fr;
+  }
+
+  .contractStatusHeader {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

@@ -8,6 +8,7 @@
     "dev:frontend": "vite",
     "dev:backend": "node backend/server.js",
     "start": "node backend/server.js",
+    "test": "node --test backend/tests/*.test.js",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"

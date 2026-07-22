@@ -1,4 +1,5 @@
 import { createDbPool } from "../config/db.js";
+import { syncContractSignersForContract } from "./contractService.js";
 
 const db = createDbPool();
 
@@ -458,6 +459,11 @@ async function createContractIfMissing(
       ]
     );
 
+    await syncContractSignersForContract(
+      connection,
+      existingRows[0].id
+    );
+
     return existingRows[0].id;
   }
 
@@ -497,6 +503,11 @@ async function createContractIfMissing(
       Number(totalHours.toFixed(2)),
       request.scheduleType
     ]
+  );
+
+  await syncContractSignersForContract(
+    connection,
+    result.insertId
   );
 
   return result.insertId;

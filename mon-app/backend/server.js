@@ -5,6 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer as createViteServer } from "vite";
 import authRoutes from "./routes/authRoute.js";
+import contractRoutes from "./routes/contractRoute.js";
+import documensoWebhookRoutes from "./routes/documensoWebhookRoute.js";
 import mileageRoutes from "./routes/mileageRoute.js";
 import payrollRoutes from "./routes/payrollRoute.js";
 import studentRoutes from "./routes/studentRoute.js";
@@ -31,7 +33,9 @@ const payrollRepo = createPayrollRepo(db);
 app.use(express.json());
 
 app.use("/api/auth", authRoutes({ usersRepo }));
+app.use("/api/webhooks", documensoWebhookRoutes);
 app.use("/api/students", studentRoutes);
+app.use("/api/contracts", contractRoutes);
 app.use("/api/mileage", mileageRoutes({ mileageTripsRepo }));
 app.use("/api/supervisor/stages", supervisorStageRoutes);
 app.use("/api/payroll", payrollRoutes({ payrollRepo }));
