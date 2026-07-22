@@ -2,6 +2,13 @@
   font-family: Arial, Helvetica, sans-serif;
   color: #1f2937;
   background: #f6f7fb;
+  --color-primary: #173f83;
+  --color-accent: #f97316;
+  --color-link: #2563eb;
+  --color-border: #e2e8f0;
+  --color-muted: #64748b;
+  --color-surface: #ffffff;
+  --shadow-panel: 0 8px 24px rgba(15, 23, 42, 0.06);
 }
 
 * {
@@ -23,6 +30,12 @@ textarea {
 
 button {
   cursor: pointer;
+  transition:
+    background-color 0.16s ease,
+    border-color 0.16s ease,
+    color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
 }
 
 button:disabled {
@@ -183,15 +196,15 @@ button:disabled {
 .logout-button {
   min-height: 42px;
   padding: 0 16px;
-  border: 0;
-  border-radius: 7px;
-  font-weight: 700;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-weight: 600;
 }
 
 .primaryButton {
   width: 100%;
   color: #ffffff;
-  background: #2563eb;
+  background: var(--color-link);
 }
 
 .fitButton {
@@ -199,8 +212,9 @@ button:disabled {
 }
 
 .secondaryButton {
-  color: #1d4ed8;
-  background: #eef2ff;
+  color: #173f83;
+  border-color: #cbd5e1;
+  background: #ffffff;
 }
 
 .dangerButton,
@@ -209,24 +223,54 @@ button:disabled {
   background: #dc3545;
 }
 
+.primaryButton:hover:not(:disabled),
+.secondaryButton:hover:not(:disabled),
+.dangerButton:hover:not(:disabled) {
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+  transform: translateY(-1px);
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: #1d4ed8;
+}
+
+.secondaryButton:hover:not(:disabled) {
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.dangerButton:hover:not(:disabled) {
+  background: #b91c1c;
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled,
+.dangerButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .errorText,
 .error-message,
 .studentError {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid #fecaca;
-  border-radius: 7px;
+  border-radius: 8px;
   color: #991b1b;
   background: #fef2f2;
   font-size: 14px;
+  line-height: 1.45;
 }
 
 .studentSuccess {
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 1px solid #bbf7d0;
-  border-radius: 7px;
+  border-radius: 8px;
   color: #166534;
   background: #f0fdf4;
   font-size: 14px;
+  line-height: 1.45;
 }
 
 .appLayout {
@@ -342,7 +386,8 @@ button:disabled {
 }
 
 .contentArea {
-  padding: 36px 42px;
+  width: min(100%, 1280px);
+  padding: 34px 40px;
 }
 
 .topHeader {
@@ -373,18 +418,19 @@ h2 {
 .dashboardHero,
 .panel,
 .studentPanel {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
 }
 
 .studentHeroCard {
-  padding: 24px;
+  padding: 26px;
   margin-bottom: 24px;
-  border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  background: #ffffff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
 }
 
 .studentHeroHeader,
@@ -444,7 +490,7 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 22px;
+  padding: 24px 26px;
   margin-bottom: 18px;
 }
 
@@ -455,7 +501,7 @@ h2 {
 
 .panel,
 .studentPanel {
-  padding: 22px;
+  padding: 24px;
   margin-bottom: 18px;
 }
 
@@ -469,7 +515,15 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 18px;
+}
+
+.panelHeader p {
+  max-width: 760px;
+  margin: 6px 0 0;
+  color: var(--color-muted);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .stageInfo {
@@ -488,7 +542,8 @@ h2 {
 .studentInfo div {
   display: grid;
   gap: 6px;
-  padding: 14px;
+  padding: 15px;
+  border: 1px solid #edf2f7;
   border-radius: 7px;
   background: #f8fafc;
 }
@@ -503,6 +558,12 @@ h2 {
 .stageInfo span,
 .studentInfo span {
   color: #4b5563;
+}
+
+.statCard span {
+  color: #0f172a;
+  font-size: 24px;
+  font-weight: 700;
 }
 
 .studentForm {
@@ -642,20 +703,23 @@ h2 {
 
 .studentTableWrap {
   overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
 }
 
 .studentTableWrap table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+  background: #ffffff;
 }
 
 .studentTableWrap th,
 .studentTableWrap td {
-  padding: 12px 10px;
+  padding: 13px 14px;
   border-bottom: 1px solid #e5e7eb;
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .studentTableWrap th {
@@ -682,6 +746,14 @@ h2 {
 .tableActions button {
   min-height: 34px;
   padding: 0 10px;
+}
+
+.studentTableWrap .primaryButton,
+.studentTableWrap .secondaryButton,
+.studentTableWrap .dangerButton {
+  width: auto;
+  min-height: 36px;
+  padding: 0 12px;
 }
 
 .contractRow {
@@ -750,33 +822,446 @@ h2 {
 .statusPill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  gap: 6px;
   min-height: 26px;
-  padding: 3px 9px;
+  padding: 4px 10px;
   border-radius: 999px;
+  border: 1px solid transparent;
   color: #1d4ed8;
   background: #dbeafe;
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .statusGreen {
   color: #166534;
   background: #dcfce7;
+  border-color: #bbf7d0;
 }
 
 .statusYellow {
   color: #92400e;
   background: #fef3c7;
+  border-color: #fde68a;
 }
 
 .statusOrange {
   color: #c2410c;
   background: #ffedd5;
+  border-color: #fed7aa;
 }
 
 .statusRed {
   color: #991b1b;
   background: #fee2e2;
+  border-color: #fecaca;
+}
+
+.statusBlue {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border-color: #bfdbfe;
+}
+
+.nextActionText {
+  display: grid;
+  gap: 4px;
+}
+
+.nextActionText strong {
+  color: #0f172a;
+}
+
+.nextActionText span {
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.studentSuccess {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  color: #166534;
+  background: #f0fdf4;
+  font-weight: 700;
+}
+
+.contractSelector {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 18px;
+}
+
+.contractSelector label,
+.contractField span {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.requiredMark {
+  color: #dc2626;
+  font-weight: 800;
+}
+
+.fieldHelp {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.fieldError {
+  color: #b91c1c;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.requiredHint,
+.tableResultCount {
+  color: var(--color-muted);
+  font-size: 13px;
+  margin: 0 0 16px;
+}
+
+.documentUploadInline {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  width: 100%;
+}
+
+.receiptPanel {
+  background: #ecfdf3;
+  border: 1px solid #abefc6;
+  border-radius: 8px;
+  color: #067647;
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.workflowStepList {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.workflowStepList li {
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 28px 1fr;
+  padding: 10px 12px;
+}
+
+.workflowStepList span {
+  align-items: center;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.workflowStepDone {
+  background: #ecfdf3;
+  color: #067647;
+}
+
+.workflowStepCurrent {
+  background: #fff7ed;
+  color: #b54708;
+}
+
+.workflowStepPending {
+  background: #f9fafb;
+  color: #667085;
+}
+
+.workflowStepDone span {
+  background: #abefc6;
+}
+
+.workflowStepCurrent span {
+  background: #fedf89;
+}
+
+.workflowStepPending span {
+  background: #eaecf0;
+}
+
+.correctionMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 8px;
+  color: var(--color-muted);
+  font-size: 12px;
+}
+
+.documentPanel {
+  margin: 18px 0;
+  padding: 18px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+}
+
+.documentChoiceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin-top: 6px;
+}
+
+.field input[aria-invalid="true"],
+.field select[aria-invalid="true"],
+.field textarea[aria-invalid="true"],
+.contractField input[aria-invalid="true"],
+.contractField select[aria-invalid="true"],
+.contractField textarea[aria-invalid="true"] {
+  border-color: #ef4444;
+  background: #fff7f7;
+}
+
+.studentMessage,
+.loadingState,
+.emptyState {
+  padding: 18px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  color: var(--color-muted);
+  background: #f8fafc;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.emptyState {
+  display: grid;
+  gap: 6px;
+  text-align: center;
+}
+
+.emptyState strong {
+  color: #0f172a;
+}
+
+.tableToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 12px 0 16px;
+}
+
+.tableFilter {
+  display: inline-grid;
+  min-width: min(260px, 100%);
+  gap: 6px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tableFilter select {
+  min-height: 40px;
+  padding: 9px 34px 9px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  background: #ffffff;
+}
+
+.tablePrimaryText {
+  display: block;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.contractSelector select,
+.contractField input,
+.contractField select,
+.contractField textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #0f172a;
+  background: #fff;
+  font: inherit;
+}
+
+.contractField textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+.contractDetails {
+  display: grid;
+  gap: 18px;
+  margin-top: 16px;
+}
+
+.contractSection {
+  display: grid;
+  gap: 14px;
+  padding-top: 18px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.contractSection h3 {
+  margin: 0;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.contractStatusHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.contractStatusHeader strong,
+.contractStatusHeader span {
+  display: block;
+}
+
+.contractStatusHeader span {
+  color: #64748b;
+}
+
+.contractReadOnlyGrid,
+.contractFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.contractReadOnlyItem {
+  display: grid;
+  gap: 5px;
+  padding: 2px 0 10px;
+  border-bottom: 1px solid #edf2f7;
+}
+
+.contractReadOnlyItem strong {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.studentTableWrap tbody tr:hover {
+  background: #f8fafc;
+}
+
+.studentTableWrap tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.contractReadOnlyItem span {
+  color: #0f172a;
+  overflow-wrap: anywhere;
+}
+
+.contractReadOnlyWide {
+  grid-column: 1 / -1;
+}
+
+.contractField {
+  display: grid;
+  gap: 7px;
+}
+
+.contractFieldWide {
+  grid-column: 1 / -1;
+}
+
+.contractField input:disabled,
+.contractField select:disabled,
+.contractField textarea:disabled {
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.contractCheck {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  color: #475569;
+  font-weight: 700;
+}
+
+.contractSignerList {
+  display: grid;
+  gap: 10px;
+}
+
+.contractSignerItem {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.contractSignerItem > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  color: #1d4ed8;
+  background: #dbeafe;
+  font-weight: 800;
+}
+
+.contractSignerItem strong,
+.contractSignerItem small {
+  display: block;
+}
+
+.contractSignerItem small {
+  color: #64748b;
+  overflow-wrap: anywhere;
+}
+
+.contractActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.contractActions .primaryButton,
+.contractActions .secondaryButton,
+.requestActions .primaryButton,
+.requestActions .secondaryButton {
+  width: auto;
 }
 
 @media (max-width: 900px) {
@@ -806,7 +1291,39 @@ h2 {
   }
 
   .studentDashboardGrid,
-  .studentInfo.twoColumns {
+  .studentInfo.twoColumns,
+  .contractReadOnlyGrid,
+  .contractFormGrid,
+  .documentUploadInline,
+  .contractSignerItem {
+    grid-template-columns: 1fr;
+  }
+
+  .contractStatusHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tableToolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tableFilter {
+    width: 100%;
+  }
+
+  .studentTableWrap {
+    border: 0;
+    border-radius: 0;
+  }
+
+  .studentTableWrap th,
+  .studentTableWrap td {
+    padding: 12px 10px;
+  }
+
+  .documentChoiceGrid {
     grid-template-columns: 1fr;
   }
 }

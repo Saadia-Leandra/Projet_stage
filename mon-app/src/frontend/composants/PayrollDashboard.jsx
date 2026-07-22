@@ -1,4 +1,4 @@
-﻿import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import FrozenRouteSnapshot from "./FrozenRouteSnapshot.jsx";
 
@@ -27,7 +27,7 @@ export default function PayrollDashboard({ user }) {
     );
   }, [supervisors]);
 
-  async function loadPayroll() {
+  const loadPayroll = useCallback(async () => {
     const token = localStorage.getItem("token");
 
     if (!token) {
@@ -72,9 +72,9 @@ export default function PayrollDashboard({ user }) {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  async function loadSettings() {
+  const loadSettings = useCallback(async () => {
     if (user.role !== "SUPERVISEUR") {
       return;
     }
@@ -101,12 +101,12 @@ export default function PayrollDashboard({ user }) {
     } catch {
       setError("Erreur de connexion au serveur.");
     }
-  }
+  }, [user.role]);
 
   useEffect(() => {
     loadPayroll();
     loadSettings();
-  }, []);
+  }, [loadPayroll, loadSettings]);
 
   async function updateStatus(chargeId, status, refusalReason = null) {
     const token = localStorage.getItem("token");

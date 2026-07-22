@@ -1,0 +1,40 @@
+export const QUEBEC_CITIES = [
+  "Montréal",
+  "Québec",
+  "Laval",
+  "Gatineau",
+  "Longueuil",
+  "Sherbrooke",
+  "Lévis",
+  "Saguenay",
+  "Trois-Rivières",
+  "Terrebonne",
+  "Saint-Jean-sur-Richelieu",
+  "Brossard",
+  "Repentigny",
+  "Drummondville",
+  "Saint-Jérôme",
+  "Granby",
+  "Blainville",
+  "Shawinigan",
+  "Rimouski",
+  "Victoriaville",
+  "Rouyn-Noranda",
+  "Saint-Hyacinthe"
+];
+
+export const CANADIAN_PROVINCES = [
+  "Québec",
+  "Ontario",
+  "Nouveau-Brunswick",
+  "Nouvelle-Écosse",
+  "Île-du-Prince-Édouard",
+  "Terre-Neuve-et-Labrador",
+  "Manitoba",
+  "Saskatchewan",
+  "Alberta",
+  "Colombie-Britannique",
+  "Yukon",
+  "Territoires du Nord-Ouest",
+  "Nunavut"
+];

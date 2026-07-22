@@ -1,6 +1,27 @@
 import { createDbPool } from "../config/db.js";
+import { generateInternshipRequestPdf } from "./contractPdfService.js";
+import { createNotificationForUsers } from "./notificationService.js";
+import { parseDocumentList } from "./stageRequestCorrectionService.js";
 
 const db = createDbPool();
+
+export const ACTIVE_STAGE_REQUEST_STATUSES = [
+  "BROUILLON",
+  "SOUMISE",
+  "A_REVISER",
+  "DOCUMENTS_MANQUANTS",
+  "APPROUVEE"
+];
+
+export const ACTIVE_STAGE_FOLDER_STATUSES = [
+  "DEMANDE_SOUMISE",
+  "CONTRAT_EN_COURS",
+  "ATTENTE_SIGNATURE",
+  "DOCUMENT_INCOMPLET"
+];
+
+const activeRequestMessage =
+  "Vous avez deja une demande de stage active. Terminez ou corrigez cette demande avant d'en creer une nouvelle.";
 
 export async function getStudentDashboard(studentId) {
   const student = await getStudentProfile(studentId);
@@ -33,14 +54,34 @@ export async function getStudentRequests(studentId) {
         d.autre_compensation AS otherCompensation,
         d.statut AS status,
         d.motif_refus AS refusalReason,
+        d.correction_raison AS correctionReason,
+        d.correction_elements AS correctionItems,
+        d.correction_documents_demandes AS correctionMissingDocuments,
+        d.correction_commentaire_etudiant AS correctionStudentComment,
+        d.correction_demandee_le AS correctionRequestedAt,
+        d.resoumis_le AS resubmittedAt,
         d.cree_le AS createdAt,
         d.modifie_le AS updatedAt,
+
+        correction_user.prenom AS correctionRequestedByFirstName,
+        correction_user.nom AS correctionRequestedByLastName,
+        correction_user.role AS correctionRequestedByRole,
+
+        student_user.telephone AS studentPhone,
+        etu.adresse AS studentAddress,
+        etu.ville AS studentCity,
+        etu.province AS studentProvince,
+        etu.code_postal AS studentPostalCode,
+        etu.expiration_caq AS expirationCaq,
+        etu.expiration_permis_etudes AS expirationStudyPermit,
+        etu.expiration_assurance AS expirationInsurance,
 
         ent.id AS companyId,
         ent.nom AS companyName,
         ent.neq AS companyNeq,
         ent.adresse AS companyAddress,
         ent.ville AS companyCity,
+        ent.province AS companyProvince,
         ent.code_postal AS companyPostalCode,
         ent.telephone AS companyPhone,
         ent.poste_telephonique AS companyPhoneExtension,
@@ -61,11 +102,21 @@ export async function getStudentRequests(studentId) {
 
       FROM dossiers_stage ds
 
+      INNER JOIN utilisateurs student_user
+        ON student_user.id = ds.etudiant_id
+
+      INNER JOIN etudiants etu
+        ON etu.utilisateur_id = student_user.id
+
       INNER JOIN demandes_stage d
         ON d.dossier_stage_id = ds.id
 
       INNER JOIN entreprises ent
         ON ent.id = d.entreprise_id
+
+      LEFT JOIN utilisateurs correction_user
+        ON correction_user.id =
+          d.correction_demandee_par_utilisateur_id
 
       WHERE ds.etudiant_id = ?
 
@@ -74,10 +125,7 @@ export async function getStudentRequests(studentId) {
     [studentId]
   );
 
-  return rows.map((row) => ({
-    ...row,
-    isPaid: Boolean(row.isPaid)
-  }));
+  return rows.map(formatStudentRequest);
 }
 
 export async function createInternshipRequest(
@@ -95,12 +143,23 @@ export async function createInternshipRequest(
       connection
     );
 
+    await ensureNoActiveStageRequest(
+      connection,
+      studentId
+    );
+
+    await updateStudentProfileForStage(
+      connection,
+      studentId,
+      requestData
+    );
+
     const companyId = await createCompany(
       connection,
       requestData
     );
 
-    const folderId = await findOrCreateFolder(
+    const folderId = await createStageFolder(
       connection,
       student
     );
@@ -158,6 +217,31 @@ export async function createInternshipRequest(
       [folderId]
     );
 
+    await createWorkflowEvent(connection, {
+      folderId,
+      actorId: studentId,
+      eventType: "DEMANDE_SOUMISE",
+      oldStatus: "DEMANDE_NON_CREEE",
+      newStatus: "SOUMISE",
+      comment:
+        "La demande de stage a ete soumise par l'etudiant."
+    });
+
+    await createNotificationForUsers(connection, {
+      title: "Demande de stage a traiter",
+      message: `La demande de stage de ${[
+        student.firstName,
+        student.lastName
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim() || "l'etudiant"} a ete soumise.`,
+      type: "DEMANDE_STAGE_SOUMISE",
+      requestId: result.insertId,
+      actionUrl: `/supervisor/stages/requests/${result.insertId}`,
+      userIds: [student.supervisorId]
+    });
+
     await connection.commit();
 
     return {
@@ -175,6 +259,58 @@ export async function createInternshipRequest(
   }
 }
 
+export async function getStudentRequestFile(
+  studentId,
+  requestId
+) {
+  const request = await findStudentRequestForPdf(
+    studentId,
+    requestId
+  );
+
+  return generateInternshipRequestPdf(request);
+}
+
+export async function updateStudentProfileForStage(
+  connection,
+  studentId,
+  data
+) {
+  await connection.execute(
+    `
+      UPDATE utilisateurs
+      SET telephone = COALESCE(?, telephone)
+      WHERE id = ?
+    `,
+    [data.studentPhone, studentId]
+  );
+
+  await connection.execute(
+    `
+      UPDATE etudiants
+      SET
+        adresse = COALESCE(?, adresse),
+        ville = COALESCE(?, ville),
+        province = COALESCE(?, province),
+        code_postal = COALESCE(?, code_postal),
+        expiration_caq = COALESCE(?, expiration_caq),
+        expiration_permis_etudes = COALESCE(?, expiration_permis_etudes),
+        expiration_assurance = COALESCE(?, expiration_assurance)
+      WHERE utilisateur_id = ?
+    `,
+    [
+      data.studentAddress,
+      data.studentCity,
+      data.studentProvince,
+      data.studentPostalCode,
+      data.expirationCaq,
+      data.expirationStudyPermit,
+      data.expirationInsurance,
+      studentId
+    ]
+  );
+}
+
 async function getStudentProfile(
   studentId,
   connection = db
@@ -186,10 +322,18 @@ async function getStudentProfile(
         u.courriel AS email,
         u.prenom AS firstName,
         u.nom AS lastName,
+        u.telephone AS phone,
         e.code_permanent AS codePermanent,
         e.code_etudiant AS studentCode,
         e.programme,
         e.groupe,
+        e.adresse AS address,
+        e.ville AS city,
+        e.province AS province,
+        e.code_postal AS postalCode,
+        e.expiration_caq AS expirationCaq,
+        e.expiration_permis_etudes AS expirationStudyPermit,
+        e.expiration_assurance AS expirationInsurance,
         e.superviseur_id AS supervisorId
 
       FROM utilisateurs u
@@ -214,6 +358,101 @@ async function getStudentProfile(
   return student;
 }
 
+async function findStudentRequestForPdf(
+  studentId,
+  requestId
+) {
+  const [rows] = await db.execute(
+    `
+      SELECT
+        d.id,
+        d.resume_taches AS taskSummary,
+        d.date_debut AS startDate,
+        d.date_fin AS endDate,
+        d.horaire_stage AS workSchedule,
+        d.heures_semaine AS hoursPerWeek,
+        d.langue_travail AS workLanguage,
+        d.type_horaire AS scheduleType,
+        d.nombre_semaines AS numberOfWeeks,
+        d.est_remunere AS isPaid,
+        d.salaire_horaire AS hourlySalary,
+        d.autre_compensation AS otherCompensation,
+        d.statut AS status,
+
+        student_user.prenom AS studentFirstName,
+        student_user.nom AS studentLastName,
+        student_user.courriel AS studentEmail,
+        student_user.telephone AS studentPhone,
+        etu.code_etudiant AS studentCode,
+        etu.code_permanent AS studentPermanentCode,
+        etu.programme AS program,
+        etu.groupe AS studentGroup,
+        etu.adresse AS studentAddress,
+        etu.ville AS studentCity,
+        etu.province AS studentProvince,
+        etu.code_postal AS studentPostalCode,
+        etu.expiration_caq AS expirationCaq,
+        etu.expiration_permis_etudes AS expirationStudyPermit,
+        etu.expiration_assurance AS expirationInsurance,
+
+        ent.nom AS companyName,
+        ent.neq AS companyNeq,
+        ent.adresse AS companyAddress,
+        ent.ville AS companyCity,
+        ent.province AS companyProvince,
+        ent.code_postal AS companyPostalCode,
+        ent.telephone AS companyPhone,
+        ent.poste_telephonique AS companyPhoneExtension,
+        ent.courriel AS companyEmail,
+        ent.site_web AS companyWebsite,
+        ent.type_organisation AS organizationType,
+        ent.secteur_activite AS businessSector,
+        ent.contact_rh_nom AS hrName,
+        ent.contact_rh_courriel AS hrEmail,
+        ent.contact_rh_telephone AS hrPhone,
+        ent.contact_rh_poste AS hrExtension,
+        ent.superviseur_nom AS supervisorName,
+        ent.superviseur_titre AS supervisorTitle,
+        ent.superviseur_courriel AS supervisorEmail,
+        ent.superviseur_telephone AS supervisorPhone
+
+      FROM demandes_stage d
+
+      INNER JOIN dossiers_stage ds
+        ON ds.id = d.dossier_stage_id
+
+      INNER JOIN utilisateurs student_user
+        ON student_user.id = ds.etudiant_id
+
+      INNER JOIN etudiants etu
+        ON etu.utilisateur_id = student_user.id
+
+      INNER JOIN entreprises ent
+        ON ent.id = d.entreprise_id
+
+      WHERE d.id = ?
+        AND ds.etudiant_id = ?
+
+      LIMIT 1
+    `,
+    [requestId, studentId]
+  );
+
+  const request = rows[0];
+
+  if (!request) {
+    throw createError(
+      "Demande de stage introuvable.",
+      404
+    );
+  }
+
+  return {
+    ...request,
+    isPaid: Boolean(request.isPaid)
+  };
+}
+
 async function createCompany(
   connection,
   data
@@ -230,6 +469,7 @@ async function createCompany(
         neq,
         adresse,
         ville,
+        province,
         code_postal,
         telephone,
         poste_telephonique,
@@ -251,7 +491,7 @@ async function createCompany(
       )
       VALUES (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
 
       ON DUPLICATE KEY UPDATE
@@ -259,6 +499,7 @@ async function createCompany(
         neq = VALUES(neq),
         adresse = VALUES(adresse),
         ville = VALUES(ville),
+        province = VALUES(province),
         code_postal = VALUES(code_postal),
         telephone = VALUES(telephone),
         poste_telephonique =
@@ -299,6 +540,7 @@ async function createCompany(
       data.companyNeq,
       data.companyAddress,
       data.companyCity,
+      data.companyProvince,
       data.companyPostalCode,
       data.companyPhone,
       data.companyPhoneExtension,
@@ -323,25 +565,10 @@ async function createCompany(
   return result.insertId;
 }
 
-async function findOrCreateFolder(
+async function createStageFolder(
   connection,
   student
 ) {
-  const [folderRows] = await connection.execute(
-    `
-      SELECT id
-      FROM dossiers_stage
-      WHERE etudiant_id = ?
-      ORDER BY cree_le DESC
-      LIMIT 1
-    `,
-    [student.id]
-  );
-
-  if (folderRows[0]) {
-    return folderRows[0].id;
-  }
-
   const [result] = await connection.execute(
     `
       INSERT INTO dossiers_stage (
@@ -360,16 +587,116 @@ async function findOrCreateFolder(
   return result.insertId;
 }
 
+async function ensureNoActiveStageRequest(
+  connection,
+  studentId
+) {
+  const [rows] = await connection.execute(
+    `
+      SELECT
+        ds.id AS folderId,
+        ds.statut AS folderStatus,
+        d.id AS requestId,
+        d.statut AS requestStatus
+      FROM dossiers_stage ds
+      LEFT JOIN demandes_stage d
+        ON d.dossier_stage_id = ds.id
+      WHERE ds.etudiant_id = ?
+        AND (
+          ds.statut IN (${ACTIVE_STAGE_FOLDER_STATUSES.map(
+            () => "?"
+          ).join(", ")})
+          OR d.statut IN (${ACTIVE_STAGE_REQUEST_STATUSES.map(
+            () => "?"
+          ).join(", ")})
+        )
+      LIMIT 1
+    `,
+    [
+      studentId,
+      ...ACTIVE_STAGE_FOLDER_STATUSES,
+      ...ACTIVE_STAGE_REQUEST_STATUSES
+    ]
+  );
+
+  if (rows[0]) {
+    throw createError(activeRequestMessage, 409);
+  }
+}
+
+async function createWorkflowEvent(
+  connection,
+  {
+    folderId,
+    actorId,
+    eventType,
+    oldStatus,
+    newStatus,
+    comment
+  }
+) {
+  await connection.execute(
+    `
+      INSERT INTO evenements_workflow (
+        dossier_stage_id,
+        utilisateur_acteur_id,
+        type_evenement,
+        ancien_statut,
+        nouveau_statut,
+        commentaire
+      )
+      VALUES (?, ?, ?, ?, ?, ?)
+    `,
+    [
+      folderId,
+      actorId,
+      eventType,
+      oldStatus,
+      newStatus,
+      comment
+    ]
+  );
+}
+
+export function isActiveStageRequestStatus(status) {
+  return ACTIVE_STAGE_REQUEST_STATUSES.includes(status);
+}
+
+export function isActiveStageFolderStatus(status) {
+  return ACTIVE_STAGE_FOLDER_STATUSES.includes(status);
+}
+
 function validateRequestData(data = {}) {
   const requestData = {
     taskSummary: clean(data.taskSummary),
     startDate: clean(data.startDate),
     endDate: clean(data.endDate),
 
+    studentPhone: optional(data.studentPhone),
+    studentAddress: optional(data.studentAddress),
+    studentCity: optional(data.studentCity),
+    studentProvince: clean(data.studentProvince),
+    studentPostalCode: optional(
+      data.studentPostalCode
+    ),
+    expirationCaq: optionalDate(
+      data.expirationCaq,
+      "La date d'expiration du CAQ"
+    ),
+    expirationStudyPermit: optionalDate(
+      data.expirationStudyPermit,
+      "La date d'expiration du permis d'etudes"
+    ),
+    expirationInsurance: optionalDate(
+      data.expirationInsurance,
+      "La date d'expiration de l'assurance"
+    ),
+
     companyName: clean(data.companyName),
     companyNeq: optional(data.companyNeq),
     companyAddress: clean(data.companyAddress),
     companyCity: clean(data.companyCity),
+    companyProvince: clean(data.companyProvince),
     companyPostalCode: clean(
       data.companyPostalCode
     ),
@@ -426,9 +753,27 @@ function validateRequestData(data = {}) {
 
   const requiredFields = [
     ["Le résumé des tâches", requestData.taskSummary],
+    [
+      "Le telephone de l'etudiant",
+      requestData.studentPhone
+    ],
+    [
+      "L'adresse de l'etudiant",
+      requestData.studentAddress
+    ],
+    ["La ville de l'etudiant", requestData.studentCity],
+    [
+      "La province de l'etudiant",
+      requestData.studentProvince
+    ],
+    [
+      "Le code postal de l'etudiant",
+      requestData.studentPostalCode
+    ],
     ["Le nom de l’entreprise", requestData.companyName],
     ["L’adresse", requestData.companyAddress],
     ["La ville", requestData.companyCity],
+    ["La province", requestData.companyProvince],
     [
       "Le code postal",
       requestData.companyPostalCode
@@ -597,6 +942,31 @@ function validateRequestData(data = {}) {
   return requestData;
 }
 
+function formatStudentRequest(row) {
+  const correctionMissingDocuments =
+    parseDocumentList(
+      row.correctionMissingDocuments
+    );
+  const correctionRequestedByName = [
+    row.correctionRequestedByFirstName,
+    row.correctionRequestedByLastName
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  return {
+    ...row,
+    isPaid: Boolean(row.isPaid),
+    correctionMissingDocuments,
+    correctionRequestedByName,
+    correctionRequestedByLabel:
+      correctionRequestedByName ||
+      row.correctionRequestedByRole ||
+      ""
+  };
+}
+
 function makeCompanyCode(companyName) {
   const baseCode = clean(companyName)
     .normalize("NFD")
@@ -617,6 +987,23 @@ function optional(value) {
   const cleanedValue = clean(value);
 
   return cleanedValue || null;
+}
+
+function optionalDate(value, fieldName) {
+  const dateValue = optional(value);
+
+  if (!dateValue) {
+    return null;
+  }
+
+  if (!isValidDate(dateValue)) {
+    throw createError(
+      `${fieldName} est invalide.`,
+      400
+    );
+  }
+
+  return dateValue;
 }
 
 function toPositiveNumber(value, fieldName) {
