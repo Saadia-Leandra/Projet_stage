@@ -286,12 +286,12 @@ export default function PayrollDashboard({ user }) {
             return <Fragment key={trip.id}>
               <tr>
                 <td>{trip.supervisorName}</td><td>{new Date(trip.startedAt || trip.calculatedAt).toLocaleString("fr-CA")}</td><td>{formatNumber(trip.distanceKm)} km</td><td>{formatCurrency(trip.parkingAmount)}</td>
-                <td><div className="proofActions">{trip.mapUrl && <a href={trip.mapUrl} target="_blank" rel="noreferrer">Ouvrir dans Google Maps</a>}<button className="proofLinkButton" type="button" onClick={() => setRouteProofTrip(proofIsOpen ? null : trip)}>{proofIsOpen ? "Masquer l’itinéraire" : "Voir l’itinéraire"}</button>{trip.hasParkingReceipt && <button className="proofLinkButton" type="button" onClick={() => openParkingReceipt(trip.id)}>Voir le ticket de stationnement</button>}</div></td>
+                <td><div className="proofActions"><button className="proofLinkButton" type="button" onClick={() => setRouteProofTrip(proofIsOpen ? null : trip)}>{proofIsOpen ? "Masquer l’itinéraire enregistré" : "Voir l’itinéraire enregistré"}</button>{trip.hasParkingReceipt && <button className="proofLinkButton" type="button" onClick={() => openParkingReceipt(trip.id)}>Voir le ticket de stationnement</button>}</div></td>
                 <td><span className={`statusPill ${statusClass(trip.status)}`}>{statusLabel(trip.status)}</span>{trip.refusalReason && <span className="refusalReason"><strong>Motif :</strong> {trip.refusalReason}</span>}</td>
                 {canValidate && <td><div className="tableActions"><button className="secondaryButton fitButton" type="button" onClick={() => updateTripStatus(trip.id, "VALIDE")}>Valider</button><button className="dangerButton fitButton" type="button" onClick={() => setRefusalTarget({ type: "trip", item: trip })}>Rejeter</button></div></td>}
               </tr>
               {proofIsOpen && <tr className="tripDetailsRow"><td colSpan={canValidate ? 7 : 6}>
-                <FrozenRouteSnapshot snapshot={trip.routeSnapshot} tripId={trip.id} />
+                <FrozenRouteSnapshot snapshot={trip.routeSnapshot} tripId={trip.id} currentMapUrl={trip.mapUrl} />
               </td></tr>}
             </Fragment>;
           })}</tbody>

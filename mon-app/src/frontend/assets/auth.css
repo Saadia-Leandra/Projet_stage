@@ -625,6 +625,12 @@ h2 {
 .routeSnapshot h3 { margin: 0 0 8px; }
 .routeSnapshot ol { margin: 10px 0; padding-left: 24px; }
 .routeSnapshotNotice { margin-bottom: 0; color: #64748b; font-size: 13px; }
+.routeSnapshotTimestamp { margin: 5px 0 12px; color: #1e3a8a; }
+.liveMapComparison { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 12px 14px; border: 1px solid #fde68a; border-radius: 7px; background: #fffbeb; }
+.liveMapComparison > div { display: flex; flex: 1 1 360px; flex-direction: column; gap: 3px; }
+.liveMapComparison strong { color: #92400e; }
+.liveMapComparison span { color: #78350f; font-size: 12px; line-height: 1.45; }
+.liveMapComparison a { color: #1d4ed8; font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .frozenRouteImage { display: block; width: 100%; max-width: 1280px; height: auto; border: 1px solid #cbd5e1; border-radius: 7px; }
 .routeSnapshotSummary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
 .routeSnapshotSummary > div { display: flex; flex-direction: column; gap: 3px; padding: 12px; border-radius: 8px; background: #f1f5f9; }
