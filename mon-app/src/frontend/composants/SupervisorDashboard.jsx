@@ -516,9 +516,8 @@ function MileageForm({ user, students, onCreated }) {
             <strong>{selectedCampus.distanceLabel}: {formatNumber(calculation.distanceKm)} km</strong>
             <span>Total: {formatCurrency(reimbursementPreview)}</span>
             <span>{calculation.durationLabel || `${formatNumber(calculation.durationMinutes)} min`}</span>
-            {calculation.routeSnapshot && <button className="proofLinkButton" type="button" onClick={() => setShowRouteProof((visible) => !visible)}>{showRouteProof ? "Masquer l’itinéraire" : "Voir l’itinéraire"}</button>}
-            {calculation.mapUrl && <a href={calculation.mapUrl} target="_blank" rel="noreferrer">Voir sur Google Maps</a>}
-            {showRouteProof && <FrozenRouteSnapshot snapshot={calculation.routeSnapshot} tripId={calculation.tripId} />}
+            {calculation.routeSnapshot && <button className="proofLinkButton" type="button" onClick={() => setShowRouteProof((visible) => !visible)}>{showRouteProof ? "Masquer l’itinéraire enregistré" : "Voir l’itinéraire enregistré"}</button>}
+            {showRouteProof && <FrozenRouteSnapshot snapshot={calculation.routeSnapshot} tripId={calculation.tripId} currentMapUrl={calculation.mapUrl} />}
           </div>
         )}
 
@@ -575,7 +574,7 @@ function MileageTripsTable({ loading, trips }) {
                   <td>{trip.program || "-"}</td><td>{trip.tripType === "ALLER_SIMPLE" ? "Aller simple" : "Aller-retour"}</td>
                   <td>{formatNumber(trip.distanceKm)} km</td><td>{formatCurrency(trip.reimbursementAmount)}</td>
                   <td><span className={`statusPill ${trip.status === "REJETE" ? "statusRed" : "statusGreen"}`}>{trip.status || "CALCULE"}</span>{trip.refusalReason && <span className="refusalReason"><strong>Motif :</strong> {trip.refusalReason}</span>}</td>
-                  <td><button className="proofLinkButton" type="button" onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}>{isExpanded ? "Masquer l’itinéraire" : "Voir l’itinéraire"}</button></td>
+                  <td><button className="proofLinkButton" type="button" onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}>{isExpanded ? "Masquer l’itinéraire enregistré" : "Voir l’itinéraire enregistré"}</button></td>
                 </tr>
                 {isExpanded && <tr className="tripDetailsRow"><td colSpan="8">
                   {trip.status === "REJETE" && trip.refusalReason && <div className="mileageRefusalNotice" role="alert">
@@ -586,10 +585,9 @@ function MileageTripsTable({ loading, trips }) {
                     <div><strong>Calcul effectué</strong><span>{formatDateTime(trip.calculatedAt)}</span></div>
                   </div>
                   <div className="tripDetailActions">
-                    {trip.mapUrl && <a href={trip.mapUrl} target="_blank" rel="noreferrer">Voir l'itineraire sur Google Maps</a>}
                     {trip.hasParkingReceipt && <button className="proofLinkButton" type="button" onClick={() => openParkingReceipt(trip.id)}>Voir le ticket de stationnement</button>}
                   </div>
-                  <FrozenRouteSnapshot snapshot={snapshot} tripId={trip.id} />
+                  <FrozenRouteSnapshot snapshot={snapshot} tripId={trip.id} currentMapUrl={trip.mapUrl} />
                 </td></tr>}
               </Fragment>;
             })}
