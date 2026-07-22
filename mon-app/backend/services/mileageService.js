@@ -1,30 +1,63 @@
 const GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 const ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
+const STATIC_MAP_URL = "https://maps.googleapis.com/maps/api/staticmap";
 
 export class MileageService {
   async calculate(data) {
     const originAddress = normalizeAddress(data.origin);
     const destinations = normalizeDestinations(data.destinations);
     const tripType = data.tripType === "ALLER_SIMPLE" ? "ALLER_SIMPLE" : "ALLER_RETOUR";
-    const oneWayRoute = await calculateGoogleRoute(originAddress, destinations);
-    const multiplier = tripType === "ALLER_RETOUR" ? 2 : 1;
+    const route = await calculateGoogleRoute(originAddress, destinations, tripType);
+    const routeProofImage = await captureRouteImage(route);
+    const calculatedAt = route.calculatedAt;
+    const routeSnapshot = {
+      calculatedAt,
+      tripType,
+      origin: { address: originAddress, coordinates: route.originCoordinates },
+      destinations: destinations.map((destination, index) => ({
+        ...destination,
+        coordinates: route.destinationCoordinates[index]
+      })),
+      distanceKm: route.distanceKm,
+      durationMinutes: route.durationMinutes,
+      encodedPolyline: route.encodedPolyline
+    };
 
     return {
       originAddress,
       destinations,
-      distanceKm: round(oneWayRoute.distanceKm * multiplier, 2),
-      oneWayDistanceKm: oneWayRoute.distanceKm,
-      durationMinutes: oneWayRoute.durationMinutes * multiplier,
-      oneWayDurationMinutes: oneWayRoute.durationMinutes,
-      provider: oneWayRoute.provider,
+      distanceKm: route.distanceKm,
+      durationMinutes: route.durationMinutes,
+      durationLabel: route.durationLabel,
+      provider: route.provider,
       tripType,
-      mapUrl: oneWayRoute.mapUrl,
-      calculatedAt: new Date().toISOString()
+      mapUrl: route.mapUrl,
+      routeSnapshot,
+      routeProofImage,
+      calculatedAt
     };
   }
 }
 
-async function calculateGoogleRoute(originAddress, destinations) {
+async function captureRouteImage(route) {
+  const url = new URL(STATIC_MAP_URL);
+  url.searchParams.set("size", "640x420");
+  url.searchParams.set("scale", "2");
+  url.searchParams.set("format", "png");
+  url.searchParams.set("maptype", "roadmap");
+  url.searchParams.set("path", `color:0x1d4ed8ff|weight:5|enc:${route.encodedPolyline}`);
+  url.searchParams.append("markers", `color:green|label:D|${formatCoordinates(route.originCoordinates)}`);
+  route.destinationCoordinates.forEach((coordinates, index) => url.searchParams.append("markers", `color:red|label:${index + 1}|${formatCoordinates(coordinates)}`));
+  url.searchParams.set("key", process.env.GOOGLE_MAPS_API_KEY);
+  const response = await fetch(url);
+  const contentType = response.headers.get("content-type") || "";
+  if (!response.ok || !contentType.startsWith("image/")) {
+    throw createError("Impossible de creer la capture Google Maps. Verifiez que Maps Static API est activee pour cette cle.", 400);
+  }
+  return Buffer.from(await response.arrayBuffer());
+}
+
+async function calculateGoogleRoute(originAddress, destinations, tripType) {
   if (!process.env.GOOGLE_MAPS_API_KEY) {
     throw createError("Cle Google Maps manquante.", 500);
   }
@@ -37,16 +70,26 @@ async function calculateGoogleRoute(originAddress, destinations) {
     throw createError("Au moins une destination est requise.", 400);
   }
 
-  const originCoordinates = await geocode(originAddress);
-  const destinationCoordinates = await geocode(destinations[destinations.length - 1].address);
+  const [originCoordinates, ...destinationCoordinates] = await Promise.all([
+    geocode(originAddress),
+    ...destinations.map((destination) => geocode(destination.address))
+  ]);
+  const routeCoordinates = tripType === "ALLER_RETOUR"
+    ? [...destinationCoordinates, originCoordinates]
+    : destinationCoordinates;
+  const finalCoordinates = routeCoordinates[routeCoordinates.length - 1];
+  const calculatedAt = new Date(Date.now() + 1000).toISOString();
   const response = await fetch(ROUTES_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,
-      "X-Goog-FieldMask": "routes.distanceMeters,routes.duration"
+      "X-Goog-FieldMask": "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline"
     },
     body: JSON.stringify({
+      travelMode: "DRIVE",
+      routingPreference: "TRAFFIC_AWARE_OPTIMAL",
+      departureTime: calculatedAt,
       origin: {
         location: {
           latLng: {
@@ -58,11 +101,12 @@ async function calculateGoogleRoute(originAddress, destinations) {
       destination: {
         location: {
           latLng: {
-            latitude: destinationCoordinates.lat,
-            longitude: destinationCoordinates.lng
+            latitude: finalCoordinates.lat,
+            longitude: finalCoordinates.lng
           }
         }
-      }
+      },
+      intermediates: routeCoordinates.slice(0, -1).map(toWaypoint)
     })
   });
   const payload = await response.json().catch(() => ({}));
@@ -83,7 +127,11 @@ async function calculateGoogleRoute(originAddress, destinations) {
     distanceKm: round(route.distanceMeters / 1000, 2),
     durationMinutes,
     durationLabel: formatDuration(durationMinutes),
-    mapUrl: buildMapUrl(originAddress, destinations),
+    mapUrl: buildMapUrl(originCoordinates, routeCoordinates),
+    originCoordinates,
+    destinationCoordinates,
+    encodedPolyline: route.polyline?.encodedPolyline || "",
+    calculatedAt,
     provider: "GOOGLE_ROUTES"
   };
 }
@@ -140,11 +188,36 @@ function round(value, decimals) {
   return Number(value.toFixed(decimals));
 }
 
-function buildMapUrl(originAddress, destinations) {
-  const addresses = [originAddress, ...destinations.map((destination) => destination.address)];
-  const encodedPath = addresses.map((address) => encodeURIComponent(address)).join("/");
+function toWaypoint(coordinates) {
+  return {
+    location: {
+      latLng: {
+        latitude: coordinates.lat,
+        longitude: coordinates.lng
+      }
+    }
+  };
+}
 
-  return `https://www.google.com/maps/dir/${encodedPath}`;
+function formatCoordinates(coordinates) {
+  return `${coordinates.lat},${coordinates.lng}`;
+}
+
+function buildMapUrl(originCoordinates, routeCoordinates) {
+  const url = new URL("https://www.google.com/maps/dir/");
+  const destinationCoordinates = routeCoordinates[routeCoordinates.length - 1];
+
+  url.searchParams.set("api", "1");
+  url.searchParams.set("origin", formatCoordinates(originCoordinates));
+  url.searchParams.set("destination", formatCoordinates(destinationCoordinates));
+  url.searchParams.set("travelmode", "driving");
+
+  const waypoints = routeCoordinates.slice(0, -1);
+  if (waypoints.length) {
+    url.searchParams.set("waypoints", waypoints.map(formatCoordinates).join("|"));
+  }
+
+  return url.toString();
 }
 
 function durationToMinutes(duration) {

@@ -174,6 +174,7 @@ export default function Dashboard({ user, onLogout }) {
           <SupervisorDashboard
             view={activeView}
             user={currentUser}
+            onNavigate={setActiveView}
           />
         ) : (
           <ProfilePanel user={currentUser} />
