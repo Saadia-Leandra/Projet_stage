@@ -3,6 +3,7 @@ mon-app/node_modules/
 mon-app/dist/
 mon-app/backend/.env
 mon-app/backend/storage/
+mon-app/backend/uploads/
 mon-app/scripts/start-dev-server.ps1
 *.log
 *.local
