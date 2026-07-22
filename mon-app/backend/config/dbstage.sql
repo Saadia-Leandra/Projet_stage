@@ -15,6 +15,7 @@ DROP TABLE IF EXISTS etudiants_charge_paie;
 DROP TABLE IF EXISTS charges_paie_supervision;
 DROP TABLE IF EXISTS evenements_workflow;
 DROP TABLE IF EXISTS documents;
+DROP TABLE IF EXISTS documenso_webhook_events;
 DROP TABLE IF EXISTS signatures_contrat;
 DROP TABLE IF EXISTS contrats;
 DROP TABLE IF EXISTS demandes_stage;
@@ -60,6 +61,7 @@ CREATE TABLE etudiants (
   cohorte VARCHAR(30),
   adresse VARCHAR(255),
   ville VARCHAR(120),
+  province VARCHAR(120),
   code_postal VARCHAR(20),
   code_permanent VARCHAR(30),
   groupe VARCHAR(60),
@@ -109,8 +111,10 @@ CREATE TABLE entreprises (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   code VARCHAR(30) NOT NULL UNIQUE,
   nom VARCHAR(180) NOT NULL,
+  neq VARCHAR(30),
   adresse VARCHAR(255) NOT NULL,
   ville VARCHAR(120),
+  province VARCHAR(120),
   code_postal VARCHAR(20),
   telephone VARCHAR(40),
   poste_telephonique VARCHAR(20),
@@ -119,8 +123,13 @@ CREATE TABLE entreprises (
   contact_rh_nom VARCHAR(160),
   contact_rh_courriel VARCHAR(255),
   contact_rh_telephone VARCHAR(40),
+  contact_rh_poste VARCHAR(20),
   contact_signature_nom VARCHAR(160),
   contact_signature_courriel VARCHAR(255),
+  superviseur_nom VARCHAR(160),
+  superviseur_titre VARCHAR(160),
+  superviseur_courriel VARCHAR(255),
+  superviseur_telephone VARCHAR(40),
   horaire_travail VARCHAR(160),
   heures_semaine DECIMAL(5,2),
   langue_travail VARCHAR(80),
@@ -160,8 +169,31 @@ CREATE TABLE demandes_stage (
   date_fin DATE NOT NULL,
   date_debut_disponibilite DATE,
   date_fin_disponibilite DATE,
-  statut ENUM('BROUILLON', 'SOUMISE', 'APPROUVEE', 'REFUSEE', 'ANNULEE') NOT NULL DEFAULT 'SOUMISE',
+  horaire_stage VARCHAR(160),
+  heures_semaine DECIMAL(5,2),
+  langue_travail VARCHAR(80),
+  type_horaire ENUM('TEMPS_PARTIEL', 'TEMPS_PLEIN'),
+  nombre_semaines DECIMAL(5,2),
+  est_remunere BOOLEAN NOT NULL DEFAULT FALSE,
+  salaire_horaire DECIMAL(8,2),
+  autre_compensation VARCHAR(180),
+  statut ENUM(
+    'BROUILLON',
+    'SOUMISE',
+    'A_REVISER',
+    'DOCUMENTS_MANQUANTS',
+    'APPROUVEE',
+    'REFUSEE',
+    'ANNULEE'
+  ) NOT NULL DEFAULT 'SOUMISE',
   motif_refus TEXT,
+  correction_raison TEXT,
+  correction_elements TEXT,
+  correction_documents_demandes TEXT,
+  correction_commentaire_etudiant TEXT,
+  correction_demandee_par_utilisateur_id BIGINT UNSIGNED,
+  correction_demandee_le DATETIME,
+  resoumis_le DATETIME,
   decide_par_utilisateur_id BIGINT UNSIGNED,
   decide_le DATETIME,
   cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -171,13 +203,16 @@ CREATE TABLE demandes_stage (
   CONSTRAINT fk_demandes_stage_entreprise
     FOREIGN KEY (entreprise_id) REFERENCES entreprises(id),
   CONSTRAINT fk_demandes_stage_decideur
-    FOREIGN KEY (decide_par_utilisateur_id) REFERENCES utilisateurs(id)
+    FOREIGN KEY (decide_par_utilisateur_id) REFERENCES utilisateurs(id),
+  CONSTRAINT fk_demandes_stage_correction_demandeur
+    FOREIGN KEY (correction_demandee_par_utilisateur_id) REFERENCES utilisateurs(id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE contrats (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   dossier_stage_id BIGINT UNSIGNED NOT NULL,
   demande_stage_id BIGINT UNSIGNED NOT NULL UNIQUE,
+  external_id VARCHAR(120),
   annee_scolaire VARCHAR(20),
   session VARCHAR(20),
   code_programme VARCHAR(40),
@@ -193,6 +228,8 @@ CREATE TABLE contrats (
   type_horaire ENUM('TEMPS_PARTIEL', 'TEMPS_PLEIN'),
   statut ENUM(
     'A_COMPLETER_ETUDIANT',
+    'SIGNATURE_ETUDIANT',
+    'CONTRAT_MILIEU_A_DEPOSER',
     'SIGNATURE_ENTREPRISE',
     'SIGNATURE_SUPERVISEUR',
     'SIGNATURE_CONSEILLERE',
@@ -201,15 +238,28 @@ CREATE TABLE contrats (
     'REJETE'
   ) NOT NULL DEFAULT 'A_COMPLETER_ETUDIANT',
   chemin_fichier_genere VARCHAR(255),
+  pdf_original_path VARCHAR(255),
+  pdf_etudiant_signe_path VARCHAR(255),
   chemin_fichier_televerse VARCHAR(255),
-  fournisseur_signature ENUM('OPENSIGN', 'DOCUSEAL', 'SIGNWELL', 'AUTRE'),
+  pdf_signed_path VARCHAR(255),
+  fournisseur_signature ENUM('OPENSIGN', 'DOCUSEAL', 'SIGNWELL', 'DOCUMENSO', 'AUTRE'),
   enveloppe_externe_id VARCHAR(255),
   document_externe_id VARCHAR(255),
+  documenso_document_id VARCHAR(255),
+  documenso_status VARCHAR(60),
   url_signature TEXT,
   genere_le DATETIME,
   complete_le DATETIME,
+  submitted_at DATETIME,
+  milieu_signe_recu_le DATETIME,
+  code_confirmation_reception VARCHAR(30),
+  completed_at DATETIME,
+  rejected_at DATETIME,
   cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   modifie_le DATETIME NULL ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_contrats_external_id (external_id),
+  INDEX idx_contrats_documenso_document_id (documenso_document_id),
+  UNIQUE KEY uq_contrats_confirmation (code_confirmation_reception),
   CONSTRAINT fk_contrats_dossier
     FOREIGN KEY (dossier_stage_id) REFERENCES dossiers_stage(id) ON DELETE CASCADE,
   CONSTRAINT fk_contrats_demande
@@ -225,7 +275,7 @@ CREATE TABLE signatures_contrat (
   nom_signataire VARCHAR(160) NOT NULL,
   courriel_signataire VARCHAR(255) NOT NULL,
   statut ENUM('EN_ATTENTE', 'ENVOYE', 'SIGNE', 'REFUSE', 'EXPIRE') NOT NULL DEFAULT 'EN_ATTENTE',
-  fournisseur_signature ENUM('OPENSIGN', 'DOCUSEAL', 'SIGNWELL', 'AUTRE'),
+  fournisseur_signature ENUM('OPENSIGN', 'DOCUSEAL', 'SIGNWELL', 'DOCUMENSO', 'AUTRE'),
   signature_externe_id VARCHAR(255),
   url_signature TEXT,
   signe_le DATETIME,
@@ -238,19 +288,49 @@ CREATE TABLE signatures_contrat (
     FOREIGN KEY (utilisateur_signataire_id) REFERENCES utilisateurs(id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE documenso_webhook_events (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  event_key CHAR(64) NOT NULL UNIQUE,
+  event_type VARCHAR(80) NOT NULL,
+  documenso_document_id VARCHAR(255),
+  external_id VARCHAR(120),
+  traite_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_documenso_webhook_document (documenso_document_id),
+  INDEX idx_documenso_webhook_external (external_id)
+) ENGINE=InnoDB;
+
 CREATE TABLE documents (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   dossier_stage_id BIGINT UNSIGNED NOT NULL,
+  demande_stage_id BIGINT UNSIGNED,
   contrat_id BIGINT UNSIGNED,
   depose_par_utilisateur_id BIGINT UNSIGNED NOT NULL,
-  type_document ENUM('CONTRAT_GENERE', 'CONTRAT_SIGNE', 'ATTESTATION', 'AUTRE') NOT NULL DEFAULT 'AUTRE',
+  type_document ENUM(
+    'CONTRAT_GENERE',
+    'CONTRAT_SIGNE_ETUDIANT',
+    'CONTRAT_SIGNE_MILIEU',
+    'CONTRAT_SIGNE',
+    'CONTRAT_FINAL',
+    'ATTESTATION',
+    'CAQ',
+    'PERMIS_ETUDES',
+    'ASSURANCE',
+    'PIECE_IDENTITE',
+    'CV',
+    'AUTRE'
+  ) NOT NULL DEFAULT 'AUTRE',
   nom_fichier VARCHAR(180) NOT NULL,
   chemin_fichier VARCHAR(255) NOT NULL,
+  type_mime VARCHAR(120),
+  taille_octets BIGINT UNSIGNED,
+  code_confirmation VARCHAR(30),
   version_document INT UNSIGNED NOT NULL DEFAULT 1,
   statut ENUM('DEPOSE', 'VALIDE', 'REJETE', 'ARCHIVE') NOT NULL DEFAULT 'DEPOSE',
   cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_documents_dossier
     FOREIGN KEY (dossier_stage_id) REFERENCES dossiers_stage(id) ON DELETE CASCADE,
+  CONSTRAINT fk_documents_demande
+    FOREIGN KEY (demande_stage_id) REFERENCES demandes_stage(id) ON DELETE CASCADE,
   CONSTRAINT fk_documents_contrat
     FOREIGN KEY (contrat_id) REFERENCES contrats(id),
   CONSTRAINT fk_documents_utilisateur
@@ -384,7 +464,16 @@ CREATE TABLE notifications (
   titre VARCHAR(160) NOT NULL,
   message TEXT NOT NULL,
   type_notification VARCHAR(60) NOT NULL,
-  cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+  demande_stage_id BIGINT UNSIGNED,
+  contrat_id BIGINT UNSIGNED,
+  lien_action VARCHAR(255),
+  cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_notifications_demande (demande_stage_id),
+  INDEX idx_notifications_contrat (contrat_id),
+  CONSTRAINT fk_notifications_demande
+    FOREIGN KEY (demande_stage_id) REFERENCES demandes_stage(id) ON DELETE SET NULL,
+  CONSTRAINT fk_notifications_contrat
+    FOREIGN KEY (contrat_id) REFERENCES contrats(id) ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE destinataires_notification (

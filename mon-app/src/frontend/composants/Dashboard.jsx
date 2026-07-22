@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Logout from "./Logout.jsx";
 import PayrollDashboard from "./PayrollDashboard.jsx";
+import StageContractsDashboard from "./StageContractsDashboard.jsx";
 import StudentDashboard from "./StudentDashboard.jsx";
 import SupervisorDashboard from "./SupervisorDashboard.jsx";
 import "../assets/auth.css";
@@ -94,6 +95,13 @@ export default function Dashboard({ user, onLogout }) {
               />
 
               <SidebarButton
+                active={activeView === "stageContracts"}
+                label="Contrats stage"
+                marker="CS"
+                onClick={() => setActiveView("stageContracts")}
+              />
+
+              <SidebarButton
                 active={activeView === "mileage"}
                 label="Kilométrage"
                 marker="KM"
@@ -107,6 +115,15 @@ export default function Dashboard({ user, onLogout }) {
                 onClick={() => setActiveView("payroll")}
               />
             </>
+          )}
+
+          {["CONSEILLERE", "DIRECTION"].includes(currentUser.role) && (
+            <SidebarButton
+              active={activeView === "stageContracts"}
+              label="Contrats stage"
+              marker="CS"
+              onClick={() => setActiveView("stageContracts")}
+            />
           )}
 
           {["CONSEILLERE", "COMPTABILITE", "DIRECTION"].includes(currentUser.role) && (
@@ -147,7 +164,9 @@ export default function Dashboard({ user, onLogout }) {
           <span className="statusPill statusGreen">{currentUser.status}</span>
         </section>
 
-        {activeView === "payroll" ? (
+        {activeView === "stageContracts" ? (
+          <StageContractsDashboard user={currentUser} />
+        ) : activeView === "payroll" ? (
           <PayrollDashboard user={currentUser} />
         ) : currentUser.role === "ETUDIANT" ? (
           <StudentDashboard view={activeView} onNavigate={setActiveView} />
@@ -234,6 +253,7 @@ function pageTitle(view) {
     dashboard: "Tableau de bord",
     requests: "Demandes de stage",
     contracts: "Contrats",
+    stageContracts: "Contrats stage",
     mileage: "Kilometrage",
     stageRequests: "Demandes à valider",
     payroll: "Paie superviseurs"

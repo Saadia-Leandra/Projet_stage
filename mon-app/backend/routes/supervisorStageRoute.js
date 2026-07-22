@@ -12,6 +12,11 @@ import {
   refuseStageRequest
 } from "../services/supervisorStageService.js";
 
+import {
+  getSupervisorRequestDocumentFile,
+  requestStageRequestCorrections
+} from "../services/stageRequestCorrectionService.js";
+
 const router = Router();
 
 router.use(requireLogin);
@@ -91,6 +96,62 @@ router.put(
         );
 
       res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.put(
+  "/requests/:requestId/corrections",
+  async (req, res, next) => {
+    try {
+      const requestId = validateRequestId(
+        req.params.requestId
+      );
+
+      const result =
+        await requestStageRequestCorrections(
+          req.user.id,
+          requestId,
+          req.body
+        );
+
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.get(
+  "/requests/:requestId/documents/:documentId/download",
+  async (req, res, next) => {
+    try {
+      const requestId = validateRequestId(
+        req.params.requestId
+      );
+      const documentId = validateRequestId(
+        req.params.documentId
+      );
+
+      const file =
+        await getSupervisorRequestDocumentFile(
+          req.user.id,
+          requestId,
+          documentId
+        );
+
+      res
+        .set(
+          "Content-Type",
+          file.mimeType || "application/octet-stream"
+        )
+        .set(
+          "Content-Disposition",
+          `attachment; filename="${file.fileName}"`
+        )
+        .sendFile(file.absolutePath);
     } catch (error) {
       next(error);
     }

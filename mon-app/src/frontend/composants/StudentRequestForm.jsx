@@ -1,6 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import CityInput from "./CityInput.jsx";
+import ProvinceInput from "./ProvinceInput.jsx";
 
 const initialForm = {
+  // Informations de l'etudiant
+  studentPhone: "",
+  studentAddress: "",
+  studentCity: "",
+  studentProvince: "",
+  studentPostalCode: "",
+  expirationCaq: "",
+  expirationStudyPermit: "",
+  expirationInsurance: "",
+
   // Identification du stage
   taskSummary: "",
   startDate: "",
@@ -11,6 +24,7 @@ const initialForm = {
   companyNeq: "",
   companyAddress: "",
   companyCity: "",
+  companyProvince: "",
   companyPostalCode: "",
   companyPhone: "",
   companyPhoneExtension: "",
@@ -43,10 +57,44 @@ const initialForm = {
 };
 
 export default function StudentRequestForm({ student, onCreated }) {
-  const [form, setForm] = useState(initialForm);
+  const [form, setForm] = useState(() => ({
+    ...initialForm,
+    ...studentProfileDefaults(student)
+  }));
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const defaults = studentProfileDefaults(student);
+
+    setForm((currentForm) => ({
+      ...currentForm,
+      studentPhone:
+        currentForm.studentPhone || defaults.studentPhone,
+      studentAddress:
+        currentForm.studentAddress ||
+        defaults.studentAddress,
+      studentCity:
+        currentForm.studentCity || defaults.studentCity,
+      studentProvince:
+        currentForm.studentProvince ||
+        defaults.studentProvince,
+      studentPostalCode:
+        currentForm.studentPostalCode ||
+        defaults.studentPostalCode,
+      expirationCaq:
+        currentForm.expirationCaq ||
+        defaults.expirationCaq,
+      expirationStudyPermit:
+        currentForm.expirationStudyPermit ||
+        defaults.expirationStudyPermit,
+      expirationInsurance:
+        currentForm.expirationInsurance ||
+        defaults.expirationInsurance
+    }));
+  }, [student]);
 
   function updateField(event) {
     const { name, value, type, checked } = event.target;
@@ -55,6 +103,16 @@ export default function StudentRequestForm({ student, onCreated }) {
       ...currentForm,
       [name]: type === "checkbox" ? checked : value
     }));
+
+    setFieldErrors((currentErrors) => {
+      if (!currentErrors[name]) {
+        return currentErrors;
+      }
+
+      const nextErrors = { ...currentErrors };
+      delete nextErrors[name];
+      return nextErrors;
+    });
   }
 
   async function handleSubmit(event) {
@@ -63,10 +121,23 @@ export default function StudentRequestForm({ student, onCreated }) {
     setError("");
     setSuccess("");
 
-    const validationError = validateForm(form);
+    const validationErrors = validateForm(form);
 
-    if (validationError) {
-      setError(validationError);
+    if (Object.keys(validationErrors).length) {
+      setFieldErrors(validationErrors);
+      setError(
+        "Veuillez corriger les champs indiques."
+      );
+      return;
+    }
+
+    setFieldErrors({});
+
+    const confirmed = window.confirm(
+      "Soumettre cette demande de stage pour revision ?"
+    );
+
+    if (!confirmed) {
       return;
     }
 
@@ -92,6 +163,7 @@ export default function StudentRequestForm({ student, onCreated }) {
         .catch(() => ({}));
 
       if (!response.ok) {
+        setFieldErrors(data.fieldErrors || {});
         setError(
           data.error ||
             "Impossible de créer la demande de stage."
@@ -99,7 +171,11 @@ export default function StudentRequestForm({ student, onCreated }) {
         return;
       }
 
-      setForm(initialForm);
+      setForm({
+        ...initialForm,
+        ...studentProfileDefaults(student)
+      });
+      setFieldErrors({});
       setSuccess(
         "La demande de stage a été soumise avec succès."
       );
@@ -137,11 +213,13 @@ export default function StudentRequestForm({ student, onCreated }) {
       <form
         className="studentForm"
         onSubmit={handleSubmit}
+        noValidate
       >
-        
+        <p className="requiredHint">* Champ obligatoire</p>
+
      <FormSection
     title="Informations de l'étudiant"
-    description="Ces informations proviennent du profil connecte."
+    description="Completez les coordonnees qui seront reprises dans la demande officielle."
   >
     <label className="field">
       Nom complet
@@ -180,6 +258,128 @@ export default function StudentRequestForm({ student, onCreated }) {
       Groupe
       <input type="text" value={student?.groupe || ""} readOnly />
     </label>
+
+    <label className="field">
+      Telephone *
+      <input
+        type="tel"
+        name="studentPhone"
+        value={form.studentPhone}
+        onChange={updateField}
+        maxLength={40}
+        aria-invalid={Boolean(
+          fieldErrors.studentPhone
+        )}
+        required
+      />
+      <FieldError
+        message={fieldErrors.studentPhone}
+      />
+    </label>
+
+    <label className="field wide">
+      Adresse *
+      <input
+        type="text"
+        name="studentAddress"
+        value={form.studentAddress}
+        onChange={updateField}
+        maxLength={255}
+        aria-invalid={Boolean(
+          fieldErrors.studentAddress
+        )}
+        required
+      />
+      <FieldError
+        message={fieldErrors.studentAddress}
+      />
+    </label>
+
+    <label className="field">
+      Ville *
+      <CityInput
+        type="text"
+        name="studentCity"
+        value={form.studentCity}
+        onChange={updateField}
+        maxLength={120}
+        aria-invalid={Boolean(
+          fieldErrors.studentCity
+        )}
+        required
+      />
+      <FieldError
+        message={fieldErrors.studentCity}
+      />
+    </label>
+
+    <label className="field">
+      Province *
+      <ProvinceInput
+        type="text"
+        name="studentProvince"
+        value={form.studentProvince}
+        onChange={updateField}
+        maxLength={120}
+        aria-invalid={Boolean(
+          fieldErrors.studentProvince
+        )}
+        required
+      />
+      <FieldError
+        message={fieldErrors.studentProvince}
+      />
+    </label>
+
+    <label className="field">
+      Code postal *
+      <input
+        type="text"
+        name="studentPostalCode"
+        value={form.studentPostalCode}
+        onChange={updateField}
+        maxLength={20}
+        aria-invalid={Boolean(
+          fieldErrors.studentPostalCode
+        )}
+        required
+      />
+      <FieldError
+        message={
+          fieldErrors.studentPostalCode
+        }
+      />
+    </label>
+
+    <label className="field">
+      Expiration CAQ
+      <input
+        type="date"
+        name="expirationCaq"
+        value={form.expirationCaq}
+        onChange={updateField}
+      />
+    </label>
+
+    <label className="field">
+      Expiration permis d'etudes
+      <input
+        type="date"
+        name="expirationStudyPermit"
+        value={form.expirationStudyPermit}
+        onChange={updateField}
+      />
+    </label>
+
+    <label className="field">
+      Expiration assurance
+      <input
+        type="date"
+        name="expirationInsurance"
+        value={form.expirationInsurance}
+        onChange={updateField}
+      />
+    </label>
     </FormSection>
         {/* SECTION 1 */}
         <FormSection
@@ -197,7 +397,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               minLength={20}
               maxLength={3000}
               placeholder="Décrivez les principales tâches qui seront réalisées pendant le stage."
+              aria-invalid={Boolean(
+                fieldErrors.taskSummary
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.taskSummary}
             />
           </label>
 
@@ -209,7 +415,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               name="startDate"
               value={form.startDate}
               onChange={updateField}
+              aria-invalid={Boolean(
+                fieldErrors.startDate
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.startDate}
             />
           </label>
 
@@ -222,7 +434,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               value={form.endDate}
               onChange={updateField}
               min={form.startDate || undefined}
+              aria-invalid={Boolean(
+                fieldErrors.endDate
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.endDate}
             />
           </label>
         </FormSection>
@@ -243,7 +461,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               minLength={2}
               maxLength={180}
               placeholder="Exemple : TechNova"
+              aria-invalid={Boolean(
+                fieldErrors.companyName
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.companyName}
             />
           </label>
 
@@ -271,21 +495,53 @@ export default function StudentRequestForm({ student, onCreated }) {
               minLength={5}
               maxLength={255}
               placeholder="Numéro et nom de rue"
+              aria-invalid={Boolean(
+                fieldErrors.companyAddress
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.companyAddress}
             />
           </label>
 
           <label className="field">
             Ville *
 
-            <input
+            <CityInput
               type="text"
               name="companyCity"
               value={form.companyCity}
               onChange={updateField}
               minLength={2}
               maxLength={120}
+              aria-invalid={Boolean(
+                fieldErrors.companyCity
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.companyCity}
+            />
+          </label>
+
+          <label className="field">
+            Province *
+
+            <ProvinceInput
+              type="text"
+              name="companyProvince"
+              value={form.companyProvince}
+              onChange={updateField}
+              minLength={2}
+              maxLength={120}
+              aria-invalid={Boolean(
+                fieldErrors.companyProvince
+              )}
+              required
+            />
+            <FieldError
+              message={fieldErrors.companyProvince}
             />
           </label>
 
@@ -299,7 +555,15 @@ export default function StudentRequestForm({ student, onCreated }) {
               onChange={updateField}
               maxLength={20}
               placeholder="A1A 1A1"
+              aria-invalid={Boolean(
+                fieldErrors.companyPostalCode
+              )}
               required
+            />
+            <FieldError
+              message={
+                fieldErrors.companyPostalCode
+              }
             />
           </label>
 
@@ -313,7 +577,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               onChange={updateField}
               maxLength={40}
               placeholder="514-555-0000"
+              aria-invalid={Boolean(
+                fieldErrors.companyPhone
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.companyPhone}
             />
           </label>
 
@@ -384,7 +654,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               onChange={updateField}
               maxLength={160}
               placeholder="Exemple : Technologies de l’information"
+              aria-invalid={Boolean(
+                fieldErrors.businessSector
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.businessSector}
             />
           </label>
         </FormSection>
@@ -431,7 +707,7 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
 
           <label className="field">
-            Poste
+            Poste telephonique
 
             <input
               type="text"
@@ -457,7 +733,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               value={form.supervisorName}
               onChange={updateField}
               maxLength={160}
+              aria-invalid={Boolean(
+                fieldErrors.supervisorName
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.supervisorName}
             />
           </label>
 
@@ -471,7 +753,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               onChange={updateField}
               maxLength={160}
               placeholder="Exemple : Développeur principal"
+              aria-invalid={Boolean(
+                fieldErrors.supervisorTitle
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.supervisorTitle}
             />
           </label>
 
@@ -484,7 +772,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               value={form.supervisorEmail}
               onChange={updateField}
               maxLength={255}
+              aria-invalid={Boolean(
+                fieldErrors.supervisorEmail
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.supervisorEmail}
             />
           </label>
 
@@ -497,7 +791,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               value={form.supervisorPhone}
               onChange={updateField}
               maxLength={40}
+              aria-invalid={Boolean(
+                fieldErrors.supervisorPhone
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.supervisorPhone}
             />
           </label>
         </FormSection>
@@ -517,7 +817,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               onChange={updateField}
               maxLength={160}
               placeholder="Exemple : lundi au vendredi, de 8 h 30 à 16 h 30"
+              aria-invalid={Boolean(
+                fieldErrors.workSchedule
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.workSchedule}
             />
           </label>
 
@@ -532,7 +838,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               min="1"
               max="80"
               step="0.5"
+              aria-invalid={Boolean(
+                fieldErrors.hoursPerWeek
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.hoursPerWeek}
             />
           </label>
 
@@ -547,7 +859,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               min="1"
               max="52"
               step="0.5"
+              aria-invalid={Boolean(
+                fieldErrors.numberOfWeeks
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.numberOfWeeks}
             />
           </label>
 
@@ -561,7 +879,13 @@ export default function StudentRequestForm({ student, onCreated }) {
               onChange={updateField}
               maxLength={80}
               placeholder="Exemple : Français"
+              aria-invalid={Boolean(
+                fieldErrors.workLanguage
+              )}
               required
+            />
+            <FieldError
+              message={fieldErrors.workLanguage}
             />
           </label>
 
@@ -608,7 +932,13 @@ export default function StudentRequestForm({ student, onCreated }) {
                 max="9999"
                 step="0.01"
                 placeholder="Exemple : 20.00"
+                aria-invalid={Boolean(
+                  fieldErrors.hourlySalary
+                )}
                 required
+              />
+              <FieldError
+                message={fieldErrors.hourlySalary}
               />
             </label>
           )}
@@ -677,39 +1007,87 @@ function FormSection({
   );
 }
 
+function FieldError({ message }) {
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <small className="fieldError">
+      {message}
+    </small>
+  );
+}
+
+function studentProfileDefaults(student) {
+  return {
+    studentPhone: student?.phone || "",
+    studentAddress: student?.address || "",
+    studentCity: student?.city || "",
+    studentProvince: student?.province || "",
+    studentPostalCode: student?.postalCode || "",
+    expirationCaq: formatInputDate(
+      student?.expirationCaq
+    ),
+    expirationStudyPermit: formatInputDate(
+      student?.expirationStudyPermit
+    ),
+    expirationInsurance: formatInputDate(
+      student?.expirationInsurance
+    )
+  };
+}
+
 function validateForm(form) {
+  const errors = {};
   const requiredTextFields = [
-    ["Résumé des tâches", form.taskSummary],
-    ["Nom de l’entreprise", form.companyName],
-    ["Adresse", form.companyAddress],
-    ["Ville", form.companyCity],
-    ["Code postal", form.companyPostalCode],
-    ["Téléphone de l’entreprise", form.companyPhone],
-    ["Secteur d’activité", form.businessSector],
-    ["Nom du superviseur", form.supervisorName],
-    ["Titre du superviseur", form.supervisorTitle],
-    ["Courriel du superviseur", form.supervisorEmail],
-    ["Téléphone du superviseur", form.supervisorPhone],
-    ["Horaire de travail", form.workSchedule],
-    ["Langue de travail", form.workLanguage]
+    ["studentPhone", "Telephone etudiant", form.studentPhone],
+    ["studentAddress", "Adresse de l'etudiant", form.studentAddress],
+    ["studentCity", "Ville de l'etudiant", form.studentCity],
+    ["studentProvince", "Province de l'etudiant", form.studentProvince],
+    ["studentPostalCode", "Code postal de l'etudiant", form.studentPostalCode],
+    ["taskSummary", "Resume des taches", form.taskSummary],
+    ["companyName", "Nom de l'entreprise", form.companyName],
+    ["companyAddress", "Adresse", form.companyAddress],
+    ["companyCity", "Ville", form.companyCity],
+    ["companyProvince", "Province", form.companyProvince],
+    ["companyPostalCode", "Code postal", form.companyPostalCode],
+    ["companyPhone", "Telephone de l'entreprise", form.companyPhone],
+    ["businessSector", "Secteur d'activite", form.businessSector],
+    ["supervisorName", "Nom du superviseur", form.supervisorName],
+    ["supervisorTitle", "Titre du superviseur", form.supervisorTitle],
+    ["supervisorEmail", "Courriel du superviseur", form.supervisorEmail],
+    ["supervisorPhone", "Telephone du superviseur", form.supervisorPhone],
+    ["workSchedule", "Horaire de travail", form.workSchedule],
+    ["workLanguage", "Langue de travail", form.workLanguage]
   ];
 
-  for (const [label, value] of requiredTextFields) {
+  for (const [key, label, value] of requiredTextFields) {
     if (!String(value || "").trim()) {
-      return `Le champ « ${label} » est obligatoire.`;
+      errors[key] = `Le champ ${label} est obligatoire.`;
     }
   }
 
-  if (!form.startDate || !form.endDate) {
-    return "Les dates de début et de fin sont obligatoires.";
+  if (!form.startDate) {
+    errors.startDate = "La date de debut est obligatoire.";
+  }
+
+  if (!form.endDate) {
+    errors.endDate = "La date de fin est obligatoire.";
   }
 
   if (form.taskSummary.trim().length < 20) {
-    return "Le résumé des tâches doit contenir au moins 20 caractères.";
+    errors.taskSummary =
+      "Le resume des taches doit contenir au moins 20 caracteres.";
   }
 
-  if (form.endDate <= form.startDate) {
-    return "La date de fin doit être après la date de début.";
+  if (
+    form.startDate &&
+    form.endDate &&
+    form.endDate <= form.startDate
+  ) {
+    errors.endDate =
+      "La date de fin doit etre apres la date de debut.";
   }
 
   const hoursPerWeek = Number(form.hoursPerWeek);
@@ -720,7 +1098,8 @@ function validateForm(form) {
     hoursPerWeek <= 0 ||
     hoursPerWeek > 80
   ) {
-    return "Le nombre d’heures par semaine doit être entre 1 et 80.";
+    errors.hoursPerWeek =
+      "Le nombre d'heures par semaine doit etre entre 1 et 80.";
   }
 
   if (
@@ -728,7 +1107,8 @@ function validateForm(form) {
     numberOfWeeks <= 0 ||
     numberOfWeeks > 52
   ) {
-    return "Le nombre de semaines doit être entre 1 et 52.";
+    errors.numberOfWeeks =
+      "Le nombre de semaines doit etre entre 1 et 52.";
   }
 
   if (
@@ -738,8 +1118,17 @@ function validateForm(form) {
       Number(form.hourlySalary) < 0
     )
   ) {
-    return "Indiquez un salaire horaire valide.";
+    errors.hourlySalary =
+      "Indiquez un salaire horaire valide.";
   }
 
-  return "";
+  return errors;
+}
+
+function formatInputDate(value) {
+  if (!value) {
+    return "";
+  }
+
+  return String(value).slice(0, 10);
 }
