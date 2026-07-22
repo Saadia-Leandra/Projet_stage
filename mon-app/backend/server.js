@@ -28,7 +28,7 @@ const usersRepo = createUsersRepo(db);
 const mileageTripsRepo = createMileageTripsRepo(db);
 const payrollRepo = createPayrollRepo(db);
 
-app.use(express.json());
+app.use(express.json({ limit: "15mb" }));
 
 app.use("/api/auth", authRoutes({ usersRepo }));
 app.use("/api/students", studentRoutes);

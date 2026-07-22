@@ -589,6 +589,57 @@ h2 {
   font-weight: 700;
 }
 
+.tripDetailsRow > td {
+  background: #f8fafc;
+}
+
+.tripDetails {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tripDetails > div { display: flex; flex-direction: column; gap: 4px; }
+.tripDetailActions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 12px; }
+.proofActions { display: flex; flex-direction: column; align-items: stretch; gap: 7px; min-width: 210px; }
+.proofActions a { font-size: 13px; font-weight: 700; }
+.proofLinkButton { width: fit-content; padding: 0; border: 0; color: #1d4ed8; background: transparent; font: inherit; font-size: 13px; font-weight: 700; text-align: left; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.proofLinkButton:hover { color: #1e40af; }
+.proofLinkButton:focus-visible { border-radius: 2px; outline: 3px solid rgb(59 130 246 / 25%); outline-offset: 3px; }
+.parkingUploadField { padding: 14px; border: 1px dashed #f59e0b; border-radius: 8px; background: #fffbeb; }
+.parkingUploadField > span { color: #713f12; }
+.parkingUploadField > span strong { color: #dc2626; }
+.parkingUploadField small { color: #92400e; }
+.refusalReason { display: block; max-width: 260px; margin-top: 7px; padding: 7px 9px; border-left: 3px solid #dc2626; border-radius: 4px; color: #7f1d1d; background: #fef2f2; font-size: 12px; line-height: 1.4; white-space: normal; }
+.mileageRefusalNotice { display: flex; flex-direction: column; gap: 5px; margin: 0 0 14px; padding: 12px 14px; border: 1px solid #fecaca; border-left: 4px solid #dc2626; border-radius: 7px; color: #7f1d1d; background: #fef2f2; }
+.mileageRefusalNotice strong { font-size: 14px; }
+.mileageRefusalNotice span { line-height: 1.5; white-space: pre-wrap; }
+.notificationRejected { align-items: flex-start; border-left: 3px solid #dc2626; }
+.notificationRejected .notificationDot { background: #dc2626; }
+.notificationRejected p { line-height: 1.5; }
+.notificationRejected .proofLinkButton { display: inline; margin-left: 5px; }
+.gpsTraceTable { max-height: 360px; overflow: auto; border: 1px solid #e2e8f0; background: #fff; }
+.gpsTraceTable th { position: sticky; top: 0; background: #f1f5f9; }
+.routeSnapshot { margin: 12px 0; padding: 14px; border: 1px solid #cbd5e1; border-radius: 7px; background: #fff; }
+.routeSnapshot h3 { margin: 0 0 8px; }
+.routeSnapshot ol { margin: 10px 0; padding-left: 24px; }
+.routeSnapshotNotice { margin-bottom: 0; color: #64748b; font-size: 13px; }
+.frozenRouteImage { display: block; width: 100%; max-width: 1280px; height: auto; border: 1px solid #cbd5e1; border-radius: 7px; }
+.routeSnapshotSummary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+.routeSnapshotSummary > div { display: flex; flex-direction: column; gap: 3px; padding: 12px; border-radius: 8px; background: #f1f5f9; }
+.routeSnapshotSummary strong { color: #1d4ed8; font-size: 18px; }
+.routeSnapshotSummary span { color: #64748b; font-size: 12px; }
+.routeStops { list-style: none; padding: 0 !important; }
+.routeStops li { display: flex; align-items: flex-start; gap: 10px; margin: 10px 0; }
+.routeStops li > div { display: flex; flex-direction: column; gap: 2px; }
+.routeStops li > div span { color: #475569; }
+.routeStopMarker { display: inline-flex; flex: 0 0 28px; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 50%; background: #dc2626; color: #fff; font-size: 12px; font-weight: 700; }
+.routeStopStart { background: #15803d; }
+.routeStopReturn { background: #1d4ed8; }
+@media (max-width: 680px) { .routeSnapshotSummary { grid-template-columns: 1fr; } }
+.payrollRouteProof { margin-top: 18px; }
+
 .studentTableWrap {
   overflow-x: auto;
 }

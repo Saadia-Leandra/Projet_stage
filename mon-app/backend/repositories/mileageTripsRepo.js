@@ -1,4 +1,4 @@
-export function createMileageTripsRepo(db) {
+﻿export function createMileageTripsRepo(db) {
   return {
     async getSupervisorRate(supervisorUserId) {
       const [rows] = await db.execute(
@@ -79,8 +79,15 @@ export function createMileageTripsRepo(db) {
               taux_kilometrique,
               montant_stationnement,
               url_carte,
+              instantane_itineraire,
+              trace_gps,
+              depart_reel_le,
+              arrivee_reelle_le,
+              preuve_stationnement_nom,
+              preuve_stationnement_type,
+              preuve_stationnement_fichier,
               statut
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CALCULE')
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CALCULE')
           `,
           [
             data.supervisorUserId,
@@ -94,7 +101,14 @@ export function createMileageTripsRepo(db) {
             data.durationMinutes,
             data.ratePerKm,
             data.parkingAmount,
-            nullable(data.mapUrl)
+            nullable(data.mapUrl),
+            data.routeSnapshot ? JSON.stringify(data.routeSnapshot) : null,
+            data.gpsTrace?.length ? JSON.stringify(data.gpsTrace) : null,
+            data.startedAt || null,
+            data.endedAt || null,
+            nullable(data.parkingReceipt?.name),
+            nullable(data.parkingReceipt?.type),
+            nullable(data.parkingReceipt?.storedName)
           ]
         );
 
@@ -160,7 +174,15 @@ export function createMileageTripsRepo(db) {
             dk.montant_stationnement AS parkingAmount,
             dk.montant_remboursement AS reimbursementAmount,
             dk.url_carte AS mapUrl,
+            dk.instantane_itineraire AS routeSnapshot,
+            dk.trace_gps AS gpsTrace,
+            dk.depart_reel_le AS startedAt,
+            dk.arrivee_reelle_le AS endedAt,
+            dk.preuve_stationnement_nom AS parkingReceiptName,
+            dk.preuve_stationnement_type AS parkingReceiptType,
+            (dk.preuve_stationnement_fichier IS NOT NULL) AS hasParkingReceipt,
             dk.statut AS status,
+            dk.motif_refus AS refusalReason,
             dk.calcule_le AS calculatedAt
           FROM deplacements_kilometrage dk
           JOIN utilisateurs u ON u.id = dk.superviseur_id
@@ -171,7 +193,38 @@ export function createMileageTripsRepo(db) {
         params
       );
 
-      return rows;
+      return rows.map((row) => ({
+        ...row,
+        routeSnapshot: parseJson(row.routeSnapshot),
+        gpsTrace: typeof row.gpsTrace === "string" ? JSON.parse(row.gpsTrace) : row.gpsTrace
+      }));
+    },
+
+    async findReceipt(id, user) {
+      const ownerSql = user.role === "SUPERVISEUR" ? " AND superviseur_id = ?" : "";
+      const params = user.role === "SUPERVISEUR" ? [id, user.id] : [id];
+      const [receiptRows] = await db.execute("SELECT preuve_stationnement_nom AS name, preuve_stationnement_type AS type, preuve_stationnement_fichier AS storedName FROM deplacements_kilometrage WHERE id = ?" + ownerSql + " LIMIT 1", params);
+      return receiptRows[0] || null;
+    },
+    async findRouteProof(id, user) {
+      const ownerSql = user.role === "SUPERVISEUR" ? " AND superviseur_id = ?" : "";
+      const params = user.role === "SUPERVISEUR" ? [id, user.id] : [id];
+      const [rows] = await db.execute("SELECT instantane_itineraire AS snapshot FROM deplacements_kilometrage WHERE id = ?" + ownerSql + " LIMIT 1", params);
+      return parseJson(rows[0]?.snapshot)?.proofImageStoredName || null;
+    },
+    async updateStatus(id, status, refusalReason) {
+      if (!["VALIDE", "REJETE"].includes(status)) {
+        const error = new Error("Statut de deplacement invalide.");
+        error.status = 400;
+        throw error;
+      }
+      const reason = validateRefusalReason(status, refusalReason);
+      const [result] = await db.execute("UPDATE deplacements_kilometrage SET statut = ?, motif_refus = ? WHERE id = ? AND statut != 'EXPORTE'", [status, reason, id]);
+      if (!result.affectedRows) {
+        const error = new Error("Deplacement introuvable ou deja exporte.");
+        error.status = 404;
+        throw error;
+      }
     }
   };
 }
@@ -201,3 +254,27 @@ function nullable(value) {
   const cleaned = String(value || "").trim();
   return cleaned || null;
 }
+
+function validateRefusalReason(status, value) {
+  if (status !== "REJETE") return null;
+  const reason = String(value || "").trim();
+  if (reason.length < 10 || reason.length > 2000) {
+    const error = new Error("Le motif du refus doit contenir entre 10 et 2000 caractères.");
+    error.status = 400;
+    throw error;
+  }
+  return reason;
+}
+
+function parseJson(value) {
+  if (!value) return null;
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+
+

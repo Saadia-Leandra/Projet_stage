@@ -91,7 +91,8 @@ export default function payrollRoutes({ payrollRepo }) {
       try {
         await payrollRepo.updateSupervisionChargeStatus({
           id: req.params.id,
-          status: req.body.status
+          status: req.body.status,
+          refusalReason: req.body.refusalReason
         });
 
         res.json({ ok: true });
