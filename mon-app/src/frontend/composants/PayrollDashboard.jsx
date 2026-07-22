@@ -1,4 +1,6 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { Fragment, useEffect, useMemo, useState } from "react";
+
+import FrozenRouteSnapshot from "./FrozenRouteSnapshot.jsx";
 
 const FIXED_SUPERVISION_HOURS = 4;
 
@@ -11,6 +13,8 @@ export default function PayrollDashboard({ user }) {
   const [actionLoadingId, setActionLoadingId] = useState(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [routeProofTrip, setRouteProofTrip] = useState(null);
+  const [refusalTarget, setRefusalTarget] = useState(null);
 
   const totals = useMemo(() => {
     return supervisors.reduce(
@@ -104,7 +108,7 @@ export default function PayrollDashboard({ user }) {
     loadSettings();
   }, []);
 
-  async function updateStatus(chargeId, status) {
+  async function updateStatus(chargeId, status, refusalReason = null) {
     const token = localStorage.getItem("token");
     setActionLoadingId(chargeId);
     setError("");
@@ -117,7 +121,7 @@ export default function PayrollDashboard({ user }) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status, refusalReason })
       });
       const data = await response.json().catch(() => ({}));
 
@@ -140,13 +144,13 @@ export default function PayrollDashboard({ user }) {
     if (!response.ok) return setError("Impossible d'ouvrir la preuve de stationnement.");
     window.open(URL.createObjectURL(await response.blob()), "_blank", "noopener,noreferrer");
   }
-  async function updateTripStatus(tripId, status) {
+  async function updateTripStatus(tripId, status, refusalReason = null) {
     const token = localStorage.getItem("token");
     setActionLoadingId(`trip-${tripId}`);
     const response = await fetch(`/api/mileage/trips/${tripId}/status`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ status })
+      body: JSON.stringify({ status, refusalReason })
     });
     if (!response.ok) setError("Impossible de mettre a jour le deplacement.");
     else await loadPayroll();
@@ -277,12 +281,20 @@ export default function PayrollDashboard({ user }) {
         <div className="panelHeader"><h2>Deplacements a valider</h2><span className="statusPill">{trips.length} trajet(s)</span></div>
         <div className="studentTableWrap"><table>
           <thead><tr><th>Enseignant</th><th>Date et heure</th><th>Distance</th><th>Frais de stationnement</th><th>Preuves</th><th>Statut</th>{canValidate && <th>Actions</th>}</tr></thead>
-          <tbody>{trips.map((trip) => <tr key={trip.id}>
-            <td>{trip.supervisorName}</td><td>{new Date(trip.startedAt || trip.calculatedAt).toLocaleString("fr-CA")}</td><td>{formatNumber(trip.distanceKm)} km</td><td>{formatCurrency(trip.parkingAmount)}</td>
-            <td>{trip.mapUrl ? <a href={trip.mapUrl} target="_blank" rel="noreferrer">Itineraire</a> : "-"}<span className="tableSubtext">{trip.gpsTrace?.length || 0} points GPS</span>{trip.hasParkingReceipt && <button className="secondaryButton fitButton" type="button" onClick={() => openParkingReceipt(trip.id)}>Voir le recu</button>}</td>
-            <td><span className={`statusPill ${statusClass(trip.status)}`}>{statusLabel(trip.status)}</span></td>
-            {canValidate && <td><div className="tableActions"><button className="secondaryButton fitButton" type="button" onClick={() => updateTripStatus(trip.id, "VALIDE")}>Valider</button><button className="dangerButton fitButton" type="button" onClick={() => updateTripStatus(trip.id, "REJETE")}>Rejeter</button></div></td>}
-          </tr>)}</tbody>
+          <tbody>{trips.map((trip) => {
+            const proofIsOpen = routeProofTrip?.id === trip.id;
+            return <Fragment key={trip.id}>
+              <tr>
+                <td>{trip.supervisorName}</td><td>{new Date(trip.startedAt || trip.calculatedAt).toLocaleString("fr-CA")}</td><td>{formatNumber(trip.distanceKm)} km</td><td>{formatCurrency(trip.parkingAmount)}</td>
+                <td><div className="proofActions">{trip.mapUrl && <a href={trip.mapUrl} target="_blank" rel="noreferrer">Ouvrir dans Google Maps</a>}<button className="proofLinkButton" type="button" onClick={() => setRouteProofTrip(proofIsOpen ? null : trip)}>{proofIsOpen ? "Masquer l’itinéraire" : "Voir l’itinéraire"}</button>{trip.hasParkingReceipt && <button className="proofLinkButton" type="button" onClick={() => openParkingReceipt(trip.id)}>Voir le ticket de stationnement</button>}</div></td>
+                <td><span className={`statusPill ${statusClass(trip.status)}`}>{statusLabel(trip.status)}</span>{trip.refusalReason && <span className="refusalReason"><strong>Motif :</strong> {trip.refusalReason}</span>}</td>
+                {canValidate && <td><div className="tableActions"><button className="secondaryButton fitButton" type="button" onClick={() => updateTripStatus(trip.id, "VALIDE")}>Valider</button><button className="dangerButton fitButton" type="button" onClick={() => setRefusalTarget({ type: "trip", item: trip })}>Rejeter</button></div></td>}
+              </tr>
+              {proofIsOpen && <tr className="tripDetailsRow"><td colSpan={canValidate ? 7 : 6}>
+                <FrozenRouteSnapshot snapshot={trip.routeSnapshot} tripId={trip.id} />
+              </td></tr>}
+            </Fragment>;
+          })}</tbody>
         </table></div>
       </section>
       <section className="studentPanel">
@@ -317,7 +329,7 @@ export default function PayrollDashboard({ user }) {
                   <td>{formatNumber(charge.supervisionHours)}</td>
                   <td>{formatCurrency(charge.hourlyRate)}</td>
                   <td><strong>{formatCurrency(charge.totalAmount)}</strong></td>
-                  <td><span className={`statusPill ${statusClass(charge.status)}`}>{statusLabel(charge.status)}</span></td>
+                  <td><span className={`statusPill ${statusClass(charge.status)}`}>{statusLabel(charge.status)}</span>{charge.refusalReason && <span className="refusalReason"><strong>Motif :</strong> {charge.refusalReason}</span>}</td>
                   {canValidate && (
                     <td>
                       <div className="tableActions">
@@ -333,7 +345,7 @@ export default function PayrollDashboard({ user }) {
                           className="dangerButton fitButton"
                           type="button"
                           disabled={actionLoadingId === charge.id}
-                          onClick={() => updateStatus(charge.id, "REJETE")}
+                          onClick={() => setRefusalTarget({ type: "charge", item: charge })}
                         >
                           Rejeter
                         </button>
@@ -352,8 +364,50 @@ export default function PayrollDashboard({ user }) {
           </table>
         </div>
       </section>
+      {refusalTarget && <PayrollRefusalModal
+        target={refusalTarget}
+        loading={actionLoadingId !== null}
+        onCancel={() => setRefusalTarget(null)}
+        onConfirm={async (reason) => {
+          if (refusalTarget.type === "trip") await updateTripStatus(refusalTarget.item.id, "REJETE", reason);
+          else await updateStatus(refusalTarget.item.id, "REJETE", reason);
+          setRefusalTarget(null);
+        }}
+      />}
     </>
   );
+}
+
+function PayrollRefusalModal({ target, loading, onCancel, onConfirm }) {
+  const [reason, setReason] = useState("");
+  const [validationError, setValidationError] = useState("");
+  const isTrip = target.type === "trip";
+
+  function submit(event) {
+    event.preventDefault();
+    const cleaned = reason.trim();
+    if (cleaned.length < 10 || cleaned.length > 2000) {
+      setValidationError("Le motif doit contenir entre 10 et 2000 caractères.");
+      return;
+    }
+    setValidationError("");
+    onConfirm(cleaned);
+  }
+
+  return <div className="modalOverlay">
+    <div className="modalCard refusalModal" role="dialog" aria-modal="true" aria-labelledby="payroll-refusal-title">
+      <div className="panelHeader">
+        <div><h2 id="payroll-refusal-title">Motif du rejet</h2><p>{isTrip ? `Trajet de ${target.item.supervisorName}` : `Charge de ${target.item.supervisorName} — ${target.item.studentName}`}</p></div>
+        <button className="modalCloseButton" type="button" onClick={onCancel} disabled={loading} aria-label="Fermer">×</button>
+      </div>
+      <form onSubmit={submit}>
+        <label className="field wide">Motif du refus *<textarea rows="6" minLength="10" maxLength="2000" required autoFocus value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Expliquez clairement la raison du rejet et la correction attendue." /></label>
+        <div className="characterCounter">{reason.length}/2000</div>
+        {validationError && <div className="studentError">{validationError}</div>}
+        <div className="modalActions"><button className="secondaryButton" type="button" onClick={onCancel} disabled={loading}>Annuler</button><button className="dangerButton" type="submit" disabled={loading}>{loading ? "Enregistrement..." : "Confirmer le rejet"}</button></div>
+      </form>
+    </div>
+  </div>;
 }
 
 function PayrollChargeForm({ settings, user, onCreated, onError }) {

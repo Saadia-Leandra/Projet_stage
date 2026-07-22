@@ -1,5 +1,6 @@
 const GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 const ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
+const STATIC_MAP_URL = "https://maps.googleapis.com/maps/api/staticmap";
 
 export class MileageService {
   async calculate(data) {
@@ -7,6 +8,20 @@ export class MileageService {
     const destinations = normalizeDestinations(data.destinations);
     const tripType = data.tripType === "ALLER_SIMPLE" ? "ALLER_SIMPLE" : "ALLER_RETOUR";
     const route = await calculateGoogleRoute(originAddress, destinations, tripType);
+    const routeProofImage = await captureRouteImage(route);
+    const calculatedAt = route.calculatedAt;
+    const routeSnapshot = {
+      calculatedAt,
+      tripType,
+      origin: { address: originAddress, coordinates: route.originCoordinates },
+      destinations: destinations.map((destination, index) => ({
+        ...destination,
+        coordinates: route.destinationCoordinates[index]
+      })),
+      distanceKm: route.distanceKm,
+      durationMinutes: route.durationMinutes,
+      encodedPolyline: route.encodedPolyline
+    };
 
     return {
       originAddress,
@@ -17,9 +32,29 @@ export class MileageService {
       provider: route.provider,
       tripType,
       mapUrl: route.mapUrl,
-      calculatedAt: new Date().toISOString()
+      routeSnapshot,
+      routeProofImage,
+      calculatedAt
     };
   }
+}
+
+async function captureRouteImage(route) {
+  const url = new URL(STATIC_MAP_URL);
+  url.searchParams.set("size", "640x420");
+  url.searchParams.set("scale", "2");
+  url.searchParams.set("format", "png");
+  url.searchParams.set("maptype", "roadmap");
+  url.searchParams.set("path", `color:0x1d4ed8ff|weight:5|enc:${route.encodedPolyline}`);
+  url.searchParams.append("markers", `color:green|label:D|${formatCoordinates(route.originCoordinates)}`);
+  route.destinationCoordinates.forEach((coordinates, index) => url.searchParams.append("markers", `color:red|label:${index + 1}|${formatCoordinates(coordinates)}`));
+  url.searchParams.set("key", process.env.GOOGLE_MAPS_API_KEY);
+  const response = await fetch(url);
+  const contentType = response.headers.get("content-type") || "";
+  if (!response.ok || !contentType.startsWith("image/")) {
+    throw createError("Impossible de creer la capture Google Maps. Verifiez que Maps Static API est activee pour cette cle.", 400);
+  }
+  return Buffer.from(await response.arrayBuffer());
 }
 
 async function calculateGoogleRoute(originAddress, destinations, tripType) {
@@ -43,14 +78,18 @@ async function calculateGoogleRoute(originAddress, destinations, tripType) {
     ? [...destinationCoordinates, originCoordinates]
     : destinationCoordinates;
   const finalCoordinates = routeCoordinates[routeCoordinates.length - 1];
+  const calculatedAt = new Date(Date.now() + 1000).toISOString();
   const response = await fetch(ROUTES_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,
-      "X-Goog-FieldMask": "routes.distanceMeters,routes.duration"
+      "X-Goog-FieldMask": "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline"
     },
     body: JSON.stringify({
+      travelMode: "DRIVE",
+      routingPreference: "TRAFFIC_AWARE_OPTIMAL",
+      departureTime: calculatedAt,
       origin: {
         location: {
           latLng: {
@@ -89,6 +128,10 @@ async function calculateGoogleRoute(originAddress, destinations, tripType) {
     durationMinutes,
     durationLabel: formatDuration(durationMinutes),
     mapUrl: buildMapUrl(originCoordinates, routeCoordinates),
+    originCoordinates,
+    destinationCoordinates,
+    encodedPolyline: route.polyline?.encodedPolyline || "",
+    calculatedAt,
     provider: "GOOGLE_ROUTES"
   };
 }

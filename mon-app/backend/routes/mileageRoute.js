@@ -6,6 +6,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 const receiptDirectory = path.resolve("backend", "uploads", "parking-receipts");
+const routeProofDirectory = path.resolve("backend", "uploads", "route-proofs");
 
 export default function mileageRoutes({ mileageTripsRepo }) {
   const router = Router();
@@ -35,8 +36,17 @@ export default function mileageRoutes({ mileageTripsRepo }) {
 
   router.post("/calculate", requireRole("SUPERVISEUR"), async (req, res, next) => {
     try {
+      const parkingAmount = Number(req.body.parkingAmount || 0);
+      if (!Number.isFinite(parkingAmount) || parkingAmount < 0) {
+        const error = new Error("Le montant de stationnement est invalide."); error.status = 400; throw error;
+      }
+      if (parkingAmount > 0 && !req.body.parkingReceipt) {
+        const error = new Error("Le ticket de stationnement est obligatoire lorsqu’un montant est indiqué."); error.status = 400; throw error;
+      }
       const ratePerKm = await mileageTripsRepo.getSupervisorRate(req.user.id);
       const result = await mileageService.calculate(req.body);
+      const routeProofStoredName = await saveRouteProof(result.routeProofImage);
+      result.routeSnapshot.proofImageStoredName = routeProofStoredName;
       const parkingReceipt = await saveParkingReceipt(req.body.parkingReceipt);
       const trip = await mileageTripsRepo.create({
         supervisorUserId: req.user.id,
@@ -44,9 +54,10 @@ export default function mileageRoutes({ mileageTripsRepo }) {
         program: req.body.program,
         group: req.body.group,
         tripDate: req.body.tripDate,
-        parkingAmount: Number(req.body.parkingAmount || 0),
+        parkingAmount,
         ratePerKm,
         mapUrl: result.mapUrl,
+        routeSnapshot: result.routeSnapshot,
         distanceKm: result.distanceKm,
         durationMinutes: result.durationMinutes,
         provider: result.provider,
@@ -59,8 +70,9 @@ export default function mileageRoutes({ mileageTripsRepo }) {
         parkingReceipt
       });
 
+      const { routeProofImage: _routeProofImage, ...publicResult } = result;
       res.status(201).json({
-        ...result,
+        ...publicResult,
         ratePerKm,
         tripId: trip.id
       });
@@ -93,9 +105,19 @@ export default function mileageRoutes({ mileageTripsRepo }) {
       next(error);
     }
   });
+  router.get("/trips/:id/route-proof", requireRole("SUPERVISEUR", "COMPTABILITE", "DIRECTION", "CONSEILLERE"), async (req, res, next) => {
+    try {
+      const proof = await mileageTripsRepo.findRouteProof(req.params.id, req.user);
+      if (!proof) {
+        const error = new Error("Preuve Google Maps introuvable pour ce trajet."); error.status = 404; throw error;
+      }
+      const contents = await readFile(path.join(routeProofDirectory, path.basename(proof)));
+      res.type("png").set("Cache-Control", "private, max-age=31536000, immutable").send(contents);
+    } catch (error) { next(error); }
+  });
   router.patch("/trips/:id/status", requireRole("COMPTABILITE", "DIRECTION"), async (req, res, next) => {
     try {
-      await mileageTripsRepo.updateStatus(req.params.id, req.body.status);
+      await mileageTripsRepo.updateStatus(req.params.id, req.body.status, req.body.refusalReason);
       res.json({ ok: true });
     } catch (error) {
       next(error);
@@ -123,6 +145,14 @@ async function saveParkingReceipt(receipt) {
   const storedName = `${randomUUID()}${path.extname(receipt.name).toLowerCase()}`;
   await writeFile(path.join(receiptDirectory, storedName), contents, { flag: "wx" });
   return { name: path.basename(receipt.name), type: receipt.type, storedName };
+}
+
+async function saveRouteProof(contents) {
+  if (!Buffer.isBuffer(contents) || !contents.length) throw new Error("Capture Google Maps invalide.");
+  await mkdir(routeProofDirectory, { recursive: true });
+  const storedName = `${randomUUID()}.png`;
+  await writeFile(path.join(routeProofDirectory, storedName), contents, { flag: "wx" });
+  return storedName;
 }
 
 function normalizeGpsTrace(trace) {

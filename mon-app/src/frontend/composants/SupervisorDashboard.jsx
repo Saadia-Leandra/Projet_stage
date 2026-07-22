@@ -1,5 +1,7 @@
-﻿import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import SupervisorStageRequests from "./SupervisorStageRequests.jsx";
+import { Fragment } from "react";
+import FrozenRouteSnapshot from "./FrozenRouteSnapshot.jsx";
 
 const CAMPUS_OPTIONS = {
   MTL: {
@@ -18,9 +20,10 @@ const CAMPUS_OPTIONS = {
 
 const DEFAULT_CAMPUS = CAMPUS_OPTIONS.MTL;
 
-export default function SupervisorDashboard({ view, user }) {
+export default function SupervisorDashboard({ view, user, onNavigate }) {
   const [trips, setTrips] = useState([]);
   const [students, setStudents] = useState([]);
+  const [stageRequests, setStageRequests] = useState([]);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -61,6 +64,11 @@ export default function SupervisorDashboard({ view, user }) {
       }
 
       setStudents(studentsData.students || []);
+      const requestsResponse = await fetch("/api/supervisor/stages/requests", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const requestsData = await requestsResponse.json().catch(() => ({}));
+      if (requestsResponse.ok) setStageRequests(requestsData.requests || []);
       setError("");
     } catch {
       setError("Erreur de connexion au serveur.");
@@ -123,59 +131,56 @@ export default function SupervisorDashboard({ view, user }) {
     );
   }
 
-  return <SupervisorOverview user={user} trips={supervisorTrips} loading={loading} error={error} />;
+  return <SupervisorOverview user={user} trips={supervisorTrips} requests={stageRequests} loading={loading} error={error} onNavigate={onNavigate} />;
 }
 
-function SupervisorOverview({ user, trips, loading, error }) {
+function SupervisorOverview({ user, trips, requests, loading, error, onNavigate }) {
   const totalKm = trips.reduce((sum, trip) => sum + Number(trip.distanceKm || 0), 0);
   const totalAmount = trips.reduce((sum, trip) => sum + Number(trip.reimbursementAmount || 0), 0);
+  const pendingRequests = requests.filter((request) => request.status === "SOUMISE");
+  const latestPendingRequest = pendingRequests[0];
+  const rejectedTrips = trips.filter((trip) => trip.status === "REJETE" && trip.refusalReason);
+  const notificationCount = pendingRequests.length + rejectedTrips.length;
 
   return (
     <>
       {error && <div className="studentError">{error}</div>}
-      <section className="panel">
-        <div className="panelHeader">
-          <h2>Profil connecte</h2>
-          <span className="statusPill">Superviseur</span>
+      <section className="studentHeroCard">
+        <div className="studentHeroHeader">
+          <div><h2>Mon espace enseignant</h2><p>{user.employeeNumber || "-"} - {user.email}</p></div>
+          <span className="statusPill statusGreen">{user.status}</span>
         </div>
-
-        <div className="stageInfo">
-          <div>
-            <strong>Courriel</strong>
-            <span>{user.email}</span>
-          </div>
-          <div>
-            <strong>Numero employe</strong>
-            <span>{user.employeeNumber || "-"}</span>
-          </div>
-          <div>
-            <strong>Statut</strong>
-            <span>{user.status}</span>
-          </div>
+        <div className="studentInfo twoColumns">
+          <div><strong>Etudiants supervises</strong><span>{requests.length}</span></div>
+          <div><strong>Demandes a traiter</strong><span>{pendingRequests.length}</span></div>
+          <div><strong>Deplacements</strong><span>{trips.length}</span></div>
+          <div><strong>Kilometrage total</strong><span>{formatNumber(totalKm)} km</span></div>
         </div>
+        <button className="secondaryButton studentActionButton" type="button" onClick={() => onNavigate("stageRequests")}>Voir les demandes de stage</button>
       </section>
 
-      <section className="studentPanel">
-        <div className="panelHeader">
-          <h2>Resume kilometrage</h2>
-          {loading && <span className="statusPill">Chargement</span>}
-        </div>
-
-        <div className="stageInfo">
-          <div>
-            <strong>Deplacements</strong>
-            <span>{trips.length}</span>
+      <div className="studentDashboardGrid">
+        <section className="studentPanel">
+          <div className="panelHeader"><h2>Resume kilometrage</h2>{loading && <span className="statusPill">Chargement</span>}</div>
+          <div className="stageInfo">
+            <div><strong>Deplacements</strong><span>{trips.length}</span></div>
+            <div><strong>Kilometres</strong><span>{formatNumber(totalKm)} km</span></div>
+            <div><strong>Remboursements</strong><span>{formatCurrency(totalAmount)}</span></div>
           </div>
-          <div>
-            <strong>Kilometres</strong>
-            <span>{formatNumber(totalKm)} km</span>
-          </div>
-          <div>
-            <strong>Remboursements</strong>
-            <span>{formatCurrency(totalAmount)}</span>
-          </div>
-        </div>
-      </section>
+          <button className="linkButton panelLink" type="button" onClick={() => onNavigate("mileage")}>Voir mes deplacements</button>
+        </section>
+        <section className="studentPanel">
+          <div className="panelHeader"><h2>Notifications</h2><span className="statusPill">{notificationCount}</span></div>
+          {rejectedTrips.slice(0, 3).map((trip) => <div className="notificationItem notificationRejected" key={`rejected-trip-${trip.id}`}>
+            <span className="notificationDot" />
+            <p><strong>Kilométrage du {formatDate(trip.tripDate)} refusé :</strong> {trip.refusalReason} <button className="proofLinkButton" type="button" onClick={() => onNavigate("mileage")}>Voir le trajet</button></p>
+          </div>)}
+          {latestPendingRequest && <div className="notificationItem"><span className="notificationDot" /><p>La demande de {latestPendingRequest.studentFullName} est en attente de validation.</p></div>}
+          {!notificationCount && <div className="notificationItem"><p>Aucune nouvelle notification.</p></div>}
+          {rejectedTrips.length > 3 && <p>{rejectedTrips.length - 3} autre(s) kilométrage(s) refusé(s).</p>}
+          {pendingRequests.length > 1 && <p>{pendingRequests.length - 1} autre(s) demande(s) en attente.</p>}
+        </section>
+      </div>
     </>
   );
 }
@@ -203,19 +208,15 @@ function MileageForm({ user, students, onCreated }) {
     destinationAddress: "",
     tripType: "ALLER_RETOUR",
     ratePerKm: user.mileageRate ? String(user.mileageRate) : "",
-    parkingAmount: "0",
+    parkingAmount: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [calculation, setCalculation] = useState(null);
+  const [showRouteProof, setShowRouteProof] = useState(false);
   const [additionalStops, setAdditionalStops] = useState([]);
-  const [gpsTrace, setGpsTrace] = useState([]);
-  const [tracking, setTracking] = useState(false);
-  const [startedAt, setStartedAt] = useState(null);
-  const [endedAt, setEndedAt] = useState(null);
   const [parkingReceipt, setParkingReceipt] = useState(null);
-  const watchId = useRef(null);
 
   const selectedCampus = CAMPUS_OPTIONS[form.campus] || DEFAULT_CAMPUS;
   const reimbursementPreview = calculation
@@ -233,6 +234,10 @@ function MileageForm({ user, students, onCreated }) {
 
   function updateField(event) {
     const { name, value } = event.target;
+
+    if (name === "parkingAmount" && Number(value || 0) <= 0) {
+      setParkingReceipt(null);
+    }
 
     if (name === "studentId") {
       const student = students.find((item) => String(item.id) === value);
@@ -294,38 +299,19 @@ function MileageForm({ user, students, onCreated }) {
     setAdditionalStops((current) => current.filter((_, stopIndex) => stopIndex !== index));
   }
 
-  function startTracking() {
-    setError("");
-    if (!navigator.geolocation) {
-      setError("La geolocalisation n'est pas disponible sur cet appareil.");
-      return;
-    }
-    setGpsTrace([]);
-    setStartedAt(new Date().toISOString());
-    setEndedAt(null);
-    watchId.current = navigator.geolocation.watchPosition(
-      ({ coords, timestamp }) => setGpsTrace((current) => [...current, {
-        lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy,
-        recordedAt: new Date(timestamp).toISOString()
-      }]),
-      () => setError("Impossible de capturer la position. Autorisez la geolocalisation."),
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
-    );
-    setTracking(true);
-  }
-
-  function stopTracking() {
-    if (watchId.current !== null) navigator.geolocation.clearWatch(watchId.current);
-    watchId.current = null;
-    setEndedAt(new Date().toISOString());
-    setTracking(false);
-  }
   async function submitForm(event) {
     event.preventDefault();
     setSubmitting(true);
     setError("");
     setMessage("");
     setCalculation(null);
+    setShowRouteProof(false);
+
+    if (Number(form.parkingAmount || 0) > 0 && !parkingReceipt) {
+      setError("Le ticket de stationnement est obligatoire lorsqu’un montant de stationnement est indiqué.");
+      setSubmitting(false);
+      return;
+    }
 
     const token = localStorage.getItem("token");
 
@@ -345,9 +331,6 @@ function MileageForm({ user, students, onCreated }) {
         body: JSON.stringify({
           ...form,
           parkingAmount: Number(form.parkingAmount),
-          gpsTrace,
-          startedAt,
-          endedAt,
           parkingReceipt: parkingReceipt ? await fileToPayload(parkingReceipt) : null,
           destinations: [
             {
@@ -511,7 +494,7 @@ function MileageForm({ user, students, onCreated }) {
           </label>
 
           <label className="field">
-            Frais de stationnement
+            Frais de stationnement (facultatif)
             <input
               name="parkingAmount"
               type="number"
@@ -523,27 +506,19 @@ function MileageForm({ user, students, onCreated }) {
           </label>
         </div>
 
-        <label className="field wide">
-          Preuve des frais de stationnement
-          <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setParkingReceipt(event.target.files?.[0] || null)} />
-        </label>
-        <div className="formContext">
-          <button className="secondaryButton fitButton" type="button" onClick={tracking ? stopTracking : startTracking}>
-            {tracking ? "Arreter la capture du trajet" : "Demarrer la capture du trajet"}
-          </button>
-          <span>{gpsTrace.length} position(s) capturee(s)</span>
-        </div>
-
+        {Number(form.parkingAmount || 0) > 0 && <label className="field wide parkingUploadField">
+          <span>Téléverser le ticket de stationnement <strong aria-hidden="true">*</strong></span>
+          <input required type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => setParkingReceipt(event.target.files?.[0] || null)} />
+          <small>{parkingReceipt ? `Fichier sélectionné : ${parkingReceipt.name}` : "Une image ou un PDF est obligatoire pour réclamer ces frais."}</small>
+        </label>}
         {calculation && (
           <div className="mileageResult">
             <strong>{selectedCampus.distanceLabel}: {formatNumber(calculation.distanceKm)} km</strong>
             <span>Total: {formatCurrency(reimbursementPreview)}</span>
             <span>{calculation.durationLabel || `${formatNumber(calculation.durationMinutes)} min`}</span>
-            {calculation.mapUrl && (
-              <a href={calculation.mapUrl} target="_blank" rel="noreferrer">
-                Voir l'itineraire
-              </a>
-            )}
+            {calculation.routeSnapshot && <button className="proofLinkButton" type="button" onClick={() => setShowRouteProof((visible) => !visible)}>{showRouteProof ? "Masquer l’itinéraire" : "Voir l’itinéraire"}</button>}
+            {calculation.mapUrl && <a href={calculation.mapUrl} target="_blank" rel="noreferrer">Voir sur Google Maps</a>}
+            {showRouteProof && <FrozenRouteSnapshot snapshot={calculation.routeSnapshot} tripId={calculation.tripId} />}
           </div>
         )}
 
@@ -556,6 +531,19 @@ function MileageForm({ user, students, onCreated }) {
 }
 
 function MileageTripsTable({ loading, trips }) {
+  const [expandedTripId, setExpandedTripId] = useState(null);
+
+  async function openParkingReceipt(tripId) {
+    const token = localStorage.getItem("token");
+    const response = await fetch(`/api/mileage/trips/${tripId}/parking-receipt`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!response.ok) return;
+    const receiptUrl = URL.createObjectURL(await response.blob());
+    window.open(receiptUrl, "_blank", "noopener,noreferrer");
+    window.setTimeout(() => URL.revokeObjectURL(receiptUrl), 60000);
+  }
+
   return (
     <section className="studentPanel">
       <div className="panelHeader">
@@ -574,24 +562,41 @@ function MileageTripsTable({ loading, trips }) {
               <th>Distance</th>
               <th>Montant</th>
               <th>Statut</th>
+              <th>Details</th>
             </tr>
           </thead>
           <tbody>
-            {trips.map((trip) => (
-              <tr key={trip.id}>
-                <td>{formatDate(trip.tripDate)}</td>
-                <td>{trip.campusCode || trip.campusName || "-"}</td>
-                <td>{trip.program || "-"}</td>
-                <td>{trip.tripType === "ALLER_SIMPLE" ? "Aller simple" : "Aller-retour"}</td>
-                <td>{formatNumber(trip.distanceKm)} km</td>
-                <td>{formatCurrency(trip.reimbursementAmount)}</td>
-                <td><span className="statusPill statusGreen">{trip.status || "CALCULE"}</span></td>
-              </tr>
-            ))}
+            {trips.map((trip) => {
+              const snapshot = trip.routeSnapshot;
+              const isExpanded = expandedTripId === trip.id;
+              return <Fragment key={trip.id}>
+                <tr>
+                  <td>{formatDate(trip.tripDate)}</td><td>{trip.campusCode || trip.campusName || "-"}</td>
+                  <td>{trip.program || "-"}</td><td>{trip.tripType === "ALLER_SIMPLE" ? "Aller simple" : "Aller-retour"}</td>
+                  <td>{formatNumber(trip.distanceKm)} km</td><td>{formatCurrency(trip.reimbursementAmount)}</td>
+                  <td><span className={`statusPill ${trip.status === "REJETE" ? "statusRed" : "statusGreen"}`}>{trip.status || "CALCULE"}</span>{trip.refusalReason && <span className="refusalReason"><strong>Motif :</strong> {trip.refusalReason}</span>}</td>
+                  <td><button className="proofLinkButton" type="button" onClick={() => setExpandedTripId(isExpanded ? null : trip.id)}>{isExpanded ? "Masquer l’itinéraire" : "Voir l’itinéraire"}</button></td>
+                </tr>
+                {isExpanded && <tr className="tripDetailsRow"><td colSpan="8">
+                  {trip.status === "REJETE" && trip.refusalReason && <div className="mileageRefusalNotice" role="alert">
+                    <strong>Kilométrage refusé</strong>
+                    <span>{trip.refusalReason}</span>
+                  </div>}
+                  <div className="tripDetails">
+                    <div><strong>Calcul effectué</strong><span>{formatDateTime(trip.calculatedAt)}</span></div>
+                  </div>
+                  <div className="tripDetailActions">
+                    {trip.mapUrl && <a href={trip.mapUrl} target="_blank" rel="noreferrer">Voir l'itineraire sur Google Maps</a>}
+                    {trip.hasParkingReceipt && <button className="proofLinkButton" type="button" onClick={() => openParkingReceipt(trip.id)}>Voir le ticket de stationnement</button>}
+                  </div>
+                  <FrozenRouteSnapshot snapshot={snapshot} tripId={trip.id} />
+                </td></tr>}
+              </Fragment>;
+            })}
 
             {!trips.length && (
               <tr>
-                <td colSpan="7">Aucun deplacement calcule pour le moment.</td>
+                <td colSpan="8">Aucun deplacement calcule pour le moment.</td>
               </tr>
             )}
           </tbody>
@@ -636,6 +641,10 @@ function selectedStudentCompanyId(students, studentId) {
   const student = students.find((item) => String(item.id) === String(studentId));
 
   return student?.companyId || null;
+}
+
+function formatDateTime(value) {
+  return value ? new Date(value).toLocaleString("fr-CA") : "-";
 }
 
 

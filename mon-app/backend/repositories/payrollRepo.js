@@ -188,6 +188,7 @@ export function createPayrollRepo(db) {
             cps.montant_total AS totalAmount,
             cps.verrouille AS locked,
             cps.statut AS status,
+            cps.motif_refus AS refusalReason,
             cps.cree_le AS createdAt,
             ecp.commentaire AS comment
           FROM charges_paie_supervision cps
@@ -323,7 +324,7 @@ export function createPayrollRepo(db) {
       return { supervisor: supervisorRows[0], charges, trips };
     },
 
-    async updateSupervisionChargeStatus({ id, status }) {
+    async updateSupervisionChargeStatus({ id, status, refusalReason }) {
       const allowedStatuses = new Set(["CALCULE", "VALIDE", "REJETE", "EXPORTE"]);
 
       if (!allowedStatuses.has(status)) {
@@ -332,13 +333,15 @@ export function createPayrollRepo(db) {
         throw error;
       }
 
+      const reason = validateRefusalReason(status, refusalReason);
+
       const [result] = await db.execute(
         `
           UPDATE charges_paie_supervision
-          SET statut = ?
+          SET statut = ?, motif_refus = ?
           WHERE id = ?
         `,
-        [status, id]
+        [status, reason, id]
       );
 
       if (!result.affectedRows) {
@@ -348,6 +351,17 @@ export function createPayrollRepo(db) {
       }
     }
   };
+}
+
+function validateRefusalReason(status, value) {
+  if (status !== "REJETE") return null;
+  const reason = String(value || "").trim();
+  if (reason.length < 10 || reason.length > 2000) {
+    const error = new Error("Le motif du refus doit contenir entre 10 et 2000 caractères.");
+    error.status = 400;
+    throw error;
+  }
+  return reason;
 }
 
 function validateChargeData(data = {}) {
