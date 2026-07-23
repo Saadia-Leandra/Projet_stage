@@ -1,6 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import StudentRequestForm from "./StudentRequestForm.jsx";
 import StudentRequestEditForm from "./StudentRequestEditForm.jsx";
+import {
+  getStudentStageDisplayState,
+  isActiveStudentStageRequest,
+  isCorrectionRequestStatus,
+  studentCanEditRequest,
+  studentCanWithdrawRequest
+} from "../utils/studentStageDisplayState.js";
 
 export default function StudentDashboard({
   view,
@@ -16,13 +23,22 @@ export default function StudentDashboard({
   const [loading, setLoading] = useState(true);
 
   const latestRequest = useMemo(
-    () => requests[0] || null,
+    () =>
+      requests.find(isActiveStudentStageRequest) ||
+      null,
     [requests]
   );
 
   const latestContract = useMemo(
-    () => contracts[0] || null,
-    [contracts]
+    () =>
+      contracts.find(
+        (contract) =>
+          latestRequest &&
+          contract.requestId === latestRequest.id
+      ) ||
+      contracts[0] ||
+      null,
+    [contracts, latestRequest]
   );
 
   async function loadDashboard() {
@@ -30,7 +46,7 @@ export default function StudentDashboard({
 
     if (!token) {
       setError(
-        "Session expirée. Veuillez vous reconnecter."
+        "Session expirÃ©e. Veuillez vous reconnecter."
       );
       setLoading(false);
       return;
@@ -142,7 +158,9 @@ export default function StudentDashboard({
           loading={loading}
           student={student}
           requests={requests}
+          contracts={contracts}
           onCreated={loadDashboard}
+          onNavigate={onNavigate}
         />
       )}
 
@@ -158,7 +176,6 @@ export default function StudentDashboard({
       {view === "dashboard" && (
         <OverviewView
           loading={loading}
-          student={student}
           latestRequest={latestRequest}
           latestContract={latestContract}
           requests={requests}
@@ -173,7 +190,6 @@ export default function StudentDashboard({
 
 function OverviewView({
   loading,
-  student,
   latestRequest,
   latestContract,
   requests,
@@ -186,10 +202,11 @@ function OverviewView({
   const [downloadingFinal, setDownloadingFinal] =
     useState(false);
 
-  const nextAction = studentNextAction(
-    latestRequest,
-    latestContract
-  );
+  const displayState =
+    getStudentStageDisplayState({
+      request: latestRequest,
+      contract: latestContract
+    });
   const missingItems =
     missingContractItems(latestContract);
 
@@ -254,20 +271,17 @@ function OverviewView({
       <section className="studentHeroCard">
         <div className="studentHeroHeader">
           <div>
-            <h2>Mon dossier de stage</h2>
+            <h2>{displayState.title}</h2>
 
             <p>
-              {student?.studentCode || "-"} -{" "}
-              {student?.programme || "-"}
+              {displayState.message}
             </p>
           </div>
 
           <span
-            className={`statusPill ${statusClass(
-              latestRequest?.status
-            )}`}
+            className={`statusPill ${displayState.colorClass}`}
           >
-            {statusLabel(latestRequest?.status)}
+            {displayState.label}
           </span>
         </div>
 
@@ -275,11 +289,8 @@ function OverviewView({
           <span>Progression du dossier</span>
 
           <strong>
-            Étape{" "}
-            {progressStep(
-              latestRequest?.status,
-              latestContract
-            )}
+            Ã‰tape{" "}
+            {displayState.progressStep}
             /9
           </strong>
         </div>
@@ -287,9 +298,9 @@ function OverviewView({
         <div className="studentProgressTrack">
           <span
             style={{
-              width: `${progressPercent(
-                latestRequest?.status,
-                latestContract
+              width: `${Math.round(
+                (displayState.progressStep / 9) *
+                  100
               )}%`
             }}
           />
@@ -301,7 +312,7 @@ function OverviewView({
 
             <span>
               {latestRequest?.companyName ||
-                "Aucun milieu sélectionné"}
+                "Aucun milieu sÃ©lectionnÃ©"}
             </span>
           </div>
 
@@ -328,7 +339,7 @@ function OverviewView({
           </div>
 
           <div>
-            <strong>Période</strong>
+            <strong>PÃ©riode</strong>
 
             <span>
               {latestRequest
@@ -345,13 +356,17 @@ function OverviewView({
             <strong>Prochaine action</strong>
 
             <span className="nextActionText">
-              <strong>{nextAction.title}</strong>
-              <small>{nextAction.detail}</small>
+              <strong>
+                {displayState.actionLabel}
+              </strong>
+              <small>
+                {displayState.nextStep}
+              </small>
             </span>
           </div>
         </div>
 
-        {isCorrectionStatus(latestRequest?.status) && (
+        {isCorrectionRequestStatus(latestRequest?.status) && (
           <div className="studentError">
             <strong>Correction demandee :</strong>{" "}
             {latestRequest.correctionStudentComment ||
@@ -383,14 +398,24 @@ function OverviewView({
           <button
             className="primaryButton fitButton"
             type="button"
-            onClick={() =>
-              onNavigate(nextAction.targetView)
-            }
+            onClick={() => {
+              if (
+                displayState.actionType ===
+                "downloadFinal"
+              ) {
+                downloadFinalContract();
+                return;
+              }
+
+              onNavigate(displayState.targetView);
+            }}
           >
-            {nextAction.buttonLabel}
+            {displayState.actionLabel}
           </button>
 
-          {latestContract?.signedPdfAvailable && (
+          {latestContract?.signedPdfAvailable &&
+            displayState.actionType !==
+              "downloadFinal" && (
             <button
               className="secondaryButton fitButton"
               type="button"
@@ -433,13 +458,45 @@ function RequestsView({
   loading,
   student,
   requests,
-  onCreated
+  contracts,
+  onCreated,
+  onNavigate
 }) {
   const [selectedRequest, setSelectedRequest] =
     useState(null);
 
   const [editingRequest, setEditingRequest] =
     useState(null);
+  const [withdrawError, setWithdrawError] =
+    useState("");
+  const [withdrawingId, setWithdrawingId] =
+    useState(null);
+
+  const activeRequest = useMemo(
+    () =>
+      requests.find(isActiveStudentStageRequest) ||
+      null,
+    [requests]
+  );
+
+  const historyRequests = useMemo(
+    () =>
+      requests.filter(
+        (request) =>
+          !isActiveStudentStageRequest(request)
+      ),
+    [requests]
+  );
+
+  const activeContract = useMemo(
+    () =>
+      contracts.find(
+        (contract) =>
+          activeRequest &&
+          contract.requestId === activeRequest.id
+      ) || null,
+    [contracts, activeRequest]
+  );
 
   async function handleUpdated() {
     await onCreated();
@@ -447,11 +504,69 @@ function RequestsView({
     setSelectedRequest(null);
   }
 
+  async function withdrawRequest(request) {
+    const confirmed = window.confirm(
+      "Retirer cette demande de stage ?\n\nCette demande ne sera plus active et vous pourrez en creer une nouvelle. Elle restera conservee dans votre historique administratif."
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setWithdrawError("Session expiree.");
+      return;
+    }
+
+    setWithdrawingId(request.id);
+    setWithdrawError("");
+
+    try {
+      const response = await fetch(
+        `/api/students/requests/${request.id}/withdraw`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            reason: "Retiree par l'etudiant."
+          })
+        }
+      );
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        setWithdrawError(
+          data.error ||
+            "Impossible de retirer cette demande."
+        );
+        return;
+      }
+
+      await onCreated();
+      setEditingRequest(null);
+      setSelectedRequest(null);
+    } catch (requestError) {
+      console.error(requestError);
+      setWithdrawError(
+        "Erreur de connexion au serveur."
+      );
+    } finally {
+      setWithdrawingId(null);
+    }
+  }
+
   return (
     <>
       <section className="studentPanel">
         <div className="panelHeader">
-          <h2>Profil étudiant</h2>
+          <h2>Profil Ã©tudiant</h2>
 
           {loading && (
             <span className="statusPill">
@@ -472,17 +587,38 @@ function RequestsView({
           }
         />
       ) : (
-        <StudentRequestForm
-          student={student}
-          onCreated={onCreated}
-        />
+        <>
+          {activeRequest ? (
+            <ActiveRequestCard
+              request={activeRequest}
+              contract={activeContract}
+              withdrawing={
+                withdrawingId === activeRequest.id
+              }
+              onSelect={setSelectedRequest}
+              onEdit={setEditingRequest}
+              onWithdraw={withdrawRequest}
+              onNavigate={onNavigate}
+            />
+          ) : (
+            <StudentRequestForm
+              student={student}
+              onCreated={onCreated}
+            />
+          )}
+
+          {withdrawError && (
+            <div className="studentError">
+              {withdrawError}
+            </div>
+          )}
+        </>
       )}
 
-      <RequestsTable
-        requests={requests}
+      <RequestHistoryTable
+        requests={historyRequests}
         selectedRequest={selectedRequest}
         onSelect={setSelectedRequest}
-        onEdit={setEditingRequest}
       />
 
       {selectedRequest && (
@@ -1495,7 +1631,7 @@ function StudentProfile({ student }) {
       </div>
 
       <div>
-        <strong>Code étudiant</strong>
+        <strong>Code Ã©tudiant</strong>
 
         <span>
           {student?.studentCode || "-"}
@@ -1572,23 +1708,166 @@ function StudentProfile({ student }) {
   );
 }
 
-function RequestsTable({
+function ActiveRequestCard({
+  request,
+  contract,
+  withdrawing,
+  onSelect,
+  onEdit,
+  onWithdraw,
+  onNavigate
+}) {
+  const displayState =
+    getStudentStageDisplayState({
+      request,
+      contract
+    });
+
+  return (
+    <section className="studentPanel">
+      <div className="panelHeader">
+        <div>
+          <h2>Ma demande de stage</h2>
+          <p>{displayState.message}</p>
+        </div>
+
+        <span
+          className={`statusPill ${displayState.colorClass}`}
+        >
+          {displayState.label}
+        </span>
+      </div>
+
+      <div className="studentInfo twoColumns">
+        <div>
+          <strong>Entreprise</strong>
+          <span>
+            {request.companyName || "-"}
+          </span>
+        </div>
+
+        <div>
+          <strong>Derniere mise a jour</strong>
+          <span>
+            {formatDateTime(
+              request.updatedAt ||
+                request.resubmittedAt ||
+                request.createdAt
+            )}
+          </span>
+        </div>
+
+        <div>
+          <strong>Statut lisible</strong>
+          <span>{displayState.label}</span>
+        </div>
+
+        <div>
+          <strong>Prochaine etape</strong>
+          <span>{displayState.nextStep}</span>
+        </div>
+      </div>
+
+      {isCorrectionRequestStatus(request.status) && (
+        <div className="studentError">
+          <strong>Commentaire :</strong>{" "}
+          {request.correctionStudentComment ||
+            request.correctionReason ||
+            "-"}
+          <div className="correctionMeta">
+            <span>
+              Demandee le{" "}
+              {formatDateTime(
+                request.correctionRequestedAt
+              )}
+            </span>
+            <span>
+              Elements :{" "}
+              {request.correctionItems || "-"}
+            </span>
+            <span>
+              Documents :{" "}
+              {formatDocumentTypes(
+                request.correctionMissingDocuments
+              )}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div className="studentProgressTrack">
+        <span
+          style={{
+            width: `${Math.round(
+              (displayState.progressStep / 9) * 100
+            )}%`
+          }}
+        />
+      </div>
+
+      <div className="studentFormActions">
+        <button
+          className="primaryButton"
+          type="button"
+          onClick={() => {
+            if (studentCanEditRequest(request)) {
+            onEdit(request);
+            return;
+          }
+
+          if (
+            displayState.targetView === "contracts"
+          ) {
+            onNavigate("contracts");
+            return;
+          }
+
+          onSelect(request);
+        }}
+      >
+          {displayState.actionLabel}
+        </button>
+
+        <button
+          className="secondaryButton"
+          type="button"
+          onClick={() => onSelect(request)}
+        >
+          Voir ma demande
+        </button>
+
+        {studentCanEditRequest(request) && (
+          <button
+            className="secondaryButton"
+            type="button"
+            onClick={() => onEdit(request)}
+          >
+            Modifier ma demande
+          </button>
+        )}
+
+        {studentCanWithdrawRequest(request) && (
+          <button
+            className="secondaryButton"
+            type="button"
+            disabled={withdrawing}
+            onClick={() => onWithdraw(request)}
+          >
+            {withdrawing
+              ? "Retrait..."
+              : "Retirer ma demande"}
+          </button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function RequestHistoryTable({
   requests,
   selectedRequest,
-  onSelect,
-  onEdit
+  onSelect
 }) {
-  const [filter, setFilter] = useState("TOUTES");
-  const filteredRequests = useMemo(() => {
-    if (filter === "TOUTES") {
-      return requests;
-    }
-
-    return requests.filter(
-      (request) => request.status === filter
-    );
-  }, [filter, requests]);
-
   async function downloadRequestPdf(request) {
     const token = localStorage.getItem("token");
 
@@ -1628,68 +1907,34 @@ function RequestsTable({
   return (
     <section className="studentPanel">
       <div className="panelHeader">
-        <h2>Mes demandes de stage</h2>
+        <h2>Historique de mes demandes</h2>
 
         <span className="statusPill">
           {requests.length} demande(s)
         </span>
       </div>
 
-      <div className="tableToolbar">
-        <label className="tableFilter">
-          Filtrer
-          <select
-            value={filter}
-            onChange={(event) =>
-              setFilter(event.target.value)
-            }
-          >
-            <option value="TOUTES">
-              Toutes les demandes
-            </option>
-            <option value="SOUMISE">
-              Soumises
-            </option>
-            <option value="A_REVISER">
-              A corriger
-            </option>
-            <option value="DOCUMENTS_MANQUANTS">
-              Documents manquants
-            </option>
-            <option value="APPROUVEE">
-              Approuvees
-            </option>
-            <option value="REFUSEE">
-              Refusees definitivement
-            </option>
-          </select>
-        </label>
-      </div>
-
       <div className="studentTableWrap">
         <table>
           <thead>
             <tr>
+              <th>Creation</th>
               <th>Entreprise</th>
-              <th>Dates</th>
-              <th>Statut</th>
-              <th>Prochaine action</th>
+              <th>Statut final</th>
+              <th>Date finale</th>
+              <th>Motif</th>
               <th>Actions</th>
             </tr>
           </thead>
 
           <tbody>
-            {filteredRequests.map((request) => {
-              const canEdit = [
-                "SOUMISE",
-                "A_REVISER",
-                "DOCUMENTS_MANQUANTS"
-              ].includes(request.status);
-              const nextAction =
-                studentRequestNextAction(request);
-
+            {requests.map((request) => {
               return (
                 <tr key={request.id}>
+                  <td>
+                    {formatDate(request.createdAt)}
+                  </td>
+
                   <td>
                     <span className="tablePrimaryText">
                       {request.companyName || "-"}
@@ -1700,16 +1945,6 @@ function RequestsTable({
                         request.scheduleType
                       )}
                     </small>
-                  </td>
-
-                  <td>
-                    {formatDate(
-                      request.startDate
-                    )}{" "}
-                    au{" "}
-                    {formatDate(
-                      request.endDate
-                    )}
                   </td>
 
                   <td>
@@ -1725,14 +1960,18 @@ function RequestsTable({
                   </td>
 
                   <td>
-                    <span className="nextActionText">
-                      <strong>
-                        {nextAction.title}
-                      </strong>
-                      <small>
-                        {nextAction.detail}
-                      </small>
-                    </span>
+                    {formatDateTime(
+                      request.withdrawnAt ||
+                        request.decidedAt ||
+                        request.updatedAt ||
+                        request.createdAt
+                    )}
+                  </td>
+
+                  <td>
+                    {request.withdrawalReason ||
+                      request.refusalReason ||
+                      "-"}
                   </td>
 
                   <td>
@@ -1746,21 +1985,9 @@ function RequestsTable({
                       >
                         {selectedRequest?.id ===
                         request.id
-                          ? "Sélectionnée"
+                          ? "SÃ©lectionnÃ©e"
                           : "Voir"}
                       </button>
-
-                      {canEdit && (
-                        <button
-                          className="secondaryButton"
-                          type="button"
-                          onClick={() =>
-                            onEdit(request)
-                          }
-                        >
-                          Modifier
-                        </button>
-                      )}
 
                       <button
                         className="secondaryButton"
@@ -1777,12 +2004,11 @@ function RequestsTable({
               );
             })}
 
-            {!filteredRequests.length && (
+            {!requests.length && (
               <tr>
-                <td colSpan="5">
+                <td colSpan="6">
                   <div className="emptyState">
-                    Aucune demande ne correspond au
-                    filtre selectionne.
+                    Aucune demande dans l'historique.
                   </div>
                 </td>
               </tr>
@@ -1841,7 +2067,7 @@ function RequestDetails({
     <section className="studentPanel requestDetailsPanel">
       <div className="panelHeader">
         <div>
-          <h2>Détail de la demande</h2>
+          <h2>DÃ©tail de la demande</h2>
 
           <p>
             Demande #{request.id}
@@ -1956,13 +2182,13 @@ function RequestDetails({
 
       <DetailsSection title="1. Stage">
         <DetailItem
-          label="Résumé des tâches"
+          label="RÃ©sumÃ© des tÃ¢ches"
           value={request.taskSummary}
           wide
         />
 
         <DetailItem
-          label="Date de début"
+          label="Date de dÃ©but"
           value={formatDate(request.startDate)}
         />
 
@@ -1996,7 +2222,7 @@ function RequestDetails({
         />
 
         <DetailItem
-          label="Type d’horaire"
+          label="Type dâ€™horaire"
           value={scheduleTypeLabel(
             request.scheduleType
           )}
@@ -2036,7 +2262,7 @@ function RequestDetails({
         />
 
         <DetailItem
-          label="Téléphone"
+          label="TÃ©lÃ©phone"
           value={formatPhoneWithExtension(
             request.companyPhone,
             request.companyPhoneExtension
@@ -2054,14 +2280,14 @@ function RequestDetails({
         />
 
         <DetailItem
-          label="Type d’organisation"
+          label="Type dâ€™organisation"
           value={organizationTypeLabel(
             request.organizationType
           )}
         />
 
         <DetailItem
-          label="Secteur d’activité"
+          label="Secteur dâ€™activitÃ©"
           value={request.businessSector}
         />
       </DetailsSection>
@@ -2078,7 +2304,7 @@ function RequestDetails({
         />
 
         <DetailItem
-          label="Téléphone"
+          label="TÃ©lÃ©phone"
           value={formatPhoneWithExtension(
             request.hrPhone,
             request.hrExtension
@@ -2103,14 +2329,14 @@ function RequestDetails({
         />
 
         <DetailItem
-          label="Téléphone"
+          label="TÃ©lÃ©phone"
           value={request.supervisorPhone}
         />
       </DetailsSection>
 
-      <DetailsSection title="5. Rémunération">
+      <DetailsSection title="5. RÃ©munÃ©ration">
         <DetailItem
-          label="Stage rémunéré"
+          label="Stage rÃ©munÃ©rÃ©"
           value={request.isPaid ? "Oui" : "Non"}
         />
 
@@ -2314,207 +2540,31 @@ function NotificationsSummary({
 function StatusLegend() {
   return (
     <section className="studentPanel legendPanel">
-      <h2>Légende des statuts</h2>
+      <h2>LÃ©gende des statuts</h2>
 
       <div className="legendList">
         <span>
           <i className="legendDot statusYellow" />
-          Demande non créée ou soumise
+          Demande non creee
         </span>
 
         <span>
           <i className="legendDot statusOrange" />
-          Contrat ou signature en attente
+          Processus en cours
         </span>
 
         <span>
           <i className="legendDot statusRed" />
-          Refus ou document incomplet
+          Correction, document manquant ou refus
         </span>
 
         <span>
           <i className="legendDot statusGreen" />
-          Dossier approuvé ou complet
+          Dossier complet et approuve
         </span>
       </div>
     </section>
   );
-}
-
-function studentNextAction(request, contract) {
-  if (!request) {
-    return {
-      title: "Creer une demande",
-      detail:
-        "Aucune demande n'est encore associee au dossier.",
-      buttonLabel: "Commencer une demande",
-      targetView: "requests"
-    };
-  }
-
-  if (request.status === "A_REVISER") {
-    return {
-      title: "Corrections requises",
-      detail:
-        request.correctionStudentComment ||
-        "Corrigez les informations indiquees puis resoumettez.",
-      buttonLabel: "Corriger ma demande",
-      targetView: "requests"
-    };
-  }
-
-  if (request.status === "DOCUMENTS_MANQUANTS") {
-    return {
-      title: "Documents manquants",
-      detail:
-        request.correctionStudentComment ||
-        "Ajoutez ou remplacez les documents demandes.",
-      buttonLabel: "Ajouter les documents manquants",
-      targetView: "requests"
-    };
-  }
-
-  if (request.status === "REFUSEE") {
-    return {
-      title: "Demande fermee",
-      detail:
-        request.refusalReason ||
-        "Cette demande est refusee definitivement.",
-      buttonLabel: "Voir le detail",
-      targetView: "requests"
-    };
-  }
-
-  if (
-    contract?.status === "A_COMPLETER_ETUDIANT"
-  ) {
-    return {
-      title: isContractReady(contract)
-        ? "Signer le contrat"
-        : "Completer le contrat",
-      detail: isContractReady(contract)
-        ? "Enregistrez les informations et signez votre partie."
-        : "Completez les champs manquants du contrat.",
-      buttonLabel: isContractReady(contract)
-        ? "Enregistrer et signer"
-        : "Completer le contrat",
-      targetView: "contracts"
-    };
-  }
-
-  if (
-    contract?.status === "CONTRAT_MILIEU_A_DEPOSER"
-  ) {
-    return {
-      title: "Contrat du milieu a deposer",
-      detail:
-        "Faites signer le PDF par le milieu de stage puis deposez-le ici.",
-      buttonLabel:
-        "Deposer le contrat signe par le milieu",
-      targetView: "contracts"
-    };
-  }
-
-  if (contract?.status === "SIGNATURE_ETUDIANT") {
-    return {
-      title: "Signature etudiante requise",
-      detail:
-        "Votre signature doit etre confirmee par Documenso avant la suite.",
-      buttonLabel: "Signer le contrat",
-      targetView: "contracts"
-    };
-  }
-
-  if (isSignatureStatus(contract?.status)) {
-    return {
-      title: "Signatures en cours",
-      detail:
-        "Le dossier avance selon l'ordre de signature.",
-      buttonLabel: "Voir les signatures",
-      targetView: "contracts"
-    };
-  }
-
-  if (
-    contract?.status === "DOSSIER_COMPLET" ||
-    contract?.folderStatus === "DOSSIER_COMPLET"
-  ) {
-    return {
-      title: "Dossier complet",
-      detail:
-        "Le contrat final signe est disponible.",
-      buttonLabel: "Voir le contrat final",
-      targetView: "contracts"
-    };
-  }
-
-  if (request.status === "APPROUVEE") {
-    return {
-      title: "Contrat a preparer",
-      detail:
-        "La demande est approuvee. Le contrat sera disponible ensuite.",
-      buttonLabel: "Voir ma demande",
-      targetView: "requests"
-    };
-  }
-
-  return {
-    title: "Suivi en cours",
-    detail:
-      "Votre demande est en attente de revision.",
-    buttonLabel: "Voir mon dossier",
-    targetView: "requests"
-  };
-}
-
-function studentRequestNextAction(request) {
-  if (request.status === "A_REVISER") {
-    return {
-      title: "Corriger",
-      detail:
-        request.correctionItems ||
-        "Des informations doivent etre corrigees."
-    };
-  }
-
-  if (request.status === "DOCUMENTS_MANQUANTS") {
-    return {
-      title: "Ajouter documents",
-      detail: formatDocumentTypes(
-        request.correctionMissingDocuments
-      )
-    };
-  }
-
-  if (request.status === "REFUSEE") {
-    return {
-      title: "Fermee",
-      detail:
-        request.refusalReason ||
-        "Refus definitif."
-    };
-  }
-
-  if (request.status === "APPROUVEE") {
-    return {
-      title: "Contrat",
-      detail:
-        "La demande est approuvee pour la suite."
-    };
-  }
-
-  if (request.status === "ANNULEE") {
-    return {
-      title: "Terminee",
-      detail: "Aucune action requise."
-    };
-  }
-
-  return {
-    title: "Attendre la revision",
-    detail:
-      "Le superviseur doit traiter la demande."
-  };
 }
 
 function signatureProgressText(contract) {
@@ -2554,17 +2604,6 @@ function missingContractItems(contract) {
     .map(([, label]) => label);
 }
 
-function isSignatureStatus(status) {
-  return [
-    "SIGNATURE_ETUDIANT",
-    "CONTRAT_MILIEU_A_DEPOSER",
-    "SIGNATURE_ENTREPRISE",
-    "SIGNATURE_SUPERVISEUR",
-    "SIGNATURE_CONSEILLERE",
-    "SIGNATURE_DIRECTION"
-  ].includes(status);
-}
-
 function isCorrectionStatus(status) {
   return [
     "A_REVISER",
@@ -2596,39 +2635,39 @@ function formatDocumentTypes(types) {
 
 function statusLabel(status) {
   const labels = {
+    BROUILLON: "Brouillon",
     SOUMISE: "Demande soumise",
     A_REVISER: "Corrections demandees",
     DOCUMENTS_MANQUANTS: "Documents manquants",
-    APPROUVEE: "Dossier approuvé",
-    REFUSEE: "Demande refusée",
-    ANNULEE: "Demande annulée",
+    APPROUVEE: "Dossier approuve",
+    REFUSEE: "Demande refusee",
+    ANNULEE: "Retiree par l'etudiant",
     CONTRAT_EN_COURS: "Contrat en cours",
     DOSSIER_COMPLET: "Dossier complet"
   };
 
-  return labels[status] || "Demande non créée";
+  return labels[status] || "Demande non creee";
 }
 
 function statusClass(status) {
-  if (
-    status === "APPROUVEE" ||
-    status === "DOSSIER_COMPLET"
-  ) {
+  if (status === "DOSSIER_COMPLET") {
     return "statusGreen";
   }
 
-  if (status === "REFUSEE") {
+  if (
+    status === "REFUSEE" ||
+    status === "A_REVISER" ||
+    status === "DOCUMENTS_MANQUANTS"
+  ) {
     return "statusRed";
   }
 
   if (
-    status === "A_REVISER" ||
-    status === "DOCUMENTS_MANQUANTS"
+    status === "BROUILLON" ||
+    status === "SOUMISE" ||
+    status === "APPROUVEE" ||
+    status === "CONTRAT_EN_COURS"
   ) {
-    return "statusYellow";
-  }
-
-  if (status === "CONTRAT_EN_COURS") {
     return "statusOrange";
   }
 
@@ -2747,7 +2786,7 @@ function scheduleTypeLabel(value) {
 function organizationTypeLabel(value) {
   const labels = {
     PUBLIC: "Organisme public",
-    PRIVE: "Entreprise privée"
+    PRIVE: "Entreprise privÃ©e"
   };
 
   return labels[value] || "-";
@@ -2798,12 +2837,6 @@ function progressStep(status, contract) {
   };
 
   return steps[status] || 1;
-}
-
-function progressPercent(status, contract) {
-  return Math.round(
-    (progressStep(status, contract) / 9) * 100
-  );
 }
 
 function formatDate(value) {

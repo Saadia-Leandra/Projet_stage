@@ -104,6 +104,11 @@ export async function getSupervisorStageRequests(
       WHERE ds.superviseur_id = ?
 
       ORDER BY
+        CASE
+          WHEN d.resoumis_le IS NOT NULL
+            AND d.statut = 'SOUMISE' THEN 0
+          ELSE 1
+        END,
         CASE d.statut
           WHEN 'SOUMISE' THEN 1
           WHEN 'A_REVISER' THEN 2
@@ -260,13 +265,34 @@ export async function approveStageRequest(
     const request = await findAssignedRequest(
       connection,
       supervisorId,
-      requestId
+      requestId,
+      { forUpdate: true }
     );
+
+    if (request.status === "APPROUVEE") {
+      const existingContractId =
+        await findContractIdForRequest(
+          connection,
+          request.id
+        );
+
+      if (existingContractId) {
+        await connection.commit();
+
+        return {
+          id: Number(requestId),
+          contractId: existingContractId,
+          status: "APPROUVEE",
+          message:
+            "La demande est deja approuvee et le contrat existe deja."
+        };
+      }
+    }
 
     if (request.status !== "SOUMISE") {
       throw createError(
         "Seule une demande soumise peut être approuvée.",
-        400
+        409
       );
     }
 
@@ -380,13 +406,14 @@ export async function refuseStageRequest(
     const request = await findAssignedRequest(
       connection,
       supervisorId,
-      requestId
+      requestId,
+      { forUpdate: true }
     );
 
     if (request.status !== "SOUMISE") {
       throw createError(
         "Seule une demande soumise peut être refusée.",
-        400
+        409
       );
     }
 
@@ -414,6 +441,11 @@ export async function refuseStageRequest(
         WHERE id = ?
       `,
       [request.folderId]
+    );
+
+    await invalidateContractsForRefusedRequest(
+      connection,
+      request.id
     );
 
     await createWorkflowEvent(connection, {
@@ -454,7 +486,8 @@ export async function refuseStageRequest(
 async function findAssignedRequest(
   connection,
   supervisorId,
-  requestId
+  requestId,
+  { forUpdate = false } = {}
 ) {
   const [rows] = await connection.execute(
     `
@@ -489,6 +522,7 @@ async function findAssignedRequest(
         AND ds.superviseur_id = ?
 
       LIMIT 1
+      ${forUpdate ? "FOR UPDATE" : ""}
     `,
     [requestId, supervisorId]
   );
@@ -505,6 +539,71 @@ async function findAssignedRequest(
   return request;
 }
 
+async function findContractIdForRequest(
+  connection,
+  requestId
+) {
+  const [rows] = await connection.execute(
+    `
+      SELECT id
+      FROM contrats
+      WHERE demande_stage_id = ?
+        AND statut <> 'REJETE'
+      LIMIT 1
+      FOR UPDATE
+    `,
+    [requestId]
+  );
+
+  return rows[0]?.id || null;
+}
+
+async function invalidateContractsForRefusedRequest(
+  connection,
+  requestId
+) {
+  const [contracts] = await connection.execute(
+    `
+      SELECT
+        id,
+        dossier_stage_id AS folderId,
+        statut AS status
+      FROM contrats
+      WHERE demande_stage_id = ?
+      FOR UPDATE
+    `,
+    [requestId]
+  );
+
+  for (const contract of contracts) {
+    if (contract.status === "REJETE") {
+      continue;
+    }
+
+    await connection.execute(
+      `
+        UPDATE contrats
+        SET
+          statut = 'REJETE',
+          documenso_status = COALESCE(documenso_status, 'CANCELLED'),
+          rejected_at = NOW()
+        WHERE id = ?
+      `,
+      [contract.id]
+    );
+
+    await createWorkflowEvent(connection, {
+      folderId: contract.folderId,
+      actorId: null,
+      eventType: "CONTRAT_ANNULE_APRES_REFUS",
+      oldStatus: contract.status,
+      newStatus: "REJETE",
+      comment:
+        "Le contrat existant a ete invalide parce que la demande a ete refusee."
+    });
+  }
+}
+
 async function createContractIfMissing(
   connection,
   request
@@ -519,6 +618,7 @@ async function createContractIfMissing(
       FROM contrats
       WHERE demande_stage_id = ?
       LIMIT 1
+      FOR UPDATE
     `,
     [request.id]
   );

@@ -196,10 +196,17 @@ export default function StudentRequestEditForm({
   async function handleSubmit(event) {
     event.preventDefault();
 
+    const intent =
+      event.nativeEvent?.submitter?.value === "draft"
+        ? "draft"
+        : "submit";
+    const isDraft = intent === "draft";
+
     setError("");
 
-    const validationErrors =
-      validateForm(form);
+    const validationErrors = isDraft
+      ? {}
+      : validateForm(form);
 
     if (Object.keys(validationErrors).length) {
       setFieldErrors(validationErrors);
@@ -211,9 +218,11 @@ export default function StudentRequestEditForm({
 
     setFieldErrors({});
 
-    const confirmed = window.confirm(
-      "Resoumettre cette demande modifiee pour revision ?"
-    );
+    const confirmed =
+      isDraft ||
+      window.confirm(
+        "Resoumettre cette demande modifiee pour revision ?"
+      );
 
     if (!confirmed) {
       return;
@@ -234,7 +243,10 @@ export default function StudentRequestEditForm({
               "application/json",
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify(form)
+          body: JSON.stringify({
+            ...form,
+            intent
+          })
         }
       );
 
@@ -888,14 +900,32 @@ export default function StudentRequestEditForm({
         )}
 
         <div className="studentFormActions">
+          {request.status === "BROUILLON" && (
+            <button
+              className="secondaryButton"
+              type="submit"
+              name="intent"
+              value="draft"
+              disabled={loading}
+            >
+              {loading
+                ? "Enregistrement..."
+                : "Enregistrer le brouillon"}
+            </button>
+          )}
+
           <button
             className="primaryButton"
             type="submit"
+            name="intent"
+            value="submit"
             disabled={loading}
           >
             {loading
               ? "Enregistrement..."
-              : "Enregistrer"}
+              : request.status === "BROUILLON"
+                ? "Soumettre ma demande"
+                : "Corriger et soumettre a nouveau"}
           </button>
 
           <button

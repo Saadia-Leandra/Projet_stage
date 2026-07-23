@@ -1,4 +1,4 @@
-import {
+﻿import {
   useCallback,
   useEffect,
   useMemo,
@@ -92,6 +92,9 @@ export default function SupervisorStageRequests() {
       ).length,
       refused: requests.filter(
         (request) => request.status === "REFUSEE"
+      ).length,
+      withdrawn: requests.filter(
+        (request) => request.status === "ANNULEE"
       ).length
     }),
     [requests]
@@ -102,7 +105,7 @@ export default function SupervisorStageRequests() {
 
     if (!token) {
       setError(
-        "Session expirée. Veuillez vous reconnecter."
+        "Session expirÃ©e. Veuillez vous reconnecter."
       );
 
       setLoading(false);
@@ -193,7 +196,7 @@ export default function SupervisorStageRequests() {
       if (!response.ok) {
         setError(
           data.error ||
-            "Impossible d’approuver la demande."
+            "Impossible dâ€™approuver la demande."
         );
 
         return;
@@ -201,7 +204,7 @@ export default function SupervisorStageRequests() {
 
       setSuccess(
         data.message ||
-          "La demande a été approuvée."
+          "La demande a Ã©tÃ© approuvÃ©e."
       );
 
       await loadRequests();
@@ -257,7 +260,7 @@ export default function SupervisorStageRequests() {
 
       setSuccess(
         data.message ||
-          "La demande a été refusée."
+          "La demande a Ã©tÃ© refusÃ©e."
       );
 
       setRequestToRefuse(null);
@@ -389,12 +392,12 @@ export default function SupervisorStageRequests() {
     <section className="studentPanel supervisorStagePanel">
       <div className="panelHeader">
         <div>
-          <h2>Demandes de stage à valider</h2>
+          <h2>Demandes de stage Ã  valider</h2>
 
           <p>
             Consultez, approuvez ou refusez les
-            demandes des étudiants qui vous sont
-            assignés.
+            demandes des Ã©tudiants qui vous sont
+            assignÃ©s.
           </p>
         </div>
 
@@ -428,6 +431,11 @@ export default function SupervisorStageRequests() {
           <strong>Refusees</strong>
           <span>{stats.refused}</span>
         </div>
+
+        <div className="statCard">
+          <strong>Retirees</strong>
+          <span>{stats.withdrawn}</span>
+        </div>
       </div>
 
       <div className="supervisorStageFilters">
@@ -448,6 +456,7 @@ export default function SupervisorStageRequests() {
             </option>
             <option value="APPROUVEE">Approuvees</option>
             <option value="REFUSEE">Refus definitifs</option>
+            <option value="ANNULEE">Retirees</option>
             <option value="TOUTES">Toutes</option>
           </select>
         </label>
@@ -821,12 +830,12 @@ function nextActionLabel(request) {
 function statusLabel(status) {
   const labels = {
     BROUILLON: "Brouillon",
-    SOUMISE: "À traiter",
+    SOUMISE: "Ã€ traiter",
     A_REVISER: "A reviser",
     DOCUMENTS_MANQUANTS: "Documents manquants",
-    APPROUVEE: "Approuvée",
-    REFUSEE: "Refusée",
-    ANNULEE: "Annulée"
+    APPROUVEE: "ApprouvÃ©e",
+    REFUSEE: "RefusÃ©e",
+    ANNULEE: "Retiree par l'etudiant"
   };
 
   return labels[status] || status || "-";

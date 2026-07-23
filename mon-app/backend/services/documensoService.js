@@ -190,7 +190,6 @@ export async function addSignatureFields({
       method: "POST",
       json: {
         documentId,
-        data: fields,
         fields
       }
     }
@@ -268,7 +267,7 @@ export async function getDocumentStatus(envelopeId) {
   ensureConfigured();
 
   const response = await documensoRequest(
-    `/envelope/get/${encodeURIComponent(envelopeId)}`,
+    `/envelope/${encodeURIComponent(envelopeId)}`,
     {
       method: "GET"
     }
@@ -279,6 +278,34 @@ export async function getDocumentStatus(envelopeId) {
     status: readStatus(response),
     recipients: extractRecipients(response)
   };
+}
+
+export async function getDocumensoDiagnostic() {
+  if (!isDocumensoConfigured()) {
+    return {
+      configured: false,
+      status: "non_configure",
+      message: getDocumensoConfigMessage()
+    };
+  }
+
+  try {
+    await documensoRequest("/envelope?page=1&perPage=1", {
+      method: "GET"
+    });
+
+    return {
+      configured: true,
+      status: "connexion_reussie",
+      message: "Connexion Documenso reussie."
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      status: "connexion_echouee",
+      message: error.message
+    };
+  }
 }
 
 export async function downloadSignedPdf(envelopeId) {

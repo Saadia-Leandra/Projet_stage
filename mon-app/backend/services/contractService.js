@@ -93,6 +93,7 @@ export async function updateStudentContract(
       true
     );
 
+    await ensureContractGenerationAllowed(contract);
     ensureContractCanBeEdited(contract);
 
     const cleanedData = validateContractData(
@@ -152,29 +153,35 @@ export async function generateStudentContractPdf(
   studentId,
   contractId
 ) {
-  const contract = await findStudentContractById(
-    db,
-    studentId,
-    contractId
-  );
-
-  ensureContractCanBeEdited(contract);
-  validateContractReadyForSubmission(contract);
-
-  const signers = await getContractSigners(
-    db,
-    contract.id
-  );
-
-  const pdf = await generateContractPdf(
-    contract,
-    signers
-  );
-
   const connection = await db.getConnection();
 
   try {
     await connection.beginTransaction();
+
+    const contract = await findStudentContractById(
+      connection,
+      studentId,
+      contractId,
+      true
+    );
+
+    await ensureContractGenerationAllowed(contract);
+    ensureContractCanBeEdited(contract);
+    validateContractReadyForSubmission(contract);
+
+    if (await contractHasUsableGeneratedPdf(contract)) {
+      await connection.commit();
+      return getStudentContractById(studentId, contractId);
+    }
+
+    const signers = await getContractSigners(
+      connection,
+      contract.id
+    );
+    const pdf = await generateContractPdf(
+      contract,
+      signers
+    );
 
     await connection.execute(
       `
@@ -226,8 +233,28 @@ export async function generateContractPdfForContract(
 ) {
   const contract = await findContractById(
     connection,
-    contractId
+    contractId,
+    true
   );
+
+  await ensureContractGenerationAllowed(contract);
+
+  if (await contractHasUsableGeneratedPdf(contract)) {
+    return {
+      relativePath:
+        contract.pdfOriginalPath ||
+        contract.generatedFilePath,
+      absolutePath: resolveContractStoragePath(
+        contract.pdfOriginalPath ||
+          contract.generatedFilePath
+      ),
+      fileName: path.basename(
+        contract.pdfOriginalPath ||
+          contract.generatedFilePath
+      )
+    };
+  }
+
   const signers = await getContractSigners(
     connection,
     contract.id
@@ -293,6 +320,7 @@ export async function submitStudentContract(
       true
     );
 
+    await ensureContractGenerationAllowed(contract);
     ensureContractCanBeEdited(contract);
     validateContractReadyForSubmission(contract);
 
@@ -397,6 +425,16 @@ export async function getStudentContractFile(
     contractId
   );
 
+  if (
+    contract.status === "REJETE" ||
+    contract.requestStatus !== "APPROUVEE"
+  ) {
+    throw createError(
+      "Aucun contrat actif n'est disponible pour cette demande.",
+      409
+    );
+  }
+
   const pathColumn =
     type === "signed"
       ? contract.pdfSignedPath
@@ -443,6 +481,8 @@ export async function uploadMilieuSignedContract(
     studentId,
     contractId
   );
+
+  await ensureContractGenerationAllowed(contract);
 
   if (contract.status !== "CONTRAT_MILIEU_A_DEPOSER") {
     throw createError(
@@ -694,6 +734,8 @@ async function startAdministrativeSignatureWorkflow(
   relativePdfPath
 ) {
   const contract = await findContractById(db, contractId);
+  await ensureContractGenerationAllowed(contract);
+
   const signers = (
     await getContractSigners(db, contractId)
   ).filter((signer) =>
@@ -1354,7 +1396,11 @@ async function findStudentContractById(
   return contract;
 }
 
-async function findContractById(connection, contractId) {
+async function findContractById(
+  connection,
+  contractId,
+  forUpdate = false
+) {
   const [rows] = await connection.execute(
     `
       SELECT
@@ -1383,6 +1429,7 @@ async function findContractById(connection, contractId) {
       WHERE c.id = ?
 
       LIMIT 1
+      ${forUpdate ? "FOR UPDATE" : ""}
     `,
     [contractId]
   );
@@ -1650,6 +1697,51 @@ function ensureContractCanBeEdited(contract) {
       400
     );
   }
+}
+
+async function ensureContractGenerationAllowed(contract) {
+  const invalidRequestStatuses = [
+    "BROUILLON",
+    "SOUMISE",
+    "A_REVISER",
+    "DOCUMENTS_MANQUANTS",
+    "REFUSEE",
+    "ANNULEE"
+  ];
+  const invalidFolderStatuses = [
+    "DEMANDE_REFUSEE",
+    "DOCUMENT_INCOMPLET"
+  ];
+
+  if (
+    contract.requestStatus !== "APPROUVEE" ||
+    invalidRequestStatuses.includes(
+      contract.requestStatus
+    ) ||
+    invalidFolderStatuses.includes(contract.folderStatus) ||
+    contract.status === "REJETE"
+  ) {
+    throw createError(
+      "Le contrat ne peut etre genere que lorsque la demande de stage est approuvee.",
+      409
+    );
+  }
+}
+
+async function contractHasUsableGeneratedPdf(contract) {
+  const filePath =
+    contract.pdfOriginalPath ||
+    contract.generatedFilePath;
+
+  if (!filePath) {
+    return false;
+  }
+
+  await assertValidPdf(
+    resolveContractStoragePath(filePath)
+  );
+
+  return true;
 }
 
 export function validateContractData(
@@ -1989,7 +2081,6 @@ async function updateContractFromDocumensoEvent(
       administrativeSignerRoles
     )
   ) {
-    await markContractCompleted(connection, contract);
     return;
   }
 
@@ -2087,7 +2178,6 @@ async function moveContractToNextSigner(
   );
 
   if (!nextSigner) {
-    await markContractCompleted(connection, contract);
     return;
   }
 
@@ -2299,6 +2389,8 @@ async function downloadAndSaveDocumensoPdf(
         c.id,
         c.dossier_stage_id AS folderId,
         c.external_id AS externalId,
+        c.statut AS status,
+        c.document_externe_id AS externalDocumentId,
         ds.etudiant_id AS studentId
       FROM contrats c
       INNER JOIN dossiers_stage ds
@@ -2315,7 +2407,9 @@ async function downloadAndSaveDocumensoPdf(
     return;
   }
 
-  const signedPdfBuffer = await downloadSignedPdf(documentId);
+  const signedPdfBuffer = await downloadSignedPdf(
+    contract.externalDocumentId || documentId
+  );
   const pdf = await saveSignedContractPdf(
     contract,
     signedPdfBuffer
@@ -2363,6 +2457,10 @@ async function downloadAndSaveDocumensoPdf(
       mimeType: "application/pdf",
       status: "VALIDE"
     });
+
+    if (type === "final") {
+      await markContractCompleted(connection, contract);
+    }
 
     await connection.commit();
   } catch (error) {

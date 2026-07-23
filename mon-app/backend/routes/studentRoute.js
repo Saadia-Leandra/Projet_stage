@@ -13,7 +13,8 @@ import {
 } from "../services/studentService.js";
 
 import {
-  updateInternshipRequest
+  updateInternshipRequest,
+  withdrawInternshipRequest
 } from "../services/studentRequestUpdateService.js";
 
 import {
@@ -97,6 +98,28 @@ router.put(
           req.user.id,
           requestId,
           req.body
+        );
+
+      res.json({ request });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.patch(
+  "/requests/:requestId/withdraw",
+  async (req, res, next) => {
+    try {
+      const requestId = validatePositiveId(
+        req.params.requestId
+      );
+
+      const request =
+        await withdrawInternshipRequest(
+          req.user.id,
+          requestId,
+          req.body?.reason
         );
 
       res.json({ request });

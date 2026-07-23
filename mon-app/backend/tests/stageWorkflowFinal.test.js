@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
   CANADIAN_PROVINCES,
   QUEBEC_CITIES
 } from "../../src/frontend/constants/canadianLocations.js";
+import {
+  getStudentStageDisplayState,
+  isActiveStudentStageRequest,
+  studentCanEditRequest,
+  studentCanWithdrawRequest
+} from "../../src/frontend/utils/studentStageDisplayState.js";
 import {
   generateConfirmationCodeValue,
   MAX_MILIEU_SIGNED_PDF_SIZE_BYTES,
@@ -15,6 +22,9 @@ import {
   isActiveStageFolderStatus,
   isActiveStageRequestStatus
 } from "../services/studentService.js";
+import {
+  STUDENT_WITHDRAWABLE_REQUEST_STATUSES
+} from "../services/studentRequestUpdateService.js";
 
 test("liste de villes disponible avec saisie manuelle possible", () => {
   assert.ok(QUEBEC_CITIES.includes("Montréal"));
@@ -116,4 +126,112 @@ test("generation du code de confirmation", () => {
 
   assert.match(code, /^STG-2026-[A-Z2-9]{6}$/);
   assert.notEqual(code, "STG-2026-000001");
+});
+
+test("carte etudiante jaune quand aucune demande active", () => {
+  const state = getStudentStageDisplayState({});
+
+  assert.equal(state.color, "yellow");
+  assert.equal(
+    state.actionLabel,
+    "Creer ma demande de stage"
+  );
+});
+
+test("carte etudiante orange pour demande soumise", () => {
+  const state = getStudentStageDisplayState({
+    request: { id: 1, status: "SOUMISE" }
+  });
+
+  assert.equal(state.color, "orange");
+  assert.equal(state.canWithdraw, true);
+  assert.equal(state.canEdit, false);
+});
+
+test("carte etudiante rouge pour correction et documents", () => {
+  const correctionState = getStudentStageDisplayState({
+    request: { id: 1, status: "A_REVISER" }
+  });
+  const documentsState = getStudentStageDisplayState({
+    request: {
+      id: 1,
+      status: "DOCUMENTS_MANQUANTS",
+      correctionMissingDocuments: ["CAQ"]
+    }
+  });
+
+  assert.equal(correctionState.color, "red");
+  assert.equal(correctionState.canEdit, true);
+  assert.equal(documentsState.color, "red");
+  assert.equal(documentsState.canUpload, true);
+});
+
+test("carte etudiante verte pour dossier complet", () => {
+  const state = getStudentStageDisplayState({
+    request: { id: 1, status: "APPROUVEE" },
+    contract: {
+      status: "DOSSIER_COMPLET",
+      signedPdfAvailable: true
+    }
+  });
+
+  assert.equal(state.color, "green");
+  assert.equal(state.canDownload, true);
+  assert.equal(state.progressStep, 9);
+});
+
+test("aucune liste de statut etudiant dans la vue demandes", async () => {
+  const source = await readFile(
+    new URL(
+      "../../src/frontend/composants/StudentDashboard.jsx",
+      import.meta.url
+    ),
+    "utf8"
+  );
+
+  assert.equal(source.includes("Toutes les demandes"), false);
+  assert.equal(source.includes("Filtrer"), false);
+});
+
+test("modification et retrait limites aux statuts autorises", () => {
+  assert.equal(
+    studentCanEditRequest({ status: "BROUILLON" }),
+    true
+  );
+  assert.equal(
+    studentCanEditRequest({ status: "SOUMISE" }),
+    false
+  );
+  assert.equal(
+    studentCanEditRequest({ status: "APPROUVEE" }),
+    false
+  );
+
+  assert.deepEqual(
+    STUDENT_WITHDRAWABLE_REQUEST_STATUSES,
+    ["BROUILLON", "SOUMISE"]
+  );
+  assert.equal(
+    studentCanWithdrawRequest({ status: "SOUMISE" }),
+    true
+  );
+  assert.equal(
+    studentCanWithdrawRequest({ status: "APPROUVEE" }),
+    false
+  );
+});
+
+test("demandes retirees exclues des demandes actives", () => {
+  assert.equal(
+    isActiveStudentStageRequest({
+      status: "ANNULEE"
+    }),
+    false
+  );
+  assert.equal(
+    isActiveStudentStageRequest({
+      status: "APPROUVEE"
+    }),
+    true
+  );
 });

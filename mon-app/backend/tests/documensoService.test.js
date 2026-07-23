@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   createDocumentFromPdf,
+  getDocumensoDiagnostic,
   getDocumensoConfigMessage,
   isDocumensoConfigured
 } from "../services/documensoService.js";
@@ -26,6 +27,20 @@ test("fonctionne sans cle Documenso configuree", async () => {
       }),
     /Documenso n'est pas configuree/
   );
+
+  if (previousApiKey) {
+    process.env.DOCUMENSO_API_KEY = previousApiKey;
+  }
+});
+
+test("diagnostic Documenso non configure", async () => {
+  const previousApiKey = process.env.DOCUMENSO_API_KEY;
+  delete process.env.DOCUMENSO_API_KEY;
+
+  const diagnostic = await getDocumensoDiagnostic();
+
+  assert.equal(diagnostic.configured, false);
+  assert.equal(diagnostic.status, "non_configure");
 
   if (previousApiKey) {
     process.env.DOCUMENSO_API_KEY = previousApiKey;

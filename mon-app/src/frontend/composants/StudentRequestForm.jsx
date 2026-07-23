@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 
 import CityInput from "./CityInput.jsx";
 import ProvinceInput from "./ProvinceInput.jsx";
@@ -118,10 +118,18 @@ export default function StudentRequestForm({ student, onCreated }) {
   async function handleSubmit(event) {
     event.preventDefault();
 
+    const intent =
+      event.nativeEvent?.submitter?.value === "draft"
+        ? "draft"
+        : "submit";
+    const isDraft = intent === "draft";
+
     setError("");
     setSuccess("");
 
-    const validationErrors = validateForm(form);
+    const validationErrors = isDraft
+      ? {}
+      : validateForm(form);
 
     if (Object.keys(validationErrors).length) {
       setFieldErrors(validationErrors);
@@ -133,9 +141,11 @@ export default function StudentRequestForm({ student, onCreated }) {
 
     setFieldErrors({});
 
-    const confirmed = window.confirm(
-      "Soumettre cette demande de stage pour revision ?"
-    );
+    const confirmed =
+      isDraft ||
+      window.confirm(
+        "Soumettre cette demande de stage pour revision ?"
+      );
 
     if (!confirmed) {
       return;
@@ -154,7 +164,10 @@ export default function StudentRequestForm({ student, onCreated }) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify(form)
+          body: JSON.stringify({
+            ...form,
+            intent
+          })
         }
       );
 
@@ -166,18 +179,22 @@ export default function StudentRequestForm({ student, onCreated }) {
         setFieldErrors(data.fieldErrors || {});
         setError(
           data.error ||
-            "Impossible de créer la demande de stage."
+            "Impossible de crÃ©er la demande de stage."
         );
         return;
       }
 
-      setForm({
-        ...initialForm,
-        ...studentProfileDefaults(student)
-      });
+      if (!isDraft) {
+        setForm({
+          ...initialForm,
+          ...studentProfileDefaults(student)
+        });
+      }
       setFieldErrors({});
       setSuccess(
-        "La demande de stage a été soumise avec succès."
+        isDraft
+          ? "Le brouillon a ete enregistre."
+          : "La demande de stage a ete soumise avec succes."
       );
 
       if (onCreated) {
@@ -201,12 +218,12 @@ export default function StudentRequestForm({ student, onCreated }) {
           <h2>Demande de stage en entreprise</h2>
           <p>
             Remplissez les informations du stage,
-            de l’entreprise et du superviseur.
+            de lâ€™entreprise et du superviseur.
           </p>
         </div>
 
         <span className="statusPill">
-          Étudiant
+          Ã‰tudiant
         </span>
       </div>
 
@@ -218,7 +235,7 @@ export default function StudentRequestForm({ student, onCreated }) {
         <p className="requiredHint">* Champ obligatoire</p>
 
      <FormSection
-    title="Informations de l'étudiant"
+    title="Informations de l'Ã©tudiant"
     description="Completez les coordonnees qui seront reprises dans la demande officielle."
   >
     <label className="field">
@@ -384,10 +401,10 @@ export default function StudentRequestForm({ student, onCreated }) {
         {/* SECTION 1 */}
         <FormSection
           title="1. Identification du stage"
-          description="Décrivez les tâches et la période prévue du stage."
+          description="DÃ©crivez les tÃ¢ches et la pÃ©riode prÃ©vue du stage."
         >
           <label className="field wide">
-            Résumé des tâches *
+            RÃ©sumÃ© des tÃ¢ches *
 
             <textarea
               name="taskSummary"
@@ -396,7 +413,7 @@ export default function StudentRequestForm({ student, onCreated }) {
               rows={6}
               minLength={20}
               maxLength={3000}
-              placeholder="Décrivez les principales tâches qui seront réalisées pendant le stage."
+              placeholder="DÃ©crivez les principales tÃ¢ches qui seront rÃ©alisÃ©es pendant le stage."
               aria-invalid={Boolean(
                 fieldErrors.taskSummary
               )}
@@ -408,7 +425,7 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
 
           <label className="field">
-            Date de début *
+            Date de dÃ©but *
 
             <input
               type="date"
@@ -448,10 +465,10 @@ export default function StudentRequestForm({ student, onCreated }) {
         {/* SECTION 2 */}
         <FormSection
           title="2. Identification du milieu de stage"
-          description="Inscrivez les coordonnées de l’entreprise ou de l’organisme."
+          description="Inscrivez les coordonnÃ©es de lâ€™entreprise ou de lâ€™organisme."
         >
           <label className="field">
-            Nom de l’entreprise *
+            Nom de lâ€™entreprise *
 
             <input
               type="text"
@@ -480,7 +497,7 @@ export default function StudentRequestForm({ student, onCreated }) {
               value={form.companyNeq}
               onChange={updateField}
               maxLength={30}
-              placeholder="Numéro d’entreprise du Québec"
+              placeholder="NumÃ©ro dâ€™entreprise du QuÃ©bec"
             />
           </label>
 
@@ -494,7 +511,7 @@ export default function StudentRequestForm({ student, onCreated }) {
               onChange={updateField}
               minLength={5}
               maxLength={255}
-              placeholder="Numéro et nom de rue"
+              placeholder="NumÃ©ro et nom de rue"
               aria-invalid={Boolean(
                 fieldErrors.companyAddress
               )}
@@ -568,7 +585,7 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
 
           <label className="field">
-            Téléphone *
+            TÃ©lÃ©phone *
 
             <input
               type="tel"
@@ -588,7 +605,7 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
 
           <label className="field">
-            Poste téléphonique
+            Poste tÃ©lÃ©phonique
 
             <input
               type="text"
@@ -600,7 +617,7 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
 
           <label className="field">
-            Courriel de l’entreprise
+            Courriel de lâ€™entreprise
 
             <input
               type="email"
@@ -626,7 +643,7 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
 
           <label className="field">
-            Type d’organisation *
+            Type dâ€™organisation *
 
             <select
               name="organizationType"
@@ -635,7 +652,7 @@ export default function StudentRequestForm({ student, onCreated }) {
               required
             >
               <option value="PRIVE">
-                Entreprise privée
+                Entreprise privÃ©e
               </option>
 
               <option value="PUBLIC">
@@ -645,7 +662,7 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
 
           <label className="field">
-            Secteur d’activité *
+            Secteur dâ€™activitÃ© *
 
             <input
               type="text"
@@ -653,7 +670,7 @@ export default function StudentRequestForm({ student, onCreated }) {
               value={form.businessSector}
               onChange={updateField}
               maxLength={160}
-              placeholder="Exemple : Technologies de l’information"
+              placeholder="Exemple : Technologies de lâ€™information"
               aria-invalid={Boolean(
                 fieldErrors.businessSector
               )}
@@ -668,7 +685,7 @@ export default function StudentRequestForm({ student, onCreated }) {
         {/* SECTION 3 */}
         <FormSection
           title="3. Responsable des ressources humaines"
-          description="Cette section peut être laissée vide si elle ne s’applique pas."
+          description="Cette section peut Ãªtre laissÃ©e vide si elle ne sâ€™applique pas."
         >
           <label className="field">
             Nom du responsable RH
@@ -695,7 +712,7 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
 
           <label className="field">
-            Téléphone du responsable RH
+            TÃ©lÃ©phone du responsable RH
 
             <input
               type="tel"
@@ -721,8 +738,8 @@ export default function StudentRequestForm({ student, onCreated }) {
 
         {/* SECTION 4 */}
         <FormSection
-          title="4. Superviseur associé en entreprise"
-          description="Indiquez la personne qui supervisera l’étudiant dans l’entreprise."
+          title="4. Superviseur associÃ© en entreprise"
+          description="Indiquez la personne qui supervisera lâ€™Ã©tudiant dans lâ€™entreprise."
         >
           <label className="field">
             Nom du superviseur *
@@ -752,7 +769,7 @@ export default function StudentRequestForm({ student, onCreated }) {
               value={form.supervisorTitle}
               onChange={updateField}
               maxLength={160}
-              placeholder="Exemple : Développeur principal"
+              placeholder="Exemple : DÃ©veloppeur principal"
               aria-invalid={Boolean(
                 fieldErrors.supervisorTitle
               )}
@@ -783,7 +800,7 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
 
           <label className="field">
-            Téléphone du superviseur *
+            TÃ©lÃ©phone du superviseur *
 
             <input
               type="tel"
@@ -805,7 +822,7 @@ export default function StudentRequestForm({ student, onCreated }) {
         {/* SECTION 5 */}
         <FormSection
           title="5. Horaire et conditions du stage"
-          description="Précisez l’horaire, la durée et les conditions financières."
+          description="PrÃ©cisez lâ€™horaire, la durÃ©e et les conditions financiÃ¨res."
         >
           <label className="field wide">
             Horaire de travail *
@@ -816,7 +833,7 @@ export default function StudentRequestForm({ student, onCreated }) {
               value={form.workSchedule}
               onChange={updateField}
               maxLength={160}
-              placeholder="Exemple : lundi au vendredi, de 8 h 30 à 16 h 30"
+              placeholder="Exemple : lundi au vendredi, de 8 h 30 Ã  16 h 30"
               aria-invalid={Boolean(
                 fieldErrors.workSchedule
               )}
@@ -828,7 +845,7 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
 
           <label className="field">
-            Nombre d’heures par semaine *
+            Nombre dâ€™heures par semaine *
 
             <input
               type="number"
@@ -878,7 +895,7 @@ export default function StudentRequestForm({ student, onCreated }) {
               value={form.workLanguage}
               onChange={updateField}
               maxLength={80}
-              placeholder="Exemple : Français"
+              placeholder="Exemple : FranÃ§ais"
               aria-invalid={Boolean(
                 fieldErrors.workLanguage
               )}
@@ -890,7 +907,7 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
 
           <label className="field">
-            Type d’horaire *
+            Type dâ€™horaire *
 
             <select
               name="scheduleType"
@@ -916,7 +933,7 @@ export default function StudentRequestForm({ student, onCreated }) {
               onChange={updateField}
             />
 
-            Stage rémunéré
+            Stage rÃ©munÃ©rÃ©
           </label>
 
           {form.isPaid && (
@@ -971,8 +988,22 @@ export default function StudentRequestForm({ student, onCreated }) {
 
         <div className="studentFormActions">
           <button
+            className="secondaryButton fitButton"
+            type="submit"
+            name="intent"
+            value="draft"
+            disabled={loading}
+          >
+            {loading
+              ? "Enregistrement..."
+              : "Enregistrer le brouillon"}
+          </button>
+
+          <button
             className="primaryButton fitButton"
             type="submit"
+            name="intent"
+            value="submit"
             disabled={loading}
           >
             {loading
