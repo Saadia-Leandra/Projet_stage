@@ -6,6 +6,7 @@ import StudentDashboard from "./StudentDashboard.jsx";
 import StudentCsvImport from "./StudentCsvImport.jsx";
 import SupervisorDashboard from "./SupervisorDashboard.jsx";
 import "../assets/auth.css";
+import { clearAuthSession } from "../services/authSession.js";
 
 export default function Dashboard({ user, onLogout }) {
   const [currentUser, setCurrentUser] = useState(user);
@@ -31,8 +32,7 @@ export default function Dashboard({ user, onLogout }) {
         const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
+          clearAuthSession();
           onLogout();
           return;
         }
