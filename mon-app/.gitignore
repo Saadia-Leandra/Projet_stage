@@ -8,12 +8,17 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+__pycache__/
+*.py[cod]
 dist
 dist-ssr
 *.local
 backend/.env
 backend/storage/
 backend/uploads/
+
+# Service Python conservé localement pour le moment
+/python-import-service/
 
 # Editor directories and files
 .vscode/*

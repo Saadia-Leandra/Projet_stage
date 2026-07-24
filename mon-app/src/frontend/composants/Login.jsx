@@ -45,16 +45,21 @@ export default function Login({ onLogin }) {
   return (
     <main className="loginPage">
       <section className="brandPane">
-        <div>
+        <div className="brandPaneContent">
+          <img
+            className="loginBrandMark"
+            src="/institut-teccart-logo.webp"
+            alt="Institut Teccart"
+          />
           <h1>StageTec</h1>
-          <p>Plateforme de gestion des stages</p>
+          <p>Plateforme de gestion de stage</p>
         </div>
       </section>
 
       <section className="authPane">
         <form className="authCard" onSubmit={handleSubmit} autoComplete="off">
           <h2>Connexion</h2>
-          <p className="authIntro">Accedez a votre espace de gestion des stages</p>
+          <p className="authIntro">Accédez à votre espace de gestion des stages.</p>
 
           <label className="field">
             Code d'identification
@@ -85,7 +90,7 @@ export default function Login({ onLogin }) {
                 onClick={() => setShowPassword((currentValue) => !currentValue)}
                 aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
               >
-                {showPassword ? "x" : "o"}
+                <PasswordIcon visible={showPassword} />
               </button>
             </span>
           </label>
@@ -96,7 +101,7 @@ export default function Login({ onLogin }) {
               Se souvenir de moi
             </label>
             <button className="linkButton" type="button">
-              Mot de passe oublie ?
+              Mot de passe oublié ?
             </button>
           </div>
 
@@ -108,5 +113,15 @@ export default function Login({ onLogin }) {
         </form>
       </section>
     </main>
+  );
+}
+
+function PasswordIcon({ visible }) {
+  return (
+    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+      <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+      <circle cx="12" cy="12" r="2.5" />
+      {!visible && <path d="m4 4 16 16" />}
+    </svg>
   );
 }

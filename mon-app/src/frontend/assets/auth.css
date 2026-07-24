@@ -1,14 +1,18 @@
 :root {
-  font-family: Arial, Helvetica, sans-serif;
-  color: #1f2937;
-  background: #f6f7fb;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #f6f8fb;
   --color-primary: #173f83;
-  --color-accent: #f97316;
-  --color-link: #2563eb;
-  --color-border: #e2e8f0;
-  --color-muted: #64748b;
+  --color-primary-dark: #123563;
+  --color-primary-soft: #eaf1fb;
+  --color-accent: #f47b20;
+  --color-accent-dark: #db6512;
+  --color-link: #1f5fbf;
+  --color-border: #e4e7ec;
+  --color-muted: #667085;
   --color-surface: #ffffff;
-  --shadow-panel: 0 8px 24px rgba(15, 23, 42, 0.06);
+  --shadow-panel: 0 1px 3px rgba(16, 24, 40, 0.06), 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-raised: 0 18px 48px rgba(18, 53, 99, 0.15);
 }
 
 * {
@@ -18,7 +22,9 @@
 body {
   min-width: 320px;
   margin: 0;
-  background: #f6f7fb;
+  color: #172033;
+  background: #f6f8fb;
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -50,51 +56,103 @@ button:disabled {
 }
 
 .brandPane {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: 100vh;
+  padding: clamp(36px, 6vw, 80px);
+  overflow: hidden;
+  color: #ffffff;
+  background:
+    linear-gradient(90deg, rgba(18, 53, 99, 0.94) 0%, rgba(23, 63, 131, 0.74) 48%, rgba(23, 63, 131, 0.16) 100%),
+    url("/students-login-hero.png") center / cover no-repeat;
+}
+
+.brandPane::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 6px;
+  content: "";
+  background: var(--color-accent);
+}
+
+.brandPaneContent {
+  position: relative;
+  z-index: 1;
+  max-width: 480px;
+  padding-bottom: 18px;
+  text-shadow: 0 2px 18px rgba(10, 30, 58, 0.28);
+}
+
+.loginBrandMark {
   display: grid;
   place-items: center;
-  padding: 32px;
-  color: #ffffff;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  width: 48px;
+  height: 48px;
+  margin-bottom: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 12px;
+  background: var(--color-accent);
+  box-shadow: 0 8px 22px rgba(65, 34, 8, 0.18);
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 
 .brandPane h1 {
   margin: 0 0 10px;
-  font-size: 34px;
-  font-weight: 500;
-  letter-spacing: 0;
+  font-size: clamp(38px, 5vw, 58px);
+  font-weight: 750;
+  letter-spacing: -0.035em;
 }
 
 .brandPane p {
-  margin: 0;
-  font-size: 16px;
+  margin: 0 0 18px;
+  font-size: clamp(16px, 2vw, 20px);
+  line-height: 1.5;
+}
+
+.brandInstitution {
+  display: inline-block;
+  padding-top: 16px;
+  border-top: 2px solid var(--color-accent);
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .authPane {
   display: grid;
   place-items: center;
-  padding: 32px;
-  background: #f7f7f8;
+  padding: clamp(24px, 5vw, 64px);
+  background: #f8fafc;
 }
 
 .authCard {
-  width: min(380px, 100%);
-  padding: 34px 38px;
+  width: min(420px, 100%);
+  padding: clamp(28px, 4vw, 44px);
+  border: 1px solid rgba(228, 231, 236, 0.9);
   background: #ffffff;
-  border-radius: 14px;
-  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.12);
+  border-radius: 16px;
+  box-shadow: var(--shadow-raised);
 }
 
 .authCard h2 {
   margin: 0 0 8px;
-  font-size: 28px;
-  font-weight: 500;
-  letter-spacing: 0;
+  color: var(--color-primary-dark);
+  font-size: 30px;
+  font-weight: 750;
+  letter-spacing: -0.025em;
 }
 
 .authIntro,
 .notice {
   color: #6b7280;
   font-size: 14px;
+  line-height: 1.55;
 }
 
 .field {
@@ -112,7 +170,7 @@ button:disabled {
   min-height: 42px;
   padding: 11px 12px;
   border: 1px solid #d1d5db;
-  border-radius: 7px;
+  border-radius: 8px;
   background: #ffffff;
 }
 
@@ -123,8 +181,9 @@ button:disabled {
 .field input:focus,
 .field select:focus,
 .field textarea:focus {
-  outline: 2px solid #bfdbfe;
-  border-color: #2563eb;
+  outline: 3px solid rgba(31, 95, 191, 0.14);
+  outline-offset: 1px;
+  border-color: var(--color-link);
 }
 
 .passwordRow {
@@ -145,6 +204,11 @@ button:disabled {
   border: 0;
   color: #5f6368;
   background: transparent;
+}
+
+.iconButton svg {
+  width: 20px;
+  height: 20px;
 }
 
 .authOptions {
@@ -312,6 +376,13 @@ button:disabled {
   border-radius: 9px;
   background: #f97316;
   font-weight: 700;
+}
+
+.brandMark img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
 }
 
 .sideNav {
@@ -1331,5 +1402,1429 @@ h2 {
 
   .documentChoiceGrid {
     grid-template-columns: 1fr;
+  }
+}
+.csvImportPanel {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.csvImportPanel .panelHeader p {
+  margin: 0.35rem 0 0;
+  color: #64748b;
+}
+
+.linkButton {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #2563eb;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.csvImportHelp {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border: 1px solid #dbe3ee;
+  border-radius: 0.65rem;
+  background: #f8fafc;
+}
+
+.csvFileField {
+  display: grid;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.csvFileField input {
+  padding: 0.8rem;
+  border: 1px dashed #94a3b8;
+  border-radius: 0.65rem;
+  background: #fff;
+}
+
+.csvImportActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.csvImportActions button {
+  padding: 0.7rem 1rem;
+  border: 1px solid #1d4ed8;
+  border-radius: 0.5rem;
+  background: #1d4ed8;
+  color: #fff;
+  cursor: pointer;
+}
+
+.csvImportActions .secondaryButton {
+  background: #fff;
+  color: #1d4ed8;
+}
+
+.csvImportActions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.success-message {
+  padding: 0.8rem 1rem;
+  border: 1px solid #86efac;
+  border-radius: 0.5rem;
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.csvPreview {
+  display: grid;
+  gap: 1rem;
+}
+
+.csvSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.csvSummary span {
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: #e2e8f0;
+}
+
+.csvSummary .csvErrorCount {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.csvErrors {
+  padding: 1rem;
+  border-left: 4px solid #dc2626;
+  background: #fef2f2;
+}
+
+.csvErrors h3 {
+  margin-top: 0;
+}
+
+.csvTableWrap {
+  overflow-x: auto;
+}
+
+.csvTableWrap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.csvTableWrap th,
+.csvTableWrap td {
+  padding: 0.7rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+}
+
+/* =========================================================
+   Raffinement visuel Teccart
+   ========================================================= */
+
+.appLayout {
+  grid-template-columns: 268px minmax(0, 1fr);
+  background: #f6f8fb;
+}
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  min-height: 100vh;
+  height: 100vh;
+  padding: 24px 16px;
+  overflow-y: auto;
+  background: linear-gradient(180deg, var(--color-primary-dark), var(--color-primary));
+  box-shadow: 8px 0 30px rgba(18, 53, 99, 0.08);
+}
+
+.sidebarBrand {
+  margin-bottom: 20px;
+  padding: 8px 10px 24px;
+  border-bottom-color: rgba(255, 255, 255, 0.14);
+}
+
+.sidebarBrand strong {
+  font-size: 17px;
+  letter-spacing: -0.01em;
+}
+
+.brandMark,
+.profileInitial {
+  background: var(--color-accent);
+  box-shadow: 0 5px 14px rgba(73, 38, 8, 0.22);
+}
+
+.sideNav {
+  gap: 5px;
+}
+
+.sideNav button {
+  position: relative;
+  min-height: 46px;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 11px;
+  padding: 0 13px;
+  overflow: hidden;
+  border-radius: 8px;
+  color: #dce7f6;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sideNav button::before {
+  position: absolute;
+  top: 9px;
+  bottom: 9px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  content: "";
+  background: transparent;
+}
+
+.sideNav button:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sideNav button.active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.sideNav button.active::before {
+  background: var(--color-accent);
+}
+
+.sideNavMarker {
+  width: 25px;
+  height: 25px;
+  border: 0;
+  border-radius: 0;
+  font-size: 10px;
+  opacity: 0.88;
+}
+
+.sideNavArrow {
+  display: none;
+}
+
+.profileBox {
+  padding: 18px 8px 0;
+}
+
+.profileBox .logout-button {
+  min-height: 36px;
+  color: #dce7f6;
+  font-size: 13px;
+}
+
+.contentArea {
+  width: min(100%, 1440px);
+  padding: 34px clamp(24px, 4vw, 56px) 56px;
+}
+
+.topHeader {
+  margin-bottom: 26px;
+}
+
+.crumb {
+  color: var(--color-muted);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.topHeader h1 {
+  color: var(--color-primary-dark);
+  font-size: clamp(26px, 3vw, 32px);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.dashboardHero,
+.panel,
+.studentPanel,
+.studentHeroCard {
+  border-color: var(--color-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-panel);
+}
+
+.dashboardHero {
+  position: relative;
+  padding: 25px 28px;
+  overflow: hidden;
+  border-left: 4px solid var(--color-accent);
+}
+
+.dashboardHero::after {
+  position: absolute;
+  top: -70px;
+  right: -60px;
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  content: "";
+  background: var(--color-primary-soft);
+  opacity: 0.6;
+}
+
+.dashboardHero > * {
+  position: relative;
+  z-index: 1;
+}
+
+.dashboardHero h2,
+.panelHeader h2,
+.studentPanel h2 {
+  color: var(--color-primary-dark);
+  letter-spacing: -0.015em;
+}
+
+.panel,
+.studentPanel {
+  padding: clamp(20px, 3vw, 28px);
+}
+
+.primaryButton,
+.secondaryButton,
+.dangerButton,
+.logout-button {
+  border-radius: 8px;
+}
+
+.primaryButton {
+  background: var(--color-primary);
+  box-shadow: 0 1px 2px rgba(18, 53, 99, 0.12);
+}
+
+.primaryButton:hover:not(:disabled) {
+  background: var(--color-primary-dark);
+  box-shadow: 0 6px 16px rgba(18, 53, 99, 0.16);
+}
+
+.secondaryButton {
+  color: var(--color-primary);
+  border-color: #b8c6d9;
+}
+
+.secondaryButton:hover:not(:disabled) {
+  color: var(--color-primary-dark);
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.field,
+.contractField,
+.tableFilter {
+  color: #344054;
+}
+
+.field input,
+.field select,
+.field textarea,
+.contractSelector select,
+.contractField input,
+.contractField select,
+.contractField textarea,
+.tableFilter select,
+.studentForm select {
+  min-height: 44px;
+  border-color: #cfd7e3;
+  border-radius: 8px;
+}
+
+.field input:hover,
+.field select:hover,
+.field textarea:hover,
+.contractField input:hover,
+.contractField select:hover,
+.contractField textarea:hover {
+  border-color: #9cabc0;
+}
+
+.studentTableWrap {
+  border-color: var(--color-border);
+  border-radius: 10px;
+}
+
+.studentTableWrap th {
+  color: #475467;
+  background: #f3f6fa;
+  font-size: 11px;
+  letter-spacing: 0.045em;
+}
+
+.studentTableWrap th,
+.studentTableWrap td {
+  padding: 14px 16px;
+  border-bottom-color: #eaecf0;
+}
+
+.studentTableWrap tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+.studentTableWrap tbody tr:hover {
+  background: #f8fafd;
+}
+
+.statusPill {
+  min-height: 28px;
+  padding: 4px 11px;
+  font-size: 11px;
+  letter-spacing: 0.015em;
+}
+
+.modalCard {
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(18, 53, 99, 0.22);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(244, 123, 32, 0.32);
+  outline-offset: 2px;
+}
+
+@media (max-width: 900px) {
+  .loginPage {
+    min-height: 100vh;
+    grid-template-columns: 1fr;
+    background: #f8fafc;
+  }
+
+  .brandPane {
+    align-items: flex-end;
+    min-height: 290px;
+    padding: 32px 24px;
+    background-position: 65% center;
+  }
+
+  .brandPaneContent {
+    padding-bottom: 8px;
+  }
+
+  .brandPane h1 {
+    font-size: 38px;
+  }
+
+  .brandPane p {
+    margin-bottom: 10px;
+  }
+
+  .loginBrandMark {
+    width: 42px;
+    height: 42px;
+    margin-bottom: 14px;
+  }
+
+  .brandInstitution {
+    padding-top: 10px;
+  }
+
+  .authPane {
+    padding: 28px 18px 44px;
+  }
+
+  .authCard {
+    margin-top: -48px;
+    z-index: 2;
+  }
+
+  .appLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    min-height: auto;
+    height: auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .brandPane {
+    min-height: 245px;
+    background-position: 62% center;
+  }
+
+  .brandPane p,
+  .brandInstitution {
+    font-size: 12px;
+  }
+
+  .authCard {
+    padding: 26px 22px;
+    border-radius: 14px;
+  }
+
+  .authOptions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .contentArea {
+    padding: 24px 16px 40px;
+  }
+}
+
+/* Connexion finale : image complète, formulaire centré et verre transparent */
+.loginPage {
+  position: relative;
+  isolation: isolate;
+  display: block;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #173f83;
+}
+
+.loginPage::before {
+  position: absolute;
+  z-index: -2;
+  inset: -30px;
+  content: "";
+  background: url("/students-login-hero-left.png") center / cover no-repeat;
+  filter: blur(20px) brightness(0.82) saturate(88%);
+  transform: scale(1.05);
+}
+
+.loginPage::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: "";
+  background:
+    linear-gradient(rgba(18, 53, 99, 0.12), rgba(18, 53, 99, 0.12)),
+    radial-gradient(circle at center, rgba(10, 30, 58, 0.08), rgba(10, 30, 58, 0.28));
+}
+
+.loginPage .brandPane {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: block;
+  min-height: 100%;
+  padding: clamp(20px, 3vw, 38px);
+  background: url("/students-login-hero.png") center / cover no-repeat;
+}
+
+.loginPage .brandPane::after {
+  top: 0;
+  right: auto;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+  height: auto;
+}
+
+.loginPage .brandPaneContent {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0;
+  gap: 12px;
+  filter: drop-shadow(0 4px 14px rgba(10, 30, 58, 0.38));
+}
+
+.loginPage .loginBrandMark {
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 13px;
+  object-fit: cover;
+  box-shadow: 0 8px 24px rgba(10, 30, 58, 0.24);
+}
+
+.loginPage .brandPane h1 {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 1px solid rgba(255, 255, 255, 0.64);
+  color: #ffffff;
+  font-size: clamp(21px, 2vw, 28px);
+  font-weight: 680;
+  letter-spacing: -0.025em;
+}
+
+.loginPage .brandPane p,
+.loginPage .brandInstitution {
+  display: none;
+}
+
+.loginPage .authPane {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 20px;
+  background:
+    radial-gradient(
+      circle at 82% 50%,
+      rgba(0, 102, 255, 0.34) 0%,
+      rgba(23, 92, 196, 0.2) 22%,
+      rgba(23, 63, 131, 0.06) 42%,
+      transparent 62%
+    );
+}
+
+.loginPage .authCard {
+  width: min(420px, 100%);
+  margin: 0;
+  padding: clamp(28px, 4vw, 40px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.52),
+      rgba(239, 246, 255, 0.38)
+    );
+  box-shadow:
+    0 30px 80px rgba(10, 30, 58, 0.3),
+    0 0 52px rgba(0, 102, 255, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+}
+
+.loginPage .authCard input {
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.sidebarBrand .brandMark {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 9px;
+  background: #173f83;
+  box-shadow: none;
+}
+
+.sidebarBrand .brandMark img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+}
+
+@media (max-width: 600px) {
+  .loginPage {
+    overflow-y: auto;
+  }
+
+  .loginPage .brandPane {
+    position: fixed;
+    min-height: 100%;
+    padding: 16px;
+    background-size: cover;
+    background-position: 64% center;
+  }
+
+  .loginPage .loginBrandMark {
+    width: 50px;
+    height: 50px;
+    border-radius: 11px;
+  }
+
+  .loginPage .brandPane h1 {
+    padding-left: 10px;
+    font-size: 20px;
+  }
+
+  .loginPage .authPane {
+    min-height: 100svh;
+    padding: 76px 14px 20px;
+  }
+
+  .loginPage .authCard {
+    padding: 26px 22px;
+    background:
+      linear-gradient(
+        145deg,
+        rgba(255, 255, 255, 0.64),
+        rgba(239, 246, 255, 0.5)
+      );
+  }
+}
+
+/* Connexion immersive : photographie entière et logo officiel Teccart */
+.loginPage {
+  position: relative;
+  isolation: isolate;
+  display: block;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #173f83;
+}
+
+.loginPage::before {
+  position: absolute;
+  z-index: -2;
+  inset: -28px;
+  content: "";
+  background:
+    linear-gradient(rgba(18, 53, 99, 0.24), rgba(18, 53, 99, 0.24)),
+    url("/students-login-hero.png") center / cover no-repeat;
+  filter: blur(18px) saturate(90%);
+  transform: scale(1.04);
+}
+
+.loginPage::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: "";
+  background: linear-gradient(
+    90deg,
+    rgba(10, 30, 58, 0.46) 0%,
+    rgba(18, 53, 99, 0.15) 42%,
+    rgba(10, 30, 58, 0.04) 72%
+  );
+}
+
+.loginPage .brandPane {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: block;
+  min-height: 100%;
+  padding: clamp(24px, 4vw, 52px);
+  background: url("/students-login-hero.png") center / contain no-repeat;
+}
+
+.loginPage .brandPane::after {
+  top: 0;
+  right: auto;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+  height: auto;
+}
+
+.loginPage .brandPaneContent {
+  display: flex;
+  align-items: center;
+  width: fit-content;
+  max-width: none;
+  padding: 0;
+  gap: 14px;
+  filter: drop-shadow(0 3px 12px rgba(10, 30, 58, 0.3));
+}
+
+.loginPage .loginBrandMark {
+  display: block;
+  width: clamp(142px, 13vw, 190px);
+  height: auto;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.loginPage .brandPane h1 {
+  margin: 0;
+  padding-left: 14px;
+  border-left: 1px solid rgba(255, 255, 255, 0.58);
+  color: #ffffff;
+  font-size: clamp(19px, 2vw, 27px);
+  font-weight: 650;
+  letter-spacing: -0.025em;
+}
+
+.loginPage .brandPane p,
+.loginPage .brandInstitution {
+  display: none;
+}
+
+.loginPage .authPane {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: 100vh;
+  grid-template-columns: minmax(320px, 430px) 1fr;
+  align-items: center;
+  padding: 100px clamp(30px, 7vw, 120px) 44px;
+  background: transparent;
+}
+
+.loginPage .authCard {
+  grid-column: 1;
+  width: 100%;
+  margin: 0;
+  padding: clamp(30px, 4vw, 42px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.76),
+      rgba(241, 247, 255, 0.62)
+    );
+  box-shadow:
+    0 28px 70px rgba(10, 30, 58, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(22px) saturate(115%);
+  -webkit-backdrop-filter: blur(22px) saturate(115%);
+}
+
+.sidebarBrand .brandMark {
+  width: 44px;
+  height: 38px;
+  padding: 7px 5px;
+  border-radius: 8px;
+  background: #173f83;
+  box-shadow: none;
+}
+
+.sidebarBrand .brandMark img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 0;
+}
+
+@media (max-width: 900px) {
+  .loginPage {
+    overflow-y: auto;
+  }
+
+  .loginPage .brandPane {
+    position: fixed;
+    min-height: 100%;
+    padding: 22px;
+    background-size: contain;
+  }
+
+  .loginPage .brandPaneContent {
+    gap: 10px;
+  }
+
+  .loginPage .loginBrandMark {
+    width: 130px;
+  }
+
+  .loginPage .brandPane h1 {
+    font-size: 19px;
+  }
+
+  .loginPage .authPane {
+    min-height: 100svh;
+    grid-template-columns: minmax(0, 430px);
+    justify-content: center;
+    padding: 92px 18px 34px;
+  }
+
+  .loginPage .authCard {
+    grid-column: 1;
+    margin: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .loginPage .brandPane {
+    padding: 18px;
+    background-position: center;
+  }
+
+  .loginPage .loginBrandMark {
+    width: 112px;
+  }
+
+  .loginPage .brandPane h1 {
+    padding-left: 10px;
+    font-size: 17px;
+  }
+
+  .loginPage .authPane {
+    min-height: 100svh;
+    padding: 80px 14px 24px;
+  }
+
+  .loginPage .authCard {
+    padding: 27px 22px;
+    background:
+      linear-gradient(
+        145deg,
+        rgba(255, 255, 255, 0.84),
+        rgba(241, 247, 255, 0.74)
+      );
+  }
+}
+
+/* Variante de connexion plein écran */
+.loginPage {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100vh;
+  overflow: hidden;
+  background: var(--color-primary-dark);
+}
+
+.loginPage .brandPane {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  display: block;
+  min-height: 100%;
+  padding: clamp(24px, 4vw, 52px);
+  background:
+    linear-gradient(135deg, rgba(18, 53, 99, 0.66) 0%, rgba(23, 63, 131, 0.2) 48%, rgba(10, 30, 58, 0.12) 100%),
+    url("/students-login-hero.png") center / cover no-repeat;
+}
+
+.loginPage .brandPane::after {
+  top: 0;
+  right: auto;
+  bottom: 0;
+  left: 0;
+  width: 6px;
+  height: auto;
+}
+
+.loginPage .brandPaneContent {
+  display: grid;
+  grid-template-columns: 42px auto;
+  align-items: center;
+  width: fit-content;
+  max-width: none;
+  padding: 0;
+  column-gap: 12px;
+}
+
+.loginPage .loginBrandMark {
+  grid-row: 1 / 3;
+  width: 42px;
+  height: 42px;
+  margin: 0;
+  border-radius: 10px;
+}
+
+.loginPage .brandPane h1 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -0.025em;
+}
+
+.loginPage .brandPane p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.loginPage .brandInstitution {
+  grid-column: 1 / -1;
+  margin-top: 15px;
+  padding-top: 10px;
+  font-size: 10px;
+}
+
+.loginPage .authPane {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 96px 24px 44px;
+  background: transparent;
+}
+
+.loginPage .authCard {
+  width: min(430px, 100%);
+  margin: 0;
+  padding: clamp(28px, 4vw, 42px);
+  border-color: rgba(255, 255, 255, 0.72);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.68),
+      rgba(241, 247, 255, 0.6)
+    );
+  box-shadow:
+    0 28px 70px rgba(10, 30, 58, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px) saturate(120%);
+  -webkit-backdrop-filter: blur(20px) saturate(120%);
+}
+
+.loginPage .authCard::before {
+  display: block;
+  width: 44px;
+  height: 4px;
+  margin-bottom: 22px;
+  border-radius: 999px;
+  content: "";
+  background: var(--color-accent);
+  box-shadow: 0 3px 10px rgba(244, 123, 32, 0.24);
+}
+
+.loginPage .authCard input {
+  border-color: rgba(156, 171, 192, 0.72);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.loginPage .authCard input:focus {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+@media (max-width: 600px) {
+  .loginPage {
+    overflow-y: auto;
+  }
+
+  .loginPage .brandPane {
+    position: fixed;
+    padding: 20px;
+    background-position: 62% center;
+  }
+
+  .loginPage .brandPaneContent {
+    grid-template-columns: 36px auto;
+    column-gap: 10px;
+  }
+
+  .loginPage .loginBrandMark {
+    width: 36px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .loginPage .brandPane h1 {
+    font-size: 21px;
+  }
+
+  .loginPage .brandPane p {
+    font-size: 11px;
+  }
+
+  .loginPage .brandInstitution {
+    display: none;
+  }
+
+  .loginPage .authPane {
+    min-height: 100svh;
+    padding: 88px 16px 28px;
+  }
+
+  .loginPage .authCard {
+    padding: 26px 22px;
+    border-radius: 14px;
+  }
+}
+
+/* Connexion scindée : photographie à gauche, formulaire à droite */
+.loginPage {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(400px, 0.85fr);
+  min-height: 100vh;
+  overflow: hidden;
+  background: #f7f9fc;
+}
+
+.loginPage .brandPane {
+  position: relative;
+  z-index: auto;
+  inset: auto;
+  display: flex;
+  align-items: flex-end;
+  min-height: 100vh;
+  padding: clamp(34px, 5vw, 72px);
+  background:
+    linear-gradient(180deg, rgba(18, 53, 99, 0.04) 30%, rgba(18, 53, 99, 0.82) 100%),
+    url("/students-login-hero.png") center / cover no-repeat;
+}
+
+.loginPage .brandPane::after {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: auto;
+  width: 6px;
+  height: auto;
+}
+
+.loginPage .brandPaneContent {
+  display: grid;
+  grid-template-columns: 52px auto;
+  align-items: center;
+  width: fit-content;
+  max-width: 520px;
+  padding: 0;
+  column-gap: 15px;
+}
+
+.loginPage .loginBrandMark {
+  grid-row: 1 / 3;
+  display: block;
+  width: 52px;
+  height: 52px;
+  margin: 0;
+  border: 0;
+  border-radius: 13px;
+  background: transparent;
+  box-shadow: 0 10px 28px rgba(10, 30, 58, 0.26);
+}
+
+.loginPage .brandPane h1 {
+  margin: 0;
+  font-size: clamp(30px, 3vw, 42px);
+  letter-spacing: -0.035em;
+}
+
+.loginPage .brandPane p {
+  margin: 3px 0 0;
+  font-size: clamp(14px, 1.4vw, 18px);
+}
+
+.loginPage .brandInstitution {
+  grid-column: 1 / -1;
+  margin-top: 20px;
+  padding-top: 13px;
+  font-size: 11px;
+}
+
+.loginPage .authPane {
+  position: relative;
+  z-index: auto;
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: clamp(28px, 5vw, 68px);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(234, 241, 251, 0.9), transparent 42%),
+    #f7f9fc;
+}
+
+.loginPage .authCard {
+  width: min(430px, 100%);
+  margin: 0;
+  padding: clamp(30px, 4vw, 44px);
+  border: 1px solid rgba(207, 215, 227, 0.76);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 22px 60px rgba(18, 53, 99, 0.14);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+@media (max-width: 900px) {
+  .loginPage {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+
+  .loginPage .brandPane {
+    min-height: 320px;
+    padding: 28px 24px 72px;
+    background-position: 65% center;
+  }
+
+  .loginPage .brandPane::after {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    height: 5px;
+  }
+
+  .loginPage .authPane {
+    min-height: auto;
+    padding: 0 18px 40px;
+  }
+
+  .loginPage .authCard {
+    margin-top: -46px;
+  }
+}
+
+@media (max-width: 520px) {
+  .loginPage .brandPane {
+    position: relative;
+    min-height: 270px;
+    padding: 22px 18px 68px;
+    background-position: 66% center;
+  }
+
+  .loginPage .brandPaneContent {
+    grid-template-columns: 42px auto;
+    column-gap: 11px;
+  }
+
+  .loginPage .loginBrandMark {
+    width: 42px;
+    height: 42px;
+  }
+
+  .loginPage .brandPane h1 {
+    font-size: 27px;
+  }
+
+  .loginPage .brandPane p {
+    font-size: 12px;
+  }
+
+  .loginPage .brandInstitution {
+    display: inline-block;
+    margin-top: 13px;
+    padding-top: 9px;
+    font-size: 9px;
+  }
+
+  .loginPage .authPane {
+    min-height: auto;
+    padding: 0 14px 30px;
+  }
+
+  .loginPage .authCard {
+    padding: 27px 22px;
+  }
+}
+
+/* État actif de la connexion — doit rester en fin de fichier */
+.loginPage {
+  position: relative;
+  isolation: isolate;
+  display: block;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #173f83;
+}
+
+.loginPage::before {
+  position: absolute;
+  z-index: -2;
+  inset: -30px;
+  content: "";
+  background: url("/students-login-hero-left.png") center / cover no-repeat;
+  filter: blur(20px) brightness(0.82) saturate(88%);
+  transform: scale(1.05);
+}
+
+.loginPage::after {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  content: "";
+  background:
+    linear-gradient(
+      90deg,
+      rgba(18, 53, 99, 0.12) 0%,
+      rgba(23, 63, 131, 0.22) 46%,
+      rgba(23, 63, 131, 0.52) 100%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(10, 30, 58, 0.06),
+      rgba(10, 30, 58, 0.24)
+    );
+}
+
+.loginPage .brandPane {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  display: block;
+  min-height: 100%;
+  padding: clamp(20px, 3vw, 38px);
+  background: url("/students-login-hero-left.png") center / cover no-repeat;
+}
+
+.loginPage .brandPane::after {
+  top: 0;
+  right: auto;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+  height: auto;
+}
+
+.loginPage .brandPaneContent {
+  display: grid;
+  grid-template-columns: 64px auto;
+  align-items: center;
+  width: fit-content;
+  max-width: none;
+  padding: 0;
+  column-gap: 13px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  filter: drop-shadow(0 3px 10px rgba(10, 30, 58, 0.5));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.loginPage .loginBrandMark {
+  grid-row: 1 / 4;
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 13px;
+  object-fit: cover;
+  box-shadow: 0 8px 24px rgba(10, 30, 58, 0.24);
+}
+
+.loginPage .brandPane h1 {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  color: #ffffff;
+  font-size: clamp(21px, 2vw, 28px);
+  font-weight: 780;
+  letter-spacing: -0.025em;
+  text-shadow:
+    0 2px 4px rgba(10, 30, 58, 0.72),
+    0 6px 18px rgba(10, 30, 58, 0.46);
+}
+
+.loginPage .brandPane p {
+  display: block;
+  margin: 3px 0 0;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  letter-spacing: 0.005em;
+  text-shadow:
+    0 1px 3px rgba(10, 30, 58, 0.82),
+    0 4px 14px rgba(10, 30, 58, 0.5);
+}
+
+.loginPage .brandInstitution {
+  display: block;
+  margin: 5px 0 0;
+  padding: 0;
+  border: 0;
+  color: #ffb77f;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.loginPage .authPane {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: 100vh;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 420px);
+  align-items: center;
+  padding: 24px clamp(28px, 6vw, 96px) 24px 24px;
+  background:
+    radial-gradient(
+      circle at 82% 50%,
+      rgba(0, 102, 255, 0.12) 0%,
+      rgba(23, 92, 196, 0.06) 24%,
+      rgba(23, 63, 131, 0.02) 44%,
+      transparent 64%
+    );
+}
+
+.loginPage .authCard {
+  grid-column: 2;
+  width: min(420px, 100%);
+  margin: 0;
+  padding: clamp(28px, 4vw, 40px);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.52),
+      rgba(239, 246, 255, 0.38)
+    );
+  box-shadow:
+    0 30px 80px rgba(10, 30, 58, 0.3),
+    0 0 40px rgba(0, 102, 255, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(18px) saturate(115%);
+  -webkit-backdrop-filter: blur(18px) saturate(115%);
+}
+
+.loginPage .authCard input {
+  background: rgba(255, 255, 255, 0.76);
+}
+
+@media (max-width: 600px) {
+  .loginPage {
+    overflow-y: auto;
+  }
+
+  .loginPage .brandPane {
+    position: fixed;
+    min-height: 100%;
+    padding: 16px;
+    background-position: 42% center;
+    background-size: cover;
+  }
+
+  .loginPage .loginBrandMark {
+    width: 50px;
+    height: 50px;
+    border-radius: 11px;
+  }
+
+  .loginPage .brandPane h1 {
+    font-size: 20px;
+  }
+
+  .loginPage .brandPaneContent {
+    grid-template-columns: 50px auto;
+    padding: 0;
+    column-gap: 10px;
+  }
+
+  .loginPage .brandPane p {
+    max-width: 230px;
+    font-size: 11px;
+  }
+
+  .loginPage .brandInstitution {
+    margin-top: 3px;
+    font-size: 8px;
+  }
+
+  .loginPage .authPane {
+    min-height: 100svh;
+    grid-template-columns: minmax(0, 420px);
+    justify-content: center;
+    padding: 76px 14px 20px;
+  }
+
+  .loginPage .authCard {
+    grid-column: 1;
+    margin: 0;
+    padding: 26px 22px;
+    background:
+      linear-gradient(
+        145deg,
+        rgba(255, 255, 255, 0.64),
+        rgba(239, 246, 255, 0.5)
+      );
   }
 }

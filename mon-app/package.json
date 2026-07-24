@@ -7,8 +7,10 @@
     "dev": "node backend/server.js",
     "dev:frontend": "vite",
     "dev:backend": "node backend/server.js",
+    "dev:csv": "python python-import-service/app.py",
     "start": "node backend/server.js",
     "test": "node --test backend/tests/*.test.js",
+    "test:csv": "python -m unittest discover -s python-import-service/tests -v",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"
