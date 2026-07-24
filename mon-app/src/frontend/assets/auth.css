@@ -2067,6 +2067,47 @@ textarea:focus-visible {
   }
 }
 
+.authNotice {
+  margin: 14px 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(6, 118, 71, 0.26);
+  border-radius: 8px;
+  color: #075f3b;
+  background: rgba(236, 253, 243, 0.78);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.authBackButton {
+  display: block;
+  width: 100%;
+  min-height: 38px;
+  margin-top: 12px;
+  padding: 0 12px;
+  border: 0;
+  color: var(--color-primary);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.authBackButton:hover {
+  color: var(--color-primary-dark);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.resetPreviewLink {
+  display: block;
+  margin: -2px 0 14px;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  text-underline-offset: 3px;
+}
+
 /* Connexion immersive : photographie entière et logo officiel Teccart */
 .loginPage {
   position: relative;

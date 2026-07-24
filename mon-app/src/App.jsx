@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Login from "../src/frontend/composants/Login.jsx";
 import Dashboard from "../src/frontend/composants/Dashboard.jsx";
+import { restoreAuthUser } from "./frontend/services/authSession.js";
 import "./App.css";
 
 export default function App() {
@@ -14,17 +15,5 @@ export default function App() {
 }
 
 function getSavedUser() {
-  const savedUser = localStorage.getItem("user");
-
-  if (!savedUser) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(savedUser);
-  } catch {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    return null;
-  }
+  return restoreAuthUser();
 }

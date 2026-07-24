@@ -1,7 +1,8 @@
+import { clearAuthSession } from "../services/authSession.js";
+
 export default function Logout({ onLogout }) {
   function handleLogout() {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    clearAuthSession();
     onLogout();
   }
 
