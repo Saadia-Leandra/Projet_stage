@@ -1,0 +1,4 @@
+numero_dossier,nom,prenom,code_permanent,numero_programme,numero_grille,spe,telephone_principal,telephone_secondaire,email
+2600010,Bernard,Luc,BERL01010101,420.B0,420-B0-2026,Developpement web,514-555-1010,438-555-1010,bernard@teccart.com
+2600011,Gagnon,Emma,GAGE02020202,420.B0,420-B0-2026,Reseaux et securite,514-555-1111,,gagnon@teccart.com
+2600012,Mensah,Davidson,MEND03030303,420.B0,420-B0-2026,Intelligence artificielle,514-555-1212,438-555-1212,mensah@teccart.com

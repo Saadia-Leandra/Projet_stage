@@ -13,6 +13,17 @@ npm run dev
 
 Le serveur Express sert l'API et le frontend Vite sur `http://localhost:3000`.
 
+L'importation CSV des étudiants utilise un service Python sans dépendance
+externe. Dans un second terminal, le démarrer avant d'utiliser l'écran
+« Importer des étudiants » :
+
+```bash
+npm run dev:csv
+```
+
+Le service écoute par défaut sur `http://127.0.0.1:8001`. Les variables
+`CSV_SERVICE_URL` et `CSV_SERVICE_TOKEN` permettent de configurer les échanges.
+
 ## Verification
 
 ```bash

@@ -2,7 +2,11 @@ export function errorHandler(error, _req, res, _next) {
   console.error(error);
 
   const status = error.status || 500;
-  const message = status === 500 ? "Erreur serveur." : error.message;
+  const isProd = process.env.NODE_ENV === "production";
+  const message =
+    isProd && status === 500
+      ? "Erreur serveur."
+      : error.message || "Erreur serveur.";
   const body = { error: message };
 
   if (error.details) {
@@ -14,6 +18,10 @@ export function errorHandler(error, _req, res, _next) {
     status !== 500
   ) {
     body.code = error.code;
+  }
+
+  if (!isProd) {
+    body.stack = error.stack;
   }
 
   res.status(status).json(body);
