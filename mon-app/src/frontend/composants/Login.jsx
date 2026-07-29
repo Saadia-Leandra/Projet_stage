@@ -1,22 +1,20 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { saveAuthSession } from "../services/authSession.js";
 import "../assets/auth.css";
 
 export default function Login({ onLogin }) {
-  const resetToken = useMemo(
-    () => new URLSearchParams(window.location.search).get("resetToken"),
-    []
-  );
-  const [mode, setMode] = useState(resetToken ? "reset" : "login");
+  const [mode, setMode] = useState("login");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [email, setEmail] = useState("");
+  const [verificationCode, setVerificationCode] = useState("");
+  const [resetSession, setResetSession] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [debugResetUrl, setDebugResetUrl] = useState("");
+  const [debugResetCode, setDebugResetCode] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleLogin(event) {
@@ -61,7 +59,34 @@ export default function Login({ onLogin }) {
       }
 
       setNotice(response.data.message);
-      setDebugResetUrl(response.data.debugResetUrl || "");
+      setDebugResetCode(response.data.debugResetCode || "");
+      setMode("verify");
+    } catch {
+      setError("Erreur de connexion au serveur.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyCode(event) {
+    event.preventDefault();
+    startRequest();
+
+    try {
+      const response = await postJson("/api/auth/verify-reset-code", {
+        email,
+        code: verificationCode
+      });
+
+      if (!response.ok) {
+        setError(response.data.error || "Code de vérification invalide.");
+        return;
+      }
+
+      setResetSession(response.data.resetSession);
+      setVerificationCode("");
+      setNotice(response.data.message);
+      setMode("reset");
     } catch {
       setError("Erreur de connexion au serveur.");
     } finally {
@@ -81,8 +106,9 @@ export default function Login({ onLogin }) {
 
     try {
       const response = await postJson("/api/auth/reset-password", {
-        token: resetToken,
-        password
+        resetSession,
+        password,
+        confirmPassword
       });
 
       if (!response.ok) {
@@ -90,9 +116,9 @@ export default function Login({ onLogin }) {
         return;
       }
 
-      window.history.replaceState({}, "", window.location.pathname);
       setPassword("");
       setConfirmPassword("");
+      setResetSession("");
       setMode("login");
       setNotice(response.data.message);
     } catch {
@@ -105,7 +131,7 @@ export default function Login({ onLogin }) {
   function startRequest() {
     setError("");
     setNotice("");
-    setDebugResetUrl("");
+    setDebugResetCode("");
     setLoading(true);
   }
 
@@ -113,7 +139,9 @@ export default function Login({ onLogin }) {
     setMode(nextMode);
     setError("");
     setNotice("");
-    setDebugResetUrl("");
+    setDebugResetCode("");
+    setVerificationCode("");
+    setResetSession("");
     setPassword("");
     setConfirmPassword("");
   }
@@ -188,7 +216,7 @@ export default function Login({ onLogin }) {
           <form className="authCard" onSubmit={handleForgotPassword}>
             <AuthHeader
               title="Mot de passe oublié"
-              intro="Entrez le courriel associé à votre compte. Le lien envoyé sera valide 30 minutes."
+              intro="Entrez le courriel associé à votre compte. Un code valide 10 minutes vous sera envoyé."
             />
 
             <label className="field">
@@ -205,14 +233,57 @@ export default function Login({ onLogin }) {
 
             <AuthMessages error={error} notice={notice} />
 
-            {debugResetUrl && (
-              <a className="resetPreviewLink" href={debugResetUrl}>
-                Ouvrir le lien de test
-              </a>
+            <button className="primaryButton" type="submit" disabled={loading}>
+              {loading ? "Envoi..." : "Envoyer le code"}
+            </button>
+            <button className="authBackButton" type="button" onClick={() => showMode("login")}>
+              Retour à la connexion
+            </button>
+          </form>
+        )}
+
+        {mode === "verify" && (
+          <form className="authCard" onSubmit={handleVerifyCode}>
+            <AuthHeader
+              title="Vérification"
+              intro="Saisissez le code à 6 chiffres envoyé à votre adresse courriel."
+            />
+
+            <label className="field">
+              Code de vérification
+              <input
+                className="verificationCodeInput"
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={verificationCode}
+                onChange={(event) =>
+                  setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                placeholder="000000"
+                pattern="\d{6}"
+                maxLength={6}
+                required
+              />
+            </label>
+
+            <AuthMessages error={error} notice={notice} />
+
+            {debugResetCode && (
+              <p className="resetPreviewCode">
+                Code de développement : <strong>{debugResetCode}</strong>
+              </p>
             )}
 
-            <button className="primaryButton" type="submit" disabled={loading}>
-              {loading ? "Envoi..." : "Envoyer le lien"}
+            <button
+              className="primaryButton"
+              type="submit"
+              disabled={loading || verificationCode.length !== 6}
+            >
+              {loading ? "Vérification..." : "Vérifier le code"}
+            </button>
+            <button className="authBackButton" type="button" onClick={() => showMode("forgot")}>
+              Renvoyer un code
             </button>
             <button className="authBackButton" type="button" onClick={() => showMode("login")}>
               Retour à la connexion
@@ -224,7 +295,7 @@ export default function Login({ onLogin }) {
           <form className="authCard" onSubmit={handleResetPassword}>
             <AuthHeader
               title="Nouveau mot de passe"
-              intro="Choisissez un mot de passe d’au moins 8 caractères."
+              intro="Choisissez une phrase de passe contenant entre 12 et 128 caractères."
             />
 
             <PasswordField
@@ -235,7 +306,7 @@ export default function Login({ onLogin }) {
               onChange={setPassword}
               onToggle={() => setShowPassword((current) => !current)}
               autoComplete="new-password"
-              minLength={8}
+              minLength={12}
             />
             <PasswordField
               label="Confirmer le mot de passe"
@@ -245,7 +316,7 @@ export default function Login({ onLogin }) {
               onChange={setConfirmPassword}
               onToggle={() => setShowPassword((current) => !current)}
               autoComplete="new-password"
-              minLength={8}
+              minLength={12}
             />
 
             <AuthMessages error={error} notice={notice} />

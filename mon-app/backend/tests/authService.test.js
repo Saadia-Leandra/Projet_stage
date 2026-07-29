@@ -32,46 +32,59 @@ test("login crée une session de 8 h par défaut et de 30 jours si mémorisée",
   assert.ok(rememberedPayload.exp - rememberedPayload.iat >= 29 * 24 * 60 * 60);
 });
 
-test("requestPasswordReset génère un lien et resetPassword consomme le jeton", async () => {
-  let storedTokenHash = "";
+test("le code de vérification ouvre une session puis permet de changer le mot de passe", async () => {
+  let storedCodeHash = "";
+  let storedSessionHash = "";
   let storedPasswordHash = "";
-  let resetUrl = "";
+  let sentCode = "";
   const usersRepo = {
     async findByEmail() {
       return { id: 7, email: "test@example.com" };
     },
-    async createPasswordResetToken(_userId, tokenHash) {
-      storedTokenHash = tokenHash;
+    async createPasswordResetCode(_userId, codeHash) {
+      storedCodeHash = codeHash;
     },
-    async consumePasswordResetToken(tokenHash, passwordHash) {
-      assert.equal(tokenHash, storedTokenHash);
+    async verifyPasswordResetCode({ codeHash, sessionTokenHash }) {
+      if (codeHash !== storedCodeHash) return false;
+      storedSessionHash = sessionTokenHash;
+      return true;
+    },
+    async consumePasswordResetSession(sessionTokenHash, passwordHash) {
+      assert.equal(sessionTokenHash, storedSessionHash);
       storedPasswordHash = passwordHash;
       return true;
     }
   };
   const passwordResetMailer = {
-    async sendPasswordReset(message) {
-      resetUrl = message.resetUrl;
-      return { previewUrl: resetUrl };
+    async sendPasswordResetCode({ code }) {
+      sentCode = code;
+      return { previewCode: code };
     }
   };
   const service = new AuthService({
     usersRepo,
     passwordResetMailer,
-    appPublicUrl: "https://stagetec.example"
+    resetSecret: "test-reset-secret"
   });
 
   const requested = await service.requestPasswordReset({
     email: "test@example.com"
   });
-  const rawToken = new URL(requested.debugResetUrl).searchParams.get("resetToken");
 
-  assert.ok(rawToken);
-  assert.equal(resetUrl, requested.debugResetUrl);
+  assert.match(sentCode, /^\d{6}$/);
+  assert.equal(requested.debugResetCode, sentCode);
+
+  const verified = await service.verifyPasswordResetCode({
+    email: "test@example.com",
+    code: sentCode
+  });
+
+  assert.ok(verified.resetSession);
 
   const result = await service.resetPassword({
-    token: rawToken,
-    password: "nouveauMotDePasse"
+    resetSession: verified.resetSession,
+    password: "nouveauMotDePasse",
+    confirmPassword: "nouveauMotDePasse"
   });
 
   assert.match(result.message, /modifié/);
@@ -86,19 +99,40 @@ test("requestPasswordReset retourne le même message pour un compte inconnu", as
       }
     },
     passwordResetMailer: {
-      async sendPasswordReset() {
+      async sendPasswordResetCode() {
         throw new Error("ne doit pas être appelé");
       }
     }
   });
 
   const result = await service.requestPasswordReset({
-    email: "inconnu@example.com",
-    requestOrigin: "http://localhost:3000"
+    email: "inconnu@example.com"
   });
 
   assert.match(result.message, /Si un compte correspond/);
-  assert.equal(result.debugResetUrl, undefined);
+  assert.equal(result.debugResetCode, undefined);
+});
+
+test("verifyPasswordResetCode refuse un code invalide", async () => {
+  const service = new AuthService({
+    usersRepo: {
+      async findByEmail() {
+        return { id: 7, email: "test@example.com" };
+      },
+      async verifyPasswordResetCode() {
+        return false;
+      }
+    },
+    resetSecret: "test-reset-secret"
+  });
+
+  await assert.rejects(
+    service.verifyPasswordResetCode({
+      email: "test@example.com",
+      code: "123456"
+    }),
+    /Code invalide/
+  );
 });
 
 function testUser(passwordHash) {
