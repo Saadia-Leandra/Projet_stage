@@ -5,6 +5,7 @@ import PayrollDashboard from "./PayrollDashboard.jsx";
 import StageContractsDashboard from "./StageContractsDashboard.jsx";
 import StudentDashboard from "./StudentDashboard.jsx";
 import StudentCsvImport from "./StudentCsvImport.jsx";
+import AdminStudents from "./AdminStudents.jsx";
 import SupervisorDashboard from "./SupervisorDashboard.jsx";
 import "../assets/auth.css";
 import { clearAuthSession } from "../services/authSession.js";
@@ -39,6 +40,7 @@ export default function Dashboard({ user, onLogout }) {
         }
 
         setCurrentUser(data.user || null);
+
       } catch {
         setError("Impossible de charger le profil.");
       }
@@ -130,12 +132,21 @@ export default function Dashboard({ user, onLogout }) {
             />
           )}
 
-          {currentUser.role === "CONSEILLERE" && (
+          {["CONSEILLERE", "DIRECTION"].includes(currentUser.role) && (
             <SidebarButton
               active={activeView === "studentImport"}
               label="Importer des étudiants"
               icon="import"
               onClick={() => setActiveView("studentImport")}
+            />
+          )}
+
+          {currentUser.role === "DIRECTION" && (
+            <SidebarButton
+              active={activeView === "adminStudents"}
+              label="Gérer les étudiants"
+              icon="students"
+              onClick={() => setActiveView("adminStudents")}
             />
           )}
 
@@ -190,13 +201,15 @@ export default function Dashboard({ user, onLogout }) {
           </section>
         )}
 
-        {activeView === "studentImport" && currentUser.role === "CONSEILLERE" ? (
+        {activeView === "studentImport" && ["CONSEILLERE", "DIRECTION"].includes(currentUser.role) ? (
           <StudentCsvImport />
         ) : ["history", "historyMileage"].includes(activeView) ? (
           <HistoryDashboard
             user={currentUser}
             initialSection={activeView === "historyMileage" ? "mileage" : "payroll"}
           />
+        ) : activeView === "adminStudents" && ["DIRECTION"].includes(currentUser.role) ? (
+          <AdminStudents />
         ) : activeView === "stageContracts" ? (
           <StageContractsDashboard user={currentUser} />
         ) : activeView === "payroll" ? (
@@ -275,6 +288,14 @@ function SidebarIcon({ name }) {
       <>
         <path d="M12 3v12M8 11l4 4 4-4" />
         <path d="M5 17v3h14v-3" />
+      </>
+    ),
+    students: (
+      <>
+        <circle cx="9" cy="8" r="3" />
+        <circle cx="17" cy="9" r="2.5" />
+        <path d="M3.5 20v-2a5.5 5.5 0 0 1 11 0v2" />
+        <path d="M14 14.5a4.5 4.5 0 0 1 6.5 4V20" />
       </>
     ),
     history: (
