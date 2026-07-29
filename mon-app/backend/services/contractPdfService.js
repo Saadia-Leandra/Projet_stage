@@ -246,7 +246,7 @@ function drawContractCover(page, font, contract) {
   drawValue(page, font, contract.companyName, 270, 372, {
     maxWidth: 290
   });
-  drawValue(page, font, contract.companyNeq, 120, 354, {
+  drawValue(page, font, contract.companyNeq, 130, 357, {
     maxWidth: 160
   });
   drawValue(
@@ -254,7 +254,7 @@ function drawContractCover(page, font, contract) {
     font,
     contract.companyWebsite,
     370,
-    354,
+    357,
     { maxWidth: 170 }
   );
   drawValue(
@@ -264,9 +264,9 @@ function drawContractCover(page, font, contract) {
       contract.companySignatureName,
       contract.companySupervisorName
     ),
-    120,
-    337,
-    { maxWidth: 250 }
+    140,
+    340,
+    { maxWidth: 230 }
   );
   drawValue(
     page,
@@ -276,37 +276,37 @@ function drawContractCover(page, font, contract) {
       contract.companySupervisorEmail,
       contract.companyEmail
     ),
-    160,
-    321,
-    { maxWidth: 320 }
+    178,
+    324,
+    { maxWidth: 300 }
   );
-  drawValue(page, font, contract.companyAddress, 125, 302, {
-    maxWidth: 250
+  drawValue(page, font, contract.companyAddress, 145, 308, {
+    maxWidth: 225
   });
   drawValue(page, font, cityWithProvince(
     contract.companyCity,
     contract.companyProvince
-  ), 420, 302, {
+  ), 430, 308, {
     maxWidth: 100
   });
   drawValue(
     page,
     font,
     contract.companyPostalCode,
-    140,
-    286,
-    { maxWidth: 90 }
+    160,
+    291,
+    { maxWidth: 75 }
   );
-  drawValue(page, font, contract.companyPhone, 300, 286, {
-    maxWidth: 120
+  drawValue(page, font, contract.companyPhone, 330, 291, {
+    maxWidth: 90
   });
   drawValue(
     page,
     font,
     contract.companyPhoneExtension,
-    455,
-    286,
-    { maxWidth: 60 }
+    465,
+    291,
+    { maxWidth: 50 }
   );
 
   drawValue(
@@ -321,9 +321,9 @@ function drawContractCover(page, font, contract) {
     page,
     font,
     contract.companySupervisorTitle,
-    115,
+    130,
     238,
-    { maxWidth: 280 }
+    { maxWidth: 265 }
   );
   drawValue(
     page,
@@ -688,7 +688,8 @@ function drawValue(
     maxWidth = 120,
     maxLines = 1,
     size = 8,
-    lineHeight = 11
+    lineHeight = 11,
+    verticalOffset = 3
   } = {}
 ) {
   const text = cleanPdfText(value);
@@ -701,10 +702,17 @@ function drawValue(
     .slice(0, maxLines);
 
   lines.forEach((line, index) => {
+    const fittedSize = fitTextSize(
+      line,
+      font,
+      size,
+      maxWidth
+    );
+
     page.drawText(line, {
       x,
-      y: y - index * lineHeight,
-      size,
+      y: y + verticalOffset - index * lineHeight,
+      size: fittedSize,
       font,
       color: rgb(0, 0, 0),
       maxWidth
@@ -718,6 +726,18 @@ function wrapText(text, font, size, maxWidth) {
   let currentLine = "";
 
   for (const word of words) {
+    if (font.widthOfTextAtSize(word, size) > maxWidth) {
+      if (currentLine) {
+        lines.push(currentLine);
+        currentLine = "";
+      }
+
+      lines.push(
+        ...splitLongWord(word, font, size, maxWidth)
+      );
+      continue;
+    }
+
     const candidate = currentLine
       ? `${currentLine} ${word}`
       : word;
@@ -738,6 +758,45 @@ function wrapText(text, font, size, maxWidth) {
   }
 
   return lines.length ? lines : [text];
+}
+
+function splitLongWord(word, font, size, maxWidth) {
+  const segments = [];
+  let current = "";
+
+  for (const character of word) {
+    const candidate = `${current}${character}`;
+
+    if (
+      current &&
+      font.widthOfTextAtSize(candidate, size) > maxWidth
+    ) {
+      segments.push(current);
+      current = character;
+      continue;
+    }
+
+    current = candidate;
+  }
+
+  if (current) {
+    segments.push(current);
+  }
+
+  return segments;
+}
+
+function fitTextSize(text, font, size, maxWidth) {
+  let fittedSize = size;
+
+  while (
+    fittedSize > 5.5 &&
+    font.widthOfTextAtSize(text, fittedSize) > maxWidth
+  ) {
+    fittedSize -= 0.25;
+  }
+
+  return Number(fittedSize.toFixed(2));
 }
 
 function drawCheck(page, font, x, y) {

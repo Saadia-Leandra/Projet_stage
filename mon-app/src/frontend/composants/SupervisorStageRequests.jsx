@@ -105,7 +105,7 @@ export default function SupervisorStageRequests() {
 
     if (!token) {
       setError(
-        "Session expirÃ©e. Veuillez vous reconnecter."
+        "Session expirée. Veuillez vous reconnecter."
       );
 
       setLoading(false);
@@ -196,7 +196,7 @@ export default function SupervisorStageRequests() {
       if (!response.ok) {
         setError(
           data.error ||
-            "Impossible dâ€™approuver la demande."
+            "Impossible d’approuver la demande."
         );
 
         return;
@@ -204,7 +204,7 @@ export default function SupervisorStageRequests() {
 
       setSuccess(
         data.message ||
-          "La demande a Ã©tÃ© approuvÃ©e."
+          "La demande a été approuvée."
       );
 
       await loadRequests();
@@ -260,7 +260,7 @@ export default function SupervisorStageRequests() {
 
       setSuccess(
         data.message ||
-          "La demande a Ã©tÃ© refusÃ©e."
+          "La demande a été refusée."
       );
 
       setRequestToRefuse(null);
@@ -392,12 +392,12 @@ export default function SupervisorStageRequests() {
     <section className="studentPanel supervisorStagePanel">
       <div className="panelHeader">
         <div>
-          <h2>Demandes de stage Ã  valider</h2>
+          <h2>Demandes de stage à valider</h2>
 
           <p>
             Consultez, approuvez ou refusez les
-            demandes des Ã©tudiants qui vous sont
-            assignÃ©s.
+            demandes des étudiants qui vous sont
+            assignés.
           </p>
         </div>
 
@@ -830,12 +830,12 @@ function nextActionLabel(request) {
 function statusLabel(status) {
   const labels = {
     BROUILLON: "Brouillon",
-    SOUMISE: "Ã€ traiter",
-    A_REVISER: "A reviser",
+    SOUMISE: "À traiter",
+    A_REVISER: "À réviser",
     DOCUMENTS_MANQUANTS: "Documents manquants",
-    APPROUVEE: "ApprouvÃ©e",
-    REFUSEE: "RefusÃ©e",
-    ANNULEE: "Retiree par l'etudiant"
+    APPROUVEE: "Approuvée",
+    REFUSEE: "Refusée",
+    ANNULEE: "Retirée par l'étudiant"
   };
 
   return labels[status] || status || "-";

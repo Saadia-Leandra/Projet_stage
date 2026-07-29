@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 
 export default function StageContractsDashboard({ user }) {
   const [requests, setRequests] = useState([]);
@@ -11,6 +16,7 @@ export default function StageContractsDashboard({ user }) {
     useState("TOUS");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const contractDetailsRef = useRef(null);
 
   async function loadData() {
     const token = localStorage.getItem("token");
@@ -105,6 +111,9 @@ export default function StageContractsDashboard({ user }) {
       ) || contracts[0],
     [contracts, selectedId]
   );
+  const currentUserSigner = selectedContract
+    ? findCurrentUserSigner(selectedContract, user)
+    : null;
 
   const stats = useMemo(
     () => ({
@@ -154,6 +163,24 @@ export default function StageContractsDashboard({ user }) {
       (contract) => contract.status === contractFilter
     );
   }, [contracts, contractFilter]);
+
+  function openContractDetails(contractId) {
+    setSelectedId(contractId);
+    window.requestAnimationFrame(() => {
+      contractDetailsRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+      });
+    });
+  }
+
+  function openSigningUrl(signingUrl) {
+    window.open(
+      signingUrl,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  }
 
   return (
     <>
@@ -350,8 +377,8 @@ export default function StageContractsDashboard({ user }) {
               <option value="SIGNATURE_ETUDIANT">
                 Signature etudiante
               </option>
-              <option value="CONTRAT_MILIEU_A_DEPOSER">
-                Depot milieu
+              <option value="SIGNATURE_ENTREPRISE">
+                Signature milieu
               </option>
               <option value="SIGNATURE">
                 En signature
@@ -381,6 +408,8 @@ export default function StageContractsDashboard({ user }) {
               {filteredContracts.map((contract) => {
                 const nextAction =
                   contractNextAction(contract);
+                const currentSignerForContract =
+                  findCurrentUserSigner(contract, user);
 
                 return (
                   <tr key={contract.id}>
@@ -429,21 +458,34 @@ export default function StageContractsDashboard({ user }) {
                     </td>
 
                     <td>
-                      <button
-                        className={
-                          selectedId === contract.id
-                            ? "primaryButton"
-                            : "secondaryButton"
-                        }
-                        type="button"
-                        onClick={() =>
-                          setSelectedId(contract.id)
-                        }
-                      >
-                        {selectedId === contract.id
-                          ? "Ouvert"
-                          : "Voir"}
-                      </button>
+                      <div className="tableActions">
+                        <button
+                          className="secondaryButton"
+                          type="button"
+                          onClick={() =>
+                            openContractDetails(contract.id)
+                          }
+                        >
+                          Voir le suivi
+                        </button>
+
+                        {canCurrentUserSign(
+                          currentSignerForContract,
+                          user
+                        ) && (
+                          <button
+                            className="primaryButton"
+                            type="button"
+                            onClick={() =>
+                              openSigningUrl(
+                                currentSignerForContract.signingUrl
+                              )
+                            }
+                          >
+                            Signer
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -468,7 +510,10 @@ export default function StageContractsDashboard({ user }) {
       </section>
 
       {selectedContract && (
-        <section className="studentPanel">
+        <section
+          className="studentPanel"
+          ref={contractDetailsRef}
+        >
           <div className="panelHeader">
             <div>
               <h2>Suivi du contrat</h2>
@@ -486,6 +531,23 @@ export default function StageContractsDashboard({ user }) {
               {statusLabel(selectedContract.status)}
             </span>
           </div>
+
+          {canCurrentUserSign(currentUserSigner, user) && (
+            <div className="studentSuccess">
+              <span>
+                Votre signature est demandee pour ce contrat.
+              </span>
+              <button
+                className="primaryButton fitButton"
+                type="button"
+                onClick={() =>
+                  openSigningUrl(currentUserSigner.signingUrl)
+                }
+              >
+                Signer avec Documenso
+              </button>
+            </div>
+          )}
 
           <div className="contractInfoGrid">
             <Info
@@ -527,6 +589,17 @@ export default function StageContractsDashboard({ user }) {
                   <small>
                     {signer.name} - {signer.email}
                   </small>
+                  {canCurrentUserSign(signer, user) && (
+                    <button
+                      className="proofLinkButton"
+                      type="button"
+                      onClick={() =>
+                        openSigningUrl(signer.signingUrl)
+                      }
+                    >
+                      Signer avec Documenso
+                    </button>
+                  )}
                 </div>
 
                 <span
@@ -539,6 +612,15 @@ export default function StageContractsDashboard({ user }) {
               </div>
             ))}
           </div>
+
+          {currentUserSigner?.status === "ENVOYE" &&
+            !currentUserSigner.signingUrl && (
+              <p className="notice">
+                Documenso a envoye le lien de signature par courriel.
+                Si le compte utilise un courriel fictif, remplacez-le
+                par un courriel accessible ou relancez l'envoi.
+              </p>
+            )}
         </section>
       )}
 
@@ -627,8 +709,8 @@ function contractNextAction(contract) {
 
   if (contract.status === "CONTRAT_MILIEU_A_DEPOSER") {
     return {
-      title: "Etudiant",
-      detail: "Deposer le contrat signe par le milieu."
+      title: "Milieu de stage",
+      detail: "Recevoir la signature du milieu."
     };
   }
 
@@ -674,6 +756,51 @@ function Info({ label, value }) {
   );
 }
 
+function findCurrentUserSigner(contract, user) {
+  return (contract.signers || []).find((signer) =>
+    isSignerForUser(signer, user)
+  );
+}
+
+function canCurrentUserSign(signer, user) {
+  return Boolean(
+    signer?.status === "ENVOYE" &&
+      signer.signingUrl &&
+      isSignerForUser(signer, user)
+  );
+}
+
+function isSignerForUser(signer, user) {
+  return Boolean(
+    signer &&
+      user &&
+      signer.role === signerRoleForUser(user.role) &&
+      (
+        sameUserId(signer.userId, user.id) ||
+        sameEmail(signer.email, user.email)
+      )
+  );
+}
+
+function signerRoleForUser(role) {
+  const roles = {
+    SUPERVISEUR: "SUPERVISEUR",
+    CONSEILLERE: "CONSEILLERE",
+    DIRECTION: "DIRECTION"
+  };
+
+  return roles[role] || "";
+}
+
+function sameEmail(left, right) {
+  return String(left || "").toLowerCase() ===
+    String(right || "").toLowerCase();
+}
+
+function sameUserId(left, right) {
+  return Boolean(left && right && Number(left) === Number(right));
+}
+
 function roleText(role) {
   if (role === "SUPERVISEUR") {
     return "Contrats des etudiants qui vous sont assignes.";
@@ -692,9 +819,9 @@ function statusLabel(status) {
     SIGNATURE_ETUDIANT:
       "Signature etudiante requise",
     CONTRAT_MILIEU_A_DEPOSER:
-      "Contrat du milieu a deposer",
+      "Contrat du milieu a recevoir",
     SIGNATURE_ENTREPRISE:
-      "En attente du milieu de stage",
+      "Signature du milieu requise",
     SIGNATURE_SUPERVISEUR:
       "En attente de l'enseignant",
     SIGNATURE_CONSEILLERE:

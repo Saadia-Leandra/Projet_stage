@@ -46,7 +46,7 @@ export default function StudentDashboard({
 
     if (!token) {
       setError(
-        "Session expirÃ©e. Veuillez vous reconnecter."
+        "Session expirée. Veuillez vous reconnecter."
       );
       setLoading(false);
       return;
@@ -289,7 +289,7 @@ function OverviewView({
           <span>Progression du dossier</span>
 
           <strong>
-            Ã‰tape{" "}
+            Étape{" "}
             {displayState.progressStep}
             /9
           </strong>
@@ -312,7 +312,7 @@ function OverviewView({
 
             <span>
               {latestRequest?.companyName ||
-                "Aucun milieu sÃ©lectionnÃ©"}
+                "Aucun milieu sélectionné"}
             </span>
           </div>
 
@@ -339,7 +339,7 @@ function OverviewView({
           </div>
 
           <div>
-            <strong>PÃ©riode</strong>
+            <strong>Période</strong>
 
             <span>
               {latestRequest
@@ -566,7 +566,7 @@ function RequestsView({
     <>
       <section className="studentPanel">
         <div className="panelHeader">
-          <h2>Profil Ã©tudiant</h2>
+          <h2>Profil étudiant</h2>
 
           {loading && (
             <span className="statusPill">
@@ -730,23 +730,23 @@ function ContractDetails({
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] =
     useState(false);
-  const [uploadingMilieu, setUploadingMilieu] =
-    useState(false);
-  const [milieuFile, setMilieuFile] =
-    useState(null);
   const [receipt, setReceipt] = useState(
     contract.receipt || null
   );
   const [downloading, setDownloading] =
     useState("");
+  const [previousContractId, setPreviousContractId] =
+    useState(contract.id);
 
   useEffect(() => {
     setFormData(contractToForm(contract));
-    setMessage("");
-    setError("");
-    setMilieuFile(null);
+    if (previousContractId !== contract.id) {
+      setMessage("");
+      setError("");
+      setPreviousContractId(contract.id);
+    }
     setReceipt(contract.receipt || null);
-  }, [contract]);
+  }, [contract, previousContractId]);
 
   const isEditable =
     contract.status === "A_COMPLETER_ETUDIANT";
@@ -764,8 +764,11 @@ function ContractDetails({
       signer.status === "ENVOYE"
   );
 
-  const canDepositMilieuContract =
-    contract.status === "CONTRAT_MILIEU_A_DEPOSER";
+  const isMilieuSignaturePending =
+    contract.status === "SIGNATURE_ENTREPRISE";
+  const confirmationCode =
+    receipt?.confirmationCode ||
+    contract.confirmationCode;
 
   function updateField(name, value) {
     setFormData((current) => ({
@@ -816,7 +819,9 @@ function ContractDetails({
     try {
       await saveContractData(token);
       await onReload();
-      setMessage("Contrat enregistre.");
+      setMessage(
+        "Enregistrement fait avec succes. Le PDF prerempli est pret a telecharger."
+      );
     } catch (requestError) {
       console.error(requestError);
       setError(
@@ -859,15 +864,14 @@ function ContractDetails({
 
       if (!response.ok) {
         setError(
-          data.error ||
-            "Impossible de demarrer la signature."
+          formatContractSubmissionError(data)
         );
         return;
       }
 
       await onReload();
       setMessage(
-        "Le contrat est enregistre. Ouvrez Documenso pour signer votre partie."
+        "Le contrat a ete envoye dans Documenso. Ouvrez le lien pour signer votre partie."
       );
     } catch (requestError) {
       console.error(requestError);
@@ -877,76 +881,6 @@ function ContractDetails({
       );
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function uploadMilieuContract() {
-    const token = localStorage.getItem("token");
-
-    if (!token) {
-      setError("Session expiree.");
-      return;
-    }
-
-    if (!milieuFile) {
-      setError(
-        "Selectionnez le PDF signe par le milieu de stage."
-      );
-      return;
-    }
-
-    const confirmed = window.confirm(
-      "Deposer ce contrat signe par le milieu de stage ?"
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    setUploadingMilieu(true);
-    setError("");
-    setMessage("");
-
-    try {
-      const body = new FormData();
-      body.append("file", milieuFile);
-
-      const response = await fetch(
-        `/api/contracts/${contract.id}/milieu-signed-document`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`
-          },
-          body
-        }
-      );
-
-      const data = await response
-        .json()
-        .catch(() => ({}));
-
-      if (!response.ok) {
-        setError(
-          data.error ||
-            "Impossible de deposer le contrat signe."
-        );
-        return;
-      }
-
-      setReceipt(data.contract?.receipt || null);
-      setMilieuFile(null);
-      await onReload();
-      setMessage(
-        data.contract?.documensoWarning
-          ? `Votre contrat signe a ete recu avec succes. ${data.contract.documensoWarning}`
-          : "Votre contrat signe a ete recu avec succes."
-      );
-    } catch (requestError) {
-      console.error(requestError);
-      setError("Erreur de connexion au serveur.");
-    } finally {
-      setUploadingMilieu(false);
     }
   }
 
@@ -1041,10 +975,12 @@ function ContractDetails({
         </p>
       )}
 
-      {isEditable && contract.generatedPdfAvailable && (
+      {isMilieuSignaturePending && (
         <p className="notice">
-          PDF officiel deja genere. Les modifications
-          seront appliquees au prochain export.
+          Le milieu de stage doit signer le contrat avec
+          Documenso. StageTec enregistrera le PDF signe
+          automatiquement quand Documenso confirmera la
+          signature.
         </p>
       )}
 
@@ -1387,7 +1323,7 @@ function ContractDetails({
           >
             {saving
               ? "Enregistrement..."
-              : "Enregistrer les modifications"}
+              : "Enregistrer"}
           </button>
         )}
 
@@ -1404,7 +1340,7 @@ function ContractDetails({
           >
             {submitting
               ? "Envoi..."
-              : "Enregistrer et signer"}
+              : "Envoyer pour signature"}
           </button>
         )}
 
@@ -1424,35 +1360,6 @@ function ContractDetails({
           </button>
         )}
 
-        {canDepositMilieuContract && (
-          <div className="documentUploadInline">
-            <label className="field">
-              Contrat signe par le milieu *
-              <input
-                type="file"
-                accept="application/pdf,.pdf"
-                onChange={(event) =>
-                  setMilieuFile(
-                    event.target.files?.[0] || null
-                  )
-                }
-              />
-            </label>
-            <button
-              className="primaryButton"
-              type="button"
-              disabled={
-                uploadingMilieu || !milieuFile
-              }
-              onClick={uploadMilieuContract}
-            >
-              {uploadingMilieu
-                ? "Depot en cours..."
-                : "Deposer le contrat signe par le milieu"}
-            </button>
-          </div>
-        )}
-
         {contract.generatedPdfAvailable && (
           <button
             className="secondaryButton"
@@ -1464,8 +1371,8 @@ function ContractDetails({
           >
             {downloading === "original"
               ? "Telechargement..."
-              : canDepositMilieuContract
-                ? "Telecharger le contrat a faire signer"
+              : isMilieuSignaturePending
+                ? "Telecharger le PDF envoye au milieu"
                 : "Telecharger le PDF"}
           </button>
         )}
@@ -1484,15 +1391,14 @@ function ContractDetails({
         )}
       </div>
 
-      {(receipt || contract.confirmationCode) && (
+      {confirmationCode && (
         <div className="receiptPanel">
           <strong>
             Votre contrat signe a ete recu avec succes.
           </strong>
+          <ReceiptBarcode value={confirmationCode} />
           <span>
-            Code de confirmation :{" "}
-            {receipt?.confirmationCode ||
-              contract.confirmationCode}
+            Code de confirmation : {confirmationCode}
           </span>
           <span>
             Date de reception :{" "}
@@ -1542,6 +1448,33 @@ function ContractReadOnlyItem({
     >
       <strong>{label}</strong>
       <span>{displayValue(value)}</span>
+    </div>
+  );
+}
+
+function ReceiptBarcode({ value }) {
+  const bars = Array.from(String(value || ""))
+    .flatMap((character) => {
+      const code = character.charCodeAt(0);
+      return [1, 2, 3].map((offset) => ({
+        width: code % (offset + 2) === 0 ? 3 : 1,
+        active: (code + offset) % 2 === 0
+      }));
+    })
+    .filter((bar) => bar.active)
+    .slice(0, 42);
+
+  return (
+    <div
+      className="receiptBarcode"
+      aria-label={`Code de confirmation ${value}`}
+    >
+      {bars.map((bar, index) => (
+        <span
+          key={`${value}-${index}`}
+          style={{ width: `${bar.width}px` }}
+        />
+      ))}
     </div>
   );
 }
@@ -1631,7 +1564,7 @@ function StudentProfile({ student }) {
       </div>
 
       <div>
-        <strong>Code Ã©tudiant</strong>
+        <strong>Code étudiant</strong>
 
         <span>
           {student?.studentCode || "-"}
@@ -1811,20 +1744,20 @@ function ActiveRequestCard({
           type="button"
           onClick={() => {
             if (studentCanEditRequest(request)) {
-            onEdit(request);
-            return;
-          }
+              onEdit(request);
+              return;
+            }
 
-          if (
-            displayState.targetView === "contracts"
-          ) {
-            onNavigate("contracts");
-            return;
-          }
+            if (
+              displayState.targetView === "contracts"
+            ) {
+              onNavigate("contracts");
+              return;
+            }
 
-          onSelect(request);
-        }}
-      >
+            onSelect(request);
+          }}
+        >
           {displayState.actionLabel}
         </button>
 
@@ -1985,7 +1918,7 @@ function RequestHistoryTable({
                       >
                         {selectedRequest?.id ===
                         request.id
-                          ? "SÃ©lectionnÃ©e"
+                          ? "Sélectionnée"
                           : "Voir"}
                       </button>
 
@@ -2067,7 +2000,7 @@ function RequestDetails({
     <section className="studentPanel requestDetailsPanel">
       <div className="panelHeader">
         <div>
-          <h2>DÃ©tail de la demande</h2>
+          <h2>Détail de la demande</h2>
 
           <p>
             Demande #{request.id}
@@ -2182,13 +2115,13 @@ function RequestDetails({
 
       <DetailsSection title="1. Stage">
         <DetailItem
-          label="RÃ©sumÃ© des tÃ¢ches"
+          label="Résumé des tâches"
           value={request.taskSummary}
           wide
         />
 
         <DetailItem
-          label="Date de dÃ©but"
+          label="Date de début"
           value={formatDate(request.startDate)}
         />
 
@@ -2222,7 +2155,7 @@ function RequestDetails({
         />
 
         <DetailItem
-          label="Type dâ€™horaire"
+          label="Type d’horaire"
           value={scheduleTypeLabel(
             request.scheduleType
           )}
@@ -2262,7 +2195,7 @@ function RequestDetails({
         />
 
         <DetailItem
-          label="TÃ©lÃ©phone"
+          label="Téléphone"
           value={formatPhoneWithExtension(
             request.companyPhone,
             request.companyPhoneExtension
@@ -2280,14 +2213,14 @@ function RequestDetails({
         />
 
         <DetailItem
-          label="Type dâ€™organisation"
+          label="Type d’organisation"
           value={organizationTypeLabel(
             request.organizationType
           )}
         />
 
         <DetailItem
-          label="Secteur dâ€™activitÃ©"
+          label="Secteur d’activité"
           value={request.businessSector}
         />
       </DetailsSection>
@@ -2304,7 +2237,7 @@ function RequestDetails({
         />
 
         <DetailItem
-          label="TÃ©lÃ©phone"
+          label="Téléphone"
           value={formatPhoneWithExtension(
             request.hrPhone,
             request.hrExtension
@@ -2329,14 +2262,14 @@ function RequestDetails({
         />
 
         <DetailItem
-          label="TÃ©lÃ©phone"
+          label="Téléphone"
           value={request.supervisorPhone}
         />
       </DetailsSection>
 
-      <DetailsSection title="5. RÃ©munÃ©ration">
+      <DetailsSection title="5. Rémunération">
         <DetailItem
-          label="Stage rÃ©munÃ©rÃ©"
+          label="Stage rémunéré"
           value={request.isPaid ? "Oui" : "Non"}
         />
 
@@ -2540,7 +2473,7 @@ function NotificationsSummary({
 function StatusLegend() {
   return (
     <section className="studentPanel legendPanel">
-      <h2>LÃ©gende des statuts</h2>
+      <h2>Légende des statuts</h2>
 
       <div className="legendList">
         <span>
@@ -2687,9 +2620,9 @@ function contractStatusLabel(contract) {
     SIGNATURE_ETUDIANT:
       "Signature etudiante requise",
     CONTRAT_MILIEU_A_DEPOSER:
-      "Contrat du milieu a deposer",
+      "Contrat signe par le milieu a recevoir",
     SIGNATURE_ENTREPRISE:
-      "En attente du milieu de stage",
+      "Signature du milieu requise",
     SIGNATURE_SUPERVISEUR:
       "En attente de l'enseignant",
     SIGNATURE_CONSEILLERE:
@@ -2761,6 +2694,20 @@ function signerStatusClass(status) {
   return "statusYellow";
 }
 
+function formatContractSubmissionError(data = {}) {
+  if (data.code === "DOCUMENSO_DOCUMENT_LIMIT") {
+    return (
+      data.error ||
+      "La limite mensuelle de documents Documenso est atteinte. Augmentez le forfait Documenso ou attendez le prochain cycle, puis relancez l'envoi pour signature."
+    );
+  }
+
+  return (
+    data.error ||
+    "Impossible de démarrer la signature."
+  );
+}
+
 function isContractReady(contract) {
   return Boolean(
     contract.schoolYear &&
@@ -2786,7 +2733,7 @@ function scheduleTypeLabel(value) {
 function organizationTypeLabel(value) {
   const labels = {
     PUBLIC: "Organisme public",
-    PRIVE: "Entreprise privÃ©e"
+    PRIVE: "Entreprise privée"
   };
 
   return labels[value] || "-";
@@ -2802,6 +2749,10 @@ function progressStep(status, contract) {
 
   if (contract?.status === "SIGNATURE_ETUDIANT") {
     return 4;
+  }
+
+  if (contract?.status === "SIGNATURE_ENTREPRISE") {
+    return 5;
   }
 
   if (

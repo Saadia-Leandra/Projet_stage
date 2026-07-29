@@ -1024,6 +1024,24 @@ h2 {
   padding: 16px;
 }
 
+.receiptBarcode {
+  align-items: stretch;
+  display: flex;
+  gap: 2px;
+  height: 34px;
+  max-width: 260px;
+  padding: 6px 8px;
+  border: 1px solid #86efac;
+  border-radius: 4px;
+  background: #ffffff;
+}
+
+.receiptBarcode span {
+  display: block;
+  min-width: 1px;
+  background: #064e3b;
+}
+
 .workflowStepList {
   display: grid;
   gap: 8px;

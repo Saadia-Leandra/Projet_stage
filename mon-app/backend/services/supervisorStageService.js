@@ -1,8 +1,5 @@
 import { createDbPool } from "../config/db.js";
-import {
-  generateContractPdfForContract,
-  syncContractSignersForContract
-} from "./contractService.js";
+import { syncContractSignersForContract } from "./contractService.js";
 import { createNotificationForUsers } from "./notificationService.js";
 import {
   getActiveRequestDocuments,
@@ -323,12 +320,6 @@ export async function approveStageRequest(
       request
     );
 
-    await generateContractPdfForContract(
-      connection,
-      contractId,
-      supervisorId
-    );
-
     await createNotificationForUsers(connection, {
       title: "Demande de stage approuvee",
       message:
@@ -342,7 +333,7 @@ export async function approveStageRequest(
     await createNotificationForUsers(connection, {
       title: "Contrat a completer",
       message:
-        "Votre demande de stage a ete approuvee. Le contrat est pret a etre complete.",
+        "Votre demande de stage a ete approuvee. Completez le contrat pour generer le PDF.",
       type: "CONTRAT_A_COMPLETER",
       requestId,
       contractId,

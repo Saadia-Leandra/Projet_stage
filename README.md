@@ -144,10 +144,6 @@ Les tests Documenso automatises utilisent des validations locales et des mocks. 
 - secrets hors depot;
 - validation backend des donnees et fichiers.
 
-## Equipe
-
-Les responsabilites nominatives ne sont pas detaillees dans ce README afin d'eviter d'attribuer une fonctionnalite sans source fiable dans le projet.
-
 ## Limites connues
 
 - Un test reel Documenso necessite une cle API valide et un webhook public.

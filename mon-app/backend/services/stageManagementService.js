@@ -233,9 +233,11 @@ async function getContractSigners(contractId) {
         id,
         ordre_signature AS signingOrder,
         role_signataire AS role,
+        utilisateur_signataire_id AS userId,
         nom_signataire AS name,
         courriel_signataire AS email,
         statut AS status,
+        url_signature AS signingUrl,
         signe_le AS signedAt
       FROM signatures_contrat
       WHERE contrat_id = ?
@@ -253,6 +255,7 @@ async function getContractSigners(contractId) {
 
   return rows.map((row) => ({
     ...row,
+    userId: row.userId ? Number(row.userId) : null,
     signingOrder: Number(row.signingOrder),
     label: signerRoleLabel(row.role)
   }));

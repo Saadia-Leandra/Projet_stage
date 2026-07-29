@@ -254,7 +254,7 @@ export function getStudentStageDisplayState({
       title:
         "Votre demande a ete approuvee. Completez maintenant votre contrat.",
       message:
-        "Le contrat officiel est prepare a partir du modele de l'ecole.",
+        "Enregistrez le contrat pour generer le PDF prerempli.",
       nextStep:
         "Completer les champs restants du contrat.",
       actionLabel: "Completer mon contrat",
@@ -279,7 +279,7 @@ export function getStudentStageDisplayState({
       message:
         "La suite avance seulement apres la confirmation reelle de Documenso.",
       nextStep: "Signer votre partie du contrat.",
-      actionLabel: "Enregistrer et signer",
+      actionLabel: "Signer avec Documenso",
       actionType: "sign",
       targetView: "contracts",
       progressStep: 4,
@@ -292,7 +292,7 @@ export function getStudentStageDisplayState({
     };
   }
 
-  if (contractStatus === "CONTRAT_MILIEU_A_DEPOSER") {
+  if (contractStatus === "SIGNATURE_ENTREPRISE") {
     return {
       color: "orange",
       colorClass: "statusOrange",
@@ -300,18 +300,42 @@ export function getStudentStageDisplayState({
       title:
         "Votre contrat doit etre signe par le milieu de stage.",
       message:
-        "Deposez ensuite le PDF signe par le milieu dans StageTec.",
+        "Documenso enverra la signature a StageTec automatiquement.",
       nextStep:
-        "Deposer le contrat signe par le milieu.",
+        "Attendre la confirmation de signature du milieu.",
       actionLabel:
-        "Deposer le contrat signe par le milieu",
-      actionType: "uploadMilieu",
+        "Suivre la signature du milieu",
+      actionType: "follow",
       targetView: "contracts",
       progressStep: 5,
       canEdit: false,
       canWithdraw: false,
       canSubmit: false,
-      canUpload: true,
+      canUpload: false,
+      canSign: false,
+      canDownload: true
+    };
+  }
+
+  if (contractStatus === "CONTRAT_MILIEU_A_DEPOSER") {
+    return {
+      color: "orange",
+      colorClass: "statusOrange",
+      label: "Contrat du milieu",
+      title:
+        "Le contrat signe par le milieu doit etre recu.",
+      message:
+        "Utilisez Documenso pour terminer la signature du milieu.",
+      nextStep:
+        "Attendre la confirmation de reception.",
+      actionLabel: "Suivre le contrat",
+      actionType: "follow",
+      targetView: "contracts",
+      progressStep: 5,
+      canEdit: false,
+      canWithdraw: false,
+      canSubmit: false,
+      canUpload: false,
       canSign: false,
       canDownload: true
     };

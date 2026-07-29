@@ -3,8 +3,10 @@ import test from "node:test";
 
 import {
   createDocumentFromPdf,
+  formatDocumensoError,
   getDocumensoDiagnostic,
   getDocumensoConfigMessage,
+  isDocumensoDocumentLimitError,
   isDocumensoConfigured
 } from "../services/documensoService.js";
 
@@ -45,4 +47,22 @@ test("diagnostic Documenso non configure", async () => {
   if (previousApiKey) {
     process.env.DOCUMENSO_API_KEY = previousApiKey;
   }
+});
+
+test("traduit la limite mensuelle Documenso", () => {
+  const message =
+    "You have reached your document limit for this month. Please upgrade your plan.";
+  const error = formatDocumensoError(message, 400);
+
+  assert.equal(
+    isDocumensoDocumentLimitError(message),
+    true
+  );
+  assert.equal(error.status, 429);
+  assert.equal(
+    error.code,
+    "DOCUMENSO_DOCUMENT_LIMIT"
+  );
+  assert.match(error.message, /limite mensuelle/);
+  assert.doesNotMatch(error.message, /upgrade your plan/i);
 });
