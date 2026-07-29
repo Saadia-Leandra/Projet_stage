@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-export default function FrozenRouteSnapshot({ snapshot, tripId }) {
+export default function FrozenRouteSnapshot({ snapshot, tripId, currentMapUrl }) {
   const [imageUrl, setImageUrl] = useState("");
   const [imageError, setImageError] = useState("");
 
@@ -18,11 +18,14 @@ export default function FrozenRouteSnapshot({ snapshot, tripId }) {
   }, [snapshot?.proofImageStoredName, tripId]);
 
   if (!snapshot) return <p>Aucune preuve Google Maps n’est disponible pour cet ancien trajet.</p>;
+  if (!snapshot.calculatedAt) return <p>L’heure du calcul est absente : cet itinéraire ne peut pas être présenté comme une preuve enregistrée.</p>;
+
   return <section className="routeSnapshot">
     <div className="panelHeader"><h3>Itinéraire Google Maps enregistré</h3></div>
+    <p className="routeSnapshotTimestamp"><strong>Trajet calculé le {formatDateTime(snapshot.calculatedAt)}</strong></p>
     <div className="routeSnapshotSummary">
-      <div><strong>{formatDuration(snapshot.durationMinutes)}</strong><span>Durée estimée</span></div>
-      <div><strong>{formatNumber(snapshot.distanceKm)} km</strong><span>Distance totale</span></div>
+      <div><strong>{formatDuration(snapshot.durationMinutes)}</strong><span>Durée enregistrée</span></div>
+      <div><strong>{formatNumber(snapshot.distanceKm)} km</strong><span>Distance enregistrée</span></div>
       <div><strong>{snapshot.tripType === "ALLER_RETOUR" ? "Aller-retour" : "Aller simple"}</strong><span>Type de trajet</span></div>
     </div>
     {imageUrl && <img className="frozenRouteImage" src={imageUrl} alt={`Carte Google Maps du trajet calculé le ${formatDateTime(snapshot.calculatedAt)}`} />}
@@ -33,7 +36,11 @@ export default function FrozenRouteSnapshot({ snapshot, tripId }) {
       {(snapshot.destinations || []).map((destination, index) => <li key={`${destination.address}-${index}`}><span className="routeStopMarker">{index + 1}</span><div><strong>Arrêt {index + 1}{destination.label ? ` — ${destination.label}` : ""}</strong><span>{destination.address}</span></div></li>)}
       {snapshot.tripType === "ALLER_RETOUR" && <li><span className="routeStopMarker routeStopReturn">R</span><div><strong>Retour</strong><span>{snapshot.origin?.address}</span></div></li>}
     </ol>
-    <p className="routeSnapshotNotice">Calculé le {formatDateTime(snapshot.calculatedAt)}. La carte, les adresses, la distance et la durée ont été enregistrées ensemble et ne sont jamais recalculées.</p>
+    <p className="routeSnapshotNotice">La carte, le tracé, les adresses, la distance, la durée et l’heure ont été enregistrés ensemble. Cette preuve n’utilise jamais le trafic actuel et n’est jamais recalculée.</p>
+    {currentMapUrl && <div className="liveMapComparison">
+      <div><strong>Comparaison facultative</strong><span>Google Maps recalculera la distance et la durée avec le trafic actuel. Ces nouvelles valeurs ne remplacent pas la référence ci-dessus.</span></div>
+      <a href={currentMapUrl} target="_blank" rel="noreferrer">Comparer dans Google Maps — trafic actuel</a>
+    </div>}
   </section>;
 }
 

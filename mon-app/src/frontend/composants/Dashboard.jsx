@@ -3,8 +3,10 @@ import Logout from "./Logout.jsx";
 import PayrollDashboard from "./PayrollDashboard.jsx";
 import StageContractsDashboard from "./StageContractsDashboard.jsx";
 import StudentDashboard from "./StudentDashboard.jsx";
+import StudentCsvImport from "./StudentCsvImport.jsx";
 import SupervisorDashboard from "./SupervisorDashboard.jsx";
 import "../assets/auth.css";
+import { clearAuthSession } from "../services/authSession.js";
 
 export default function Dashboard({ user, onLogout }) {
   const [currentUser, setCurrentUser] = useState(user);
@@ -30,8 +32,7 @@ export default function Dashboard({ user, onLogout }) {
         const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
+          clearAuthSession();
           onLogout();
           return;
         }
@@ -53,7 +54,9 @@ export default function Dashboard({ user, onLogout }) {
     <section className="appLayout">
       <aside className="sidebar">
         <div className="sidebarBrand">
-          <div className="brandMark">ST</div>
+          <div className="brandMark">
+            <img src="/institut-teccart-logo.webp" alt="Institut Teccart" />
+          </div>
           <div>
             <strong>StageTec</strong>
             <span>Gestion des stages</span>
@@ -126,6 +129,15 @@ export default function Dashboard({ user, onLogout }) {
             />
           )}
 
+          {currentUser.role === "CONSEILLERE" && (
+            <SidebarButton
+              active={activeView === "studentImport"}
+              label="Importer des etudiants"
+              marker="CSV"
+              onClick={() => setActiveView("studentImport")}
+            />
+          )}
+
           {["CONSEILLERE", "COMPTABILITE", "DIRECTION"].includes(currentUser.role) && (
             <SidebarButton
               active={activeView === "payroll"}
@@ -164,7 +176,9 @@ export default function Dashboard({ user, onLogout }) {
           <span className="statusPill statusGreen">{currentUser.status}</span>
         </section>
 
-        {activeView === "stageContracts" ? (
+        {activeView === "studentImport" && currentUser.role === "CONSEILLERE" ? (
+          <StudentCsvImport />
+        ) : activeView === "stageContracts" ? (
           <StageContractsDashboard user={currentUser} />
         ) : activeView === "payroll" ? (
           <PayrollDashboard user={currentUser} />
@@ -257,6 +271,8 @@ function pageTitle(view) {
     mileage: "Kilometrage",
     stageRequests: "Demandes à valider",
     payroll: "Paie superviseurs"
+    ,
+    studentImport: "Importation des etudiants"
   };
 
   return titles[view] || "Tableau de bord";
