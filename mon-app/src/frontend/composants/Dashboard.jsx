@@ -4,6 +4,7 @@ import PayrollDashboard from "./PayrollDashboard.jsx";
 import StageContractsDashboard from "./StageContractsDashboard.jsx";
 import StudentDashboard from "./StudentDashboard.jsx";
 import StudentCsvImport from "./StudentCsvImport.jsx";
+import AdminStudents from "./AdminStudents.jsx";
 import SupervisorDashboard from "./SupervisorDashboard.jsx";
 import "../assets/auth.css";
 import { clearAuthSession } from "../services/authSession.js";
@@ -38,6 +39,7 @@ export default function Dashboard({ user, onLogout }) {
         }
 
         setCurrentUser(data.user || null);
+
       } catch {
         setError("Impossible de charger le profil.");
       }
@@ -129,12 +131,21 @@ export default function Dashboard({ user, onLogout }) {
             />
           )}
 
-          {currentUser.role === "CONSEILLERE" && (
+          {["CONSEILLERE", "DIRECTION"].includes(currentUser.role) && (
             <SidebarButton
               active={activeView === "studentImport"}
-              label="Importer des etudiants"
+              label="Importer des étudiants"
               marker="CSV"
               onClick={() => setActiveView("studentImport")}
+            />
+          )}
+
+          {currentUser.role === "DIRECTION" && (
+            <SidebarButton
+              active={activeView === "adminStudents"}
+              label="Gérer les étudiants"
+              marker="ST"
+              onClick={() => setActiveView("adminStudents")}
             />
           )}
 
@@ -176,8 +187,10 @@ export default function Dashboard({ user, onLogout }) {
           <span className="statusPill statusGreen">{currentUser.status}</span>
         </section>
 
-        {activeView === "studentImport" && currentUser.role === "CONSEILLERE" ? (
+        {activeView === "studentImport" && ["CONSEILLERE", "DIRECTION"].includes(currentUser.role) ? (
           <StudentCsvImport />
+        ) : activeView === "adminStudents" && ["DIRECTION"].includes(currentUser.role) ? (
+          <AdminStudents />
         ) : activeView === "stageContracts" ? (
           <StageContractsDashboard user={currentUser} />
         ) : activeView === "payroll" ? (

@@ -70,6 +70,15 @@ export default function StudentCsvImport() {
     }
   }
 
+  function resetForm() {
+    setFile(null);
+    setPreview(null);
+    setError("");
+    setSuccess("");
+    const fileInput = document.getElementById("studentCsvFile");
+    if (fileInput) fileInput.value = "";
+  }
+
   function downloadTemplate() {
     const example = [
       "etudiant@example.com",
@@ -154,6 +163,14 @@ export default function StudentCsvImport() {
           onClick={() => submit("commit")}
         >
           Importer dans la base
+        </button>
+        <button
+          className="secondaryButton"
+          type="button"
+          disabled={loading}
+          onClick={resetForm}
+        >
+          Reinitialiser
         </button>
       </div>
 

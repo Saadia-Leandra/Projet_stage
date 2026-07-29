@@ -3,15 +3,75 @@ import { hashPassword } from "./password.js";
 
 const db = createDbPool();
 const MAX_CSV_BYTES = 5 * 1024 * 1024;
+const HEADERS = [
+  "courriel",
+  "prenom",
+  "nom",
+  "telephone",
+  "mot_de_passe_temporaire",
+  "code_etudiant",
+  "programme",
+  "cohorte",
+  "adresse",
+  "ville",
+  "province",
+  "code_postal",
+  "code_permanent",
+  "groupe",
+  "expiration_caq",
+  "expiration_permis_etudes",
+  "expiration_assurance",
+  "numero_employe_superviseur"
+];
+const REQUIRED_HEADERS = new Set([
+  "courriel",
+  "prenom",
+  "nom",
+  "code_etudiant",
+  "programme"
+]);
+const DATE_HEADERS = [
+  "expiration_caq",
+  "expiration_permis_etudes",
+  "expiration_assurance"
+];
+const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const HEADER_ALIASES = {
+  courriel: "courriel",
+  email: "courriel",
+  prenom: "prenom",
+  nom: "nom",
+  telephone: "telephone",
+  telephone_principal: "telephone",
+  telephone_secondaire: "telephone",
+  mot_de_passe_temporaire: "mot_de_passe_temporaire",
+  mot_de_passe: "mot_de_passe_temporaire",
+  password: "mot_de_passe_temporaire",
+  code_etudiant: "code_etudiant",
+  numero_dossier: "code_etudiant",
+  programme: "programme",
+  spe: "programme",
+  numero_programme: "programme",
+  numero_grille: "groupe",
+  code_permanent: "code_permanent",
+  adresse: "adresse",
+  ville: "ville",
+  province: "province",
+  code_postal: "code_postal",
+  groupe: "groupe",
+  expiration_caq: "expiration_caq",
+  expiration_permis_etudes: "expiration_permis_etudes",
+  expiration_assurance: "expiration_assurance"
+};
 
 export async function previewStudentCsv(file) {
   validateCsvFile(file);
-  return normalizeWithPython(file);
+  return normalizeCsv(file);
 }
 
 export async function importStudentCsv(file) {
   validateCsvFile(file);
-  const preview = await normalizeWithPython(file);
+  const preview = await normalizeCsv(file);
 
   if (!preview.valide) {
     const error = new Error(
@@ -99,46 +159,6 @@ export async function importStudentCsv(file) {
   }
 }
 
-async function normalizeWithPython(file) {
-  const baseUrl = process.env.CSV_SERVICE_URL || "http://127.0.0.1:8001";
-  let response;
-
-  try {
-    response = await fetch(`${baseUrl}/v1/students/normalize`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(process.env.CSV_SERVICE_TOKEN
-          ? { "X-Service-Token": process.env.CSV_SERVICE_TOKEN }
-          : {})
-      },
-      body: JSON.stringify({
-        nomFichier: file.fileName,
-        contenuBase64: file.buffer.toString("base64")
-      }),
-      signal: AbortSignal.timeout(15000)
-    });
-  } catch {
-    const error = new Error(
-      "Le service Python d'import CSV est indisponible. Demarrez-le sur le port 8001."
-    );
-    error.status = 503;
-    throw error;
-  }
-
-  const payload = await response.json().catch(() => ({}));
-
-  if (!response.ok) {
-    const error = new Error(
-      payload.erreur || "Le service Python n'a pas pu analyser le CSV."
-    );
-    error.status = response.status >= 500 ? 502 : 400;
-    throw error;
-  }
-
-  return payload;
-}
-
 async function assertNoDatabaseDuplicates(connection, rows) {
   const emails = rows.map((row) => row.courriel);
   const codes = rows.map((row) => row.code_etudiant);
@@ -189,6 +209,234 @@ async function findSupervisorId(connection, employeeNumber) {
   }
 
   return rows[0].id;
+}
+
+function normalizeCsv(file) {
+  const rawText = file.buffer.toString("utf-8");
+  const text = rawText.replace(/^\uFEFF/, "");
+
+  if (!text.trim()) {
+    const error = new Error("Le fichier CSV est vide.");
+    error.status = 400;
+    throw error;
+  }
+
+  const delimiter = sniffDelimiter(text);
+  const rows = parseCsv(text, delimiter);
+
+  if (rows.length === 0) {
+    const error = new Error("Le fichier CSV est vide.");
+    error.status = 400;
+    throw error;
+  }
+
+  const headers = rows[0].map((header) => String(header || "").trim());
+  const normalizedHeaders = headers.map((header) => normalizeHeader(header));
+  const missingHeaders = [...REQUIRED_HEADERS].filter(
+    (header) => !normalizedHeaders.includes(header)
+  );
+
+  if (missingHeaders.length) {
+    const error = new Error(
+      "Colonnes obligatoires manquantes : " + missingHeaders.join(", ") + "."
+    );
+    error.status = 400;
+    throw error;
+  }
+
+  const resultRows = [];
+  const errors = [];
+  const seenEmails = {};
+  const seenCodes = {};
+
+  for (let rowIndex = 1; rowIndex < rows.length; rowIndex += 1) {
+    const sourceRow = rows[rowIndex];
+    if (sourceRow.length > headers.length) {
+      errors.push({
+        ligne: rowIndex + 1,
+        erreurs: ["La ligne contient plus de colonnes que l'en-tête."]
+      });
+      continue;
+    }
+
+    const row = HEADERS.reduce((acc, header) => {
+      acc[header] = "";
+      return acc;
+    }, {});
+
+    sourceRow.forEach((value, index) => {
+      const name = normalizedHeaders[index];
+      if (name) {
+        row[name] = String(value || "").trim();
+      }
+    });
+
+    if (!row.mot_de_passe_temporaire) {
+      row.mot_de_passe_temporaire =
+        row.code_permanent || row.code_etudiant || row.courriel.split("@")[0] || "password123";
+    }
+
+    if (!Object.values(row).some((value) => value !== "")) {
+      continue;
+    }
+
+    if (!Object.values(row).some((value) => value !== "")) {
+      continue;
+    }
+
+    row.courriel = row.courriel.toLowerCase();
+    const rowErrors = validateRow(row, seenEmails, seenCodes, rowIndex + 1);
+    resultRows.push(row);
+    if (rowErrors.length) {
+      errors.push({ ligne: rowIndex + 1, erreurs: rowErrors });
+    }
+  }
+
+  if (resultRows.length === 0) {
+    const error = new Error("Le fichier CSV ne contient aucune ligne de données.");
+    error.status = 400;
+    throw error;
+  }
+
+  return {
+    valide: errors.length === 0,
+    nombreLignes: resultRows.length,
+    nombreValides: resultRows.length - errors.length,
+    nombreErreurs: errors.length,
+    lignes: resultRows,
+    erreurs: errors
+  };
+}
+
+function sniffDelimiter(text) {
+  const firstLine = text.split(/\r?\n/, 1)[0] || "";
+  const commaCount = (firstLine.match(/,/g) || []).length;
+  const semicolonCount = (firstLine.match(/;/g) || []).length;
+  return semicolonCount > commaCount ? ";" : ",";
+}
+
+function parseCsv(text, delimiter) {
+  const rows = [];
+  let current = [];
+  let field = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const nextChar = text[index + 1];
+
+    if (inQuotes) {
+      if (char === '"') {
+        if (nextChar === '"') {
+          field += '"';
+          index += 1;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += char;
+      }
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = true;
+      continue;
+    }
+
+    if (char === delimiter) {
+      current.push(field);
+      field = "";
+      continue;
+    }
+
+    if (char === '\r') {
+      if (nextChar === '\n') {
+        index += 1;
+      }
+      current.push(field);
+      rows.push(current);
+      current = [];
+      field = "";
+      continue;
+    }
+
+    if (char === '\n') {
+      current.push(field);
+      rows.push(current);
+      current = [];
+      field = "";
+      continue;
+    }
+
+    field += char;
+  }
+
+  current.push(field);
+  rows.push(current);
+
+  if (rows.length > 0 && rows[rows.length - 1].length === 1 && rows[rows.length - 1][0] === "") {
+    rows.pop();
+  }
+
+  return rows;
+}
+
+function normalizeHeader(header) {
+  const key = String(header || "").trim().toLowerCase().replace(/\s+/g, "_");
+  return HEADER_ALIASES[key] || key;
+}
+
+function validateRow(row, seenEmails, seenCodes, lineNumber) {
+  const errors = [];
+
+  [...REQUIRED_HEADERS].sort().forEach((header) => {
+    if (!row[header]) {
+      errors.push(`La colonne ${header} est obligatoire.`);
+    }
+  });
+
+  if (row.courriel && !EMAIL_PATTERN.test(row.courriel)) {
+    errors.push("Le courriel est invalide.");
+  }
+
+  if (row.mot_de_passe_temporaire && row.mot_de_passe_temporaire.length < 8) {
+    errors.push("Le mot de passe temporaire doit contenir au moins 8 caractères.");
+  }
+
+  DATE_HEADERS.forEach((header) => {
+    const value = row[header];
+    if (value) {
+      if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(value)) {
+        errors.push(`La colonne ${header} doit respecter le format AAAA-MM-JJ.`);
+      } else {
+        const parts = value.split("-").map(Number);
+        const dateValue = new Date(parts[0], parts[1] - 1, parts[2]);
+        if (
+          dateValue.getFullYear() !== parts[0] ||
+          dateValue.getMonth() !== parts[1] - 1 ||
+          dateValue.getDate() !== parts[2]
+        ) {
+          errors.push(`La colonne ${header} doit respecter le format AAAA-MM-JJ.`);
+        }
+      }
+    }
+  });
+
+  recordDuplicate(errors, seenEmails, row.courriel, lineNumber, "courriel");
+  recordDuplicate(errors, seenCodes, row.code_etudiant, lineNumber, "code étudiant");
+
+  return errors;
+}
+
+function recordDuplicate(errors, seen, value, lineNumber, label) {
+  const key = String(value || "").toLowerCase();
+  if (!key) return;
+  if (seen[key]) {
+    errors.push(`Le ${label} est déjà présent à la ligne ${seen[key]}.`);
+  } else {
+    seen[key] = lineNumber;
+  }
 }
 
 function validateCsvFile(file) {
