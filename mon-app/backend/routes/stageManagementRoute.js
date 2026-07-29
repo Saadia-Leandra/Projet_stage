@@ -10,6 +10,9 @@ import {
   getStageContractsForUser,
   getStageRequestsForUser
 } from "../services/stageManagementService.js";
+import {
+  getDocumensoDiagnostic
+} from "../services/documensoService.js";
 
 const router = Router();
 
@@ -58,6 +61,16 @@ router.get("/requests", async (req, res, next) => {
     );
 
     res.json({ requests });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/documenso/diagnostic", async (req, res, next) => {
+  try {
+    const diagnostic = await getDocumensoDiagnostic();
+
+    res.json({ diagnostic });
   } catch (error) {
     next(error);
   }

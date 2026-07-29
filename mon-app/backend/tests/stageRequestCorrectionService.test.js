@@ -43,10 +43,17 @@ test("commentaire obligatoire", () => {
 
 test("etudiant autorise a rouvrir sa propre demande", () => {
   assert.doesNotThrow(() =>
+    ensureStudentCanModifyStatus("BROUILLON")
+  );
+  assert.doesNotThrow(() =>
     ensureStudentCanModifyStatus("A_REVISER")
   );
   assert.doesNotThrow(() =>
     ensureStudentCanModifyStatus("DOCUMENTS_MANQUANTS")
+  );
+  assert.throws(
+    () => ensureStudentCanModifyStatus("SOUMISE"),
+    /ne peut plus etre modifiee/
   );
 });
 

@@ -21,7 +21,7 @@ export const ACTIVE_STAGE_FOLDER_STATUSES = [
 ];
 
 const activeRequestMessage =
-  "Vous avez deja une demande de stage active. Terminez ou corrigez cette demande avant d'en creer une nouvelle.";
+  "Vous avez deja une demande de stage active. Vous devez terminer, corriger ou retirer cette demande avant d'en creer une nouvelle.";
 
 export async function getStudentDashboard(studentId) {
   const student = await getStudentProfile(studentId);
@@ -60,6 +60,9 @@ export async function getStudentRequests(studentId) {
         d.correction_commentaire_etudiant AS correctionStudentComment,
         d.correction_demandee_le AS correctionRequestedAt,
         d.resoumis_le AS resubmittedAt,
+        d.retrait_motif AS withdrawalReason,
+        d.retiree_par_utilisateur_id AS withdrawnByUserId,
+        d.retiree_le AS withdrawnAt,
         d.cree_le AS createdAt,
         d.modifie_le AS updatedAt,
 
@@ -132,7 +135,10 @@ export async function createInternshipRequest(
   studentId,
   data
 ) {
-  const requestData = validateRequestData(data);
+  const isDraft = isDraftIntent(data);
+  const requestData = validateRequestData(data, {
+    draft: isDraft
+  });
   const connection = await db.getConnection();
 
   try {
@@ -141,6 +147,11 @@ export async function createInternshipRequest(
     const student = await getStudentProfile(
       studentId,
       connection
+    );
+
+    await lockStudentStageRequestCreation(
+      connection,
+      studentId
     );
 
     await ensureNoActiveStageRequest(
@@ -186,7 +197,7 @@ export async function createInternshipRequest(
         )
         VALUES (
           ?, ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?, ?, 'SOUMISE'
+          ?, ?, ?, ?, ?, ?, ?, ?
         )
       `,
       [
@@ -204,43 +215,54 @@ export async function createInternshipRequest(
         requestData.numberOfWeeks,
         requestData.isPaid,
         requestData.hourlySalary,
-        requestData.otherCompensation
+        requestData.otherCompensation,
+        isDraft ? "BROUILLON" : "SOUMISE"
       ]
     );
 
     await connection.execute(
       `
         UPDATE dossiers_stage
-        SET statut = 'DEMANDE_SOUMISE'
+        SET statut = ?
         WHERE id = ?
       `,
-      [folderId]
+      [
+        isDraft
+          ? "DEMANDE_NON_CREEE"
+          : "DEMANDE_SOUMISE",
+        folderId
+      ]
     );
 
     await createWorkflowEvent(connection, {
       folderId,
       actorId: studentId,
-      eventType: "DEMANDE_SOUMISE",
+      eventType: isDraft
+        ? "DEMANDE_BROUILLON_ENREGISTREE"
+        : "DEMANDE_SOUMISE",
       oldStatus: "DEMANDE_NON_CREEE",
-      newStatus: "SOUMISE",
-      comment:
-        "La demande de stage a ete soumise par l'etudiant."
+      newStatus: isDraft ? "BROUILLON" : "SOUMISE",
+      comment: isDraft
+        ? "La demande de stage a ete enregistree en brouillon."
+        : "La demande de stage a ete soumise par l'etudiant."
     });
 
-    await createNotificationForUsers(connection, {
-      title: "Demande de stage a traiter",
-      message: `La demande de stage de ${[
-        student.firstName,
-        student.lastName
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .trim() || "l'etudiant"} a ete soumise.`,
-      type: "DEMANDE_STAGE_SOUMISE",
-      requestId: result.insertId,
-      actionUrl: `/supervisor/stages/requests/${result.insertId}`,
-      userIds: [student.supervisorId]
-    });
+    if (!isDraft) {
+      await createNotificationForUsers(connection, {
+        title: "Demande de stage a traiter",
+        message: `La demande de stage de ${[
+          student.firstName,
+          student.lastName
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .trim() || "l'etudiant"} a ete soumise.`,
+        type: "DEMANDE_STAGE_SOUMISE",
+        requestId: result.insertId,
+        actionUrl: `/supervisor/stages/requests/${result.insertId}`,
+        userIds: [student.supervisorId]
+      });
+    }
 
     await connection.commit();
 
@@ -249,7 +271,7 @@ export async function createInternshipRequest(
       folderId,
       companyId,
       ...requestData,
-      status: "SOUMISE"
+      status: isDraft ? "BROUILLON" : "SOUMISE"
     };
   } catch (error) {
     await connection.rollback();
@@ -587,6 +609,28 @@ async function createStageFolder(
   return result.insertId;
 }
 
+async function lockStudentStageRequestCreation(
+  connection,
+  studentId
+) {
+  const [rows] = await connection.execute(
+    `
+      SELECT utilisateur_id
+      FROM etudiants
+      WHERE utilisateur_id = ?
+      FOR UPDATE
+    `,
+    [studentId]
+  );
+
+  if (!rows[0]) {
+    throw createError(
+      "Etudiant introuvable.",
+      404
+    );
+  }
+}
+
 async function ensureNoActiveStageRequest(
   connection,
   studentId
@@ -666,16 +710,25 @@ export function isActiveStageFolderStatus(status) {
   return ACTIVE_STAGE_FOLDER_STATUSES.includes(status);
 }
 
-function validateRequestData(data = {}) {
+function validateRequestData(
+  data = {},
+  { draft = false } = {}
+) {
   const requestData = {
     taskSummary: clean(data.taskSummary),
-    startDate: clean(data.startDate),
-    endDate: clean(data.endDate),
+    startDate: draft
+      ? optionalDate(data.startDate, "La date de debut")
+      : clean(data.startDate),
+    endDate: draft
+      ? optionalDate(data.endDate, "La date de fin")
+      : clean(data.endDate),
 
     studentPhone: optional(data.studentPhone),
     studentAddress: optional(data.studentAddress),
     studentCity: optional(data.studentCity),
-    studentProvince: clean(data.studentProvince),
+    studentProvince: draft
+      ? optional(data.studentProvince)
+      : clean(data.studentProvince),
     studentPostalCode: optional(
       data.studentPostalCode
     ),
@@ -692,15 +745,26 @@ function validateRequestData(data = {}) {
       "La date d'expiration de l'assurance"
     ),
 
-    companyName: clean(data.companyName),
+    companyName: draft
+      ? clean(data.companyName) ||
+        "Entreprise a confirmer"
+      : clean(data.companyName),
     companyNeq: optional(data.companyNeq),
-    companyAddress: clean(data.companyAddress),
-    companyCity: clean(data.companyCity),
-    companyProvince: clean(data.companyProvince),
-    companyPostalCode: clean(
-      data.companyPostalCode
-    ),
-    companyPhone: clean(data.companyPhone),
+    companyAddress: draft
+      ? optional(data.companyAddress)
+      : clean(data.companyAddress),
+    companyCity: draft
+      ? optional(data.companyCity)
+      : clean(data.companyCity),
+    companyProvince: draft
+      ? optional(data.companyProvince)
+      : clean(data.companyProvince),
+    companyPostalCode: draft
+      ? optional(data.companyPostalCode)
+      : clean(data.companyPostalCode),
+    companyPhone: draft
+      ? optional(data.companyPhone)
+      : clean(data.companyPhone),
     companyPhoneExtension: optional(
       data.companyPhoneExtension
     ),
@@ -708,40 +772,50 @@ function validateRequestData(data = {}) {
     companyWebsite: optional(
       data.companyWebsite
     ),
-    organizationType: clean(
-      data.organizationType
-    ),
-    businessSector: clean(
-      data.businessSector
-    ),
+    organizationType: draft
+      ? optional(data.organizationType)
+      : clean(data.organizationType),
+    businessSector: draft
+      ? optional(data.businessSector)
+      : clean(data.businessSector),
 
     hrName: optional(data.hrName),
     hrEmail: optional(data.hrEmail),
     hrPhone: optional(data.hrPhone),
     hrExtension: optional(data.hrExtension),
 
-    supervisorName: clean(
-      data.supervisorName
-    ),
-    supervisorTitle: clean(
-      data.supervisorTitle
-    ),
-    supervisorEmail: clean(
-      data.supervisorEmail
-    ),
-    supervisorPhone: clean(
-      data.supervisorPhone
-    ),
+    supervisorName: draft
+      ? optional(data.supervisorName)
+      : clean(data.supervisorName),
+    supervisorTitle: draft
+      ? optional(data.supervisorTitle)
+      : clean(data.supervisorTitle),
+    supervisorEmail: draft
+      ? optional(data.supervisorEmail)
+      : clean(data.supervisorEmail),
+    supervisorPhone: draft
+      ? optional(data.supervisorPhone)
+      : clean(data.supervisorPhone),
 
-    workSchedule: clean(data.workSchedule),
+    workSchedule: draft
+      ? optional(data.workSchedule)
+      : clean(data.workSchedule),
     hoursPerWeek: toPositiveNumber(
-      data.hoursPerWeek,
+      draft && isEmpty(data.hoursPerWeek)
+        ? 1
+        : data.hoursPerWeek,
       "Le nombre d’heures par semaine"
     ),
-    workLanguage: clean(data.workLanguage),
-    scheduleType: clean(data.scheduleType),
+    workLanguage: draft
+      ? optional(data.workLanguage)
+      : clean(data.workLanguage),
+    scheduleType: draft
+      ? optional(data.scheduleType)
+      : clean(data.scheduleType),
     numberOfWeeks: toPositiveNumber(
-      data.numberOfWeeks,
+      draft && isEmpty(data.numberOfWeeks)
+        ? 1
+        : data.numberOfWeeks,
       "Le nombre de semaines"
     ),
     isPaid: Boolean(data.isPaid),
@@ -750,6 +824,28 @@ function validateRequestData(data = {}) {
       data.otherCompensation
     )
   };
+
+  if (draft) {
+    if (isEmpty(data.hoursPerWeek)) {
+      requestData.hoursPerWeek = null;
+    }
+
+    if (isEmpty(data.numberOfWeeks)) {
+      requestData.numberOfWeeks = null;
+    }
+
+    validateOptionalDraftValues(requestData);
+
+    if (requestData.isPaid) {
+      requestData.hourlySalary =
+        optionalNonNegativeNumber(
+          data.hourlySalary,
+          "Le salaire horaire"
+        );
+    }
+
+    return requestData;
+  }
 
   const requiredFields = [
     ["Le résumé des tâches", requestData.taskSummary],
@@ -942,6 +1038,106 @@ function validateRequestData(data = {}) {
   return requestData;
 }
 
+function validateOptionalDraftValues(requestData) {
+  if (
+    requestData.taskSummary &&
+    (
+      requestData.taskSummary.length < 20 ||
+      requestData.taskSummary.length > 3000
+    )
+  ) {
+    throw createError(
+      "Le resume des taches doit contenir entre 20 et 3000 caracteres.",
+      400
+    );
+  }
+
+  if (
+    requestData.startDate &&
+    requestData.endDate &&
+    requestData.endDate <= requestData.startDate
+  ) {
+    throw createError(
+      "La date de fin doit etre apres la date de debut.",
+      400
+    );
+  }
+
+  if (
+    requestData.hoursPerWeek &&
+    requestData.hoursPerWeek > 80
+  ) {
+    throw createError(
+      "Le nombre d'heures par semaine ne peut pas depasser 80.",
+      400
+    );
+  }
+
+  if (
+    requestData.numberOfWeeks &&
+    requestData.numberOfWeeks > 52
+  ) {
+    throw createError(
+      "Le nombre de semaines ne peut pas depasser 52.",
+      400
+    );
+  }
+
+  if (
+    requestData.organizationType &&
+    !["PUBLIC", "PRIVE"].includes(
+      requestData.organizationType
+    )
+  ) {
+    throw createError(
+      "Le type d'organisation est invalide.",
+      400
+    );
+  }
+
+  if (
+    requestData.scheduleType &&
+    !["TEMPS_PLEIN", "TEMPS_PARTIEL"].includes(
+      requestData.scheduleType
+    )
+  ) {
+    throw createError(
+      "Le type d'horaire est invalide.",
+      400
+    );
+  }
+
+  if (
+    requestData.supervisorEmail &&
+    !isValidEmail(requestData.supervisorEmail)
+  ) {
+    throw createError(
+      "Le courriel du superviseur est invalide.",
+      400
+    );
+  }
+
+  if (
+    requestData.hrEmail &&
+    !isValidEmail(requestData.hrEmail)
+  ) {
+    throw createError(
+      "Le courriel du responsable RH est invalide.",
+      400
+    );
+  }
+
+  if (
+    requestData.companyEmail &&
+    !isValidEmail(requestData.companyEmail)
+  ) {
+    throw createError(
+      "Le courriel de l'entreprise est invalide.",
+      400
+    );
+  }
+}
+
 function formatStudentRequest(row) {
   const correctionMissingDocuments =
     parseDocumentList(
@@ -1052,6 +1248,17 @@ function toNonNegativeNumber(
   return numberValue;
 }
 
+function optionalNonNegativeNumber(
+  value,
+  fieldName
+) {
+  if (isEmpty(value)) {
+    return null;
+  }
+
+  return toNonNegativeNumber(value, fieldName);
+}
+
 function isValidDate(value) {
   const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -1067,6 +1274,29 @@ function isValidDate(value) {
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
     value
+  );
+}
+
+function isDraftIntent(data = {}) {
+  return [
+    data.intent,
+    data.action,
+    data.status
+  ].some((value) => {
+    const text = String(value || "").trim();
+
+    return (
+      text.toLowerCase() === "draft" ||
+      text.toUpperCase() === "BROUILLON"
+    );
+  });
+}
+
+function isEmpty(value) {
+  return (
+    value === "" ||
+    value === null ||
+    value === undefined
   );
 }
 

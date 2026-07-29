@@ -1,4 +1,4 @@
-import {
+﻿import {
   useCallback,
   useEffect,
   useMemo,
@@ -92,6 +92,9 @@ export default function SupervisorStageRequests() {
       ).length,
       refused: requests.filter(
         (request) => request.status === "REFUSEE"
+      ).length,
+      withdrawn: requests.filter(
+        (request) => request.status === "ANNULEE"
       ).length
     }),
     [requests]
@@ -428,6 +431,11 @@ export default function SupervisorStageRequests() {
           <strong>Refusees</strong>
           <span>{stats.refused}</span>
         </div>
+
+        <div className="statCard">
+          <strong>Retirees</strong>
+          <span>{stats.withdrawn}</span>
+        </div>
       </div>
 
       <div className="supervisorStageFilters">
@@ -448,6 +456,7 @@ export default function SupervisorStageRequests() {
             </option>
             <option value="APPROUVEE">Approuvees</option>
             <option value="REFUSEE">Refus definitifs</option>
+            <option value="ANNULEE">Retirees</option>
             <option value="TOUTES">Toutes</option>
           </select>
         </label>
@@ -822,11 +831,11 @@ function statusLabel(status) {
   const labels = {
     BROUILLON: "Brouillon",
     SOUMISE: "À traiter",
-    A_REVISER: "A reviser",
+    A_REVISER: "À réviser",
     DOCUMENTS_MANQUANTS: "Documents manquants",
     APPROUVEE: "Approuvée",
     REFUSEE: "Refusée",
-    ANNULEE: "Annulée"
+    ANNULEE: "Retirée par l'étudiant"
   };
 
   return labels[status] || status || "-";

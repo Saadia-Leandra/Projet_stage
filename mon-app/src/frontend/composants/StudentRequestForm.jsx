@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 
 import CityInput from "./CityInput.jsx";
 import ProvinceInput from "./ProvinceInput.jsx";
@@ -118,10 +118,18 @@ export default function StudentRequestForm({ student, onCreated }) {
   async function handleSubmit(event) {
     event.preventDefault();
 
+    const intent =
+      event.nativeEvent?.submitter?.value === "draft"
+        ? "draft"
+        : "submit";
+    const isDraft = intent === "draft";
+
     setError("");
     setSuccess("");
 
-    const validationErrors = validateForm(form);
+    const validationErrors = isDraft
+      ? {}
+      : validateForm(form);
 
     if (Object.keys(validationErrors).length) {
       setFieldErrors(validationErrors);
@@ -133,9 +141,11 @@ export default function StudentRequestForm({ student, onCreated }) {
 
     setFieldErrors({});
 
-    const confirmed = window.confirm(
-      "Soumettre cette demande de stage pour revision ?"
-    );
+    const confirmed =
+      isDraft ||
+      window.confirm(
+        "Soumettre cette demande de stage pour revision ?"
+      );
 
     if (!confirmed) {
       return;
@@ -154,7 +164,10 @@ export default function StudentRequestForm({ student, onCreated }) {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`
           },
-          body: JSON.stringify(form)
+          body: JSON.stringify({
+            ...form,
+            intent
+          })
         }
       );
 
@@ -171,13 +184,17 @@ export default function StudentRequestForm({ student, onCreated }) {
         return;
       }
 
-      setForm({
-        ...initialForm,
-        ...studentProfileDefaults(student)
-      });
+      if (!isDraft) {
+        setForm({
+          ...initialForm,
+          ...studentProfileDefaults(student)
+        });
+      }
       setFieldErrors({});
       setSuccess(
-        "La demande de stage a été soumise avec succès."
+        isDraft
+          ? "Le brouillon a ete enregistre."
+          : "La demande de stage a ete soumise avec succes."
       );
 
       if (onCreated) {
@@ -971,8 +988,22 @@ export default function StudentRequestForm({ student, onCreated }) {
 
         <div className="studentFormActions">
           <button
+            className="secondaryButton fitButton"
+            type="submit"
+            name="intent"
+            value="draft"
+            disabled={loading}
+          >
+            {loading
+              ? "Enregistrement..."
+              : "Enregistrer le brouillon"}
+          </button>
+
+          <button
             className="primaryButton fitButton"
             type="submit"
+            name="intent"
+            value="submit"
             disabled={loading}
           >
             {loading

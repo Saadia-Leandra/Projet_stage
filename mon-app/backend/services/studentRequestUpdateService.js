@@ -9,15 +9,24 @@ import {
   notifySupervisorOfResubmission
 } from "./stageRequestCorrectionService.js";
 import { updateStudentProfileForStage } from "./studentService.js";
+import { createNotificationForUsers } from "./notificationService.js";
 
 const db = createDbPool();
+
+export const STUDENT_WITHDRAWABLE_REQUEST_STATUSES = [
+  "BROUILLON",
+  "SOUMISE"
+];
 
 export async function updateInternshipRequest(
   studentId,
   requestId,
   data
 ) {
-  const requestData = validateRequestData(data);
+  const isDraft = isDraftIntent(data);
+  const requestData = validateRequestData(data, {
+    draft: isDraft
+  });
   const connection = await db.getConnection();
 
   try {
@@ -42,6 +51,7 @@ export async function updateInternshipRequest(
           d.salaire_horaire AS hourlySalary,
           d.autre_compensation AS otherCompensation,
           d.correction_documents_demandes AS correctionMissingDocuments,
+          d.resoumis_le AS resubmittedAt,
 
           ds.superviseur_id AS supervisorId,
 
@@ -104,10 +114,19 @@ export async function updateInternshipRequest(
 
     ensureStudentCanModifyStatus(request.status);
 
-    await ensureRequestedDocumentsPresent(
-      connection,
-      request
-    );
+    if (isDraft && request.status !== "BROUILLON") {
+      throw createError(
+        "Seul un brouillon peut etre enregistre sans soumission.",
+        409
+      );
+    }
+
+    if (!isDraft) {
+      await ensureRequestedDocumentsPresent(
+        connection,
+        request
+      );
+    }
 
     const changedFields = compareRequestChanges(
       request,
@@ -183,6 +202,11 @@ export async function updateInternshipRequest(
       ]
     );
 
+    const nextStatus =
+      isDraft && request.status === "BROUILLON"
+        ? "BROUILLON"
+        : "SOUMISE";
+
     await connection.execute(
       `
         UPDATE demandes_stage
@@ -200,9 +224,12 @@ export async function updateInternshipRequest(
           est_remunere = ?,
           salaire_horaire = ?,
           autre_compensation = ?,
-          statut = 'SOUMISE',
+          statut = ?,
           motif_refus = NULL,
-          resoumis_le = NOW(),
+          resoumis_le = CASE
+            WHEN ? = 'SOUMISE' THEN NOW()
+            ELSE resoumis_le
+          END,
           decide_par_utilisateur_id = NULL,
           decide_le = NULL
         WHERE id = ?
@@ -221,6 +248,8 @@ export async function updateInternshipRequest(
         requestData.isPaid,
         requestData.hourlySalary,
         requestData.otherCompensation,
+        nextStatus,
+        nextStatus,
         requestId
       ]
     );
@@ -228,44 +257,60 @@ export async function updateInternshipRequest(
     await connection.execute(
       `
         UPDATE dossiers_stage
-        SET statut = 'DEMANDE_SOUMISE'
+        SET statut = ?
         WHERE id = ?
       `,
-      [request.folderId]
+      [
+        nextStatus === "BROUILLON"
+          ? "DEMANDE_NON_CREEE"
+          : "DEMANDE_SOUMISE",
+        request.folderId
+      ]
     );
 
-    await createResubmissionWorkflowEvent(
-      connection,
-      {
+    if (nextStatus === "BROUILLON") {
+      await createDraftWorkflowEvent(connection, {
         folderId: request.folderId,
         actorId: studentId,
         oldStatus: request.status,
-        changedFields,
-        uploadedDocuments
-      }
-    );
+        changedFields
+      });
+    } else {
+      await createResubmissionWorkflowEvent(
+        connection,
+        {
+          folderId: request.folderId,
+          actorId: studentId,
+          oldStatus: request.status,
+          changedFields,
+          uploadedDocuments
+        }
+      );
+    }
 
     assertSameRequestOnResubmission(
       request.id,
       requestId
     );
 
-    await notifySupervisorOfResubmission(
-      connection,
-      {
-        supervisorId: request.supervisorId,
-        studentFullName: [
-          request.studentFirstName,
-          request.studentLastName
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .trim(),
-        requestId,
-        changedFields,
-        uploadedDocuments
-      }
-    );
+    if (nextStatus === "SOUMISE") {
+      await notifySupervisorOfResubmission(
+        connection,
+        {
+          supervisorId: request.supervisorId,
+          studentFullName: [
+            request.studentFirstName,
+            request.studentLastName
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .trim(),
+          requestId,
+          changedFields,
+          uploadedDocuments
+        }
+      );
+    }
 
     await connection.commit();
 
@@ -273,9 +318,12 @@ export async function updateInternshipRequest(
       id: Number(requestId),
       folderId: request.folderId,
       ...requestData,
-      status: "SOUMISE",
+      status: nextStatus,
       refusalReason: null,
-      resubmittedAt: new Date().toISOString()
+      resubmittedAt:
+        nextStatus === "SOUMISE"
+          ? new Date().toISOString()
+          : request.resubmittedAt || null
     };
   } catch (error) {
     await connection.rollback();
@@ -285,16 +333,230 @@ export async function updateInternshipRequest(
   }
 }
 
-function validateRequestData(data = {}) {
+export async function withdrawInternshipRequest(
+  studentId,
+  requestId,
+  reason = ""
+) {
+  const withdrawalReason =
+    clean(reason) ||
+    "Retiree par l'etudiant.";
+  const connection = await db.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    const [rows] = await connection.execute(
+      `
+        SELECT
+          d.id,
+          d.dossier_stage_id AS folderId,
+          d.statut AS status,
+          ds.superviseur_id AS supervisorId,
+          student_user.prenom AS studentFirstName,
+          student_user.nom AS studentLastName,
+          c.id AS contractId
+        FROM demandes_stage d
+        INNER JOIN dossiers_stage ds
+          ON ds.id = d.dossier_stage_id
+        INNER JOIN utilisateurs student_user
+          ON student_user.id = ds.etudiant_id
+        LEFT JOIN contrats c
+          ON c.demande_stage_id = d.id
+        WHERE d.id = ?
+          AND ds.etudiant_id = ?
+        LIMIT 1
+        FOR UPDATE
+      `,
+      [requestId, studentId]
+    );
+
+    const request = rows[0];
+
+    if (!request) {
+      throw createError(
+        "Demande de stage introuvable.",
+        404
+      );
+    }
+
+    if (request.contractId) {
+      throw createError(
+        "Cette demande ne peut plus etre retiree, car elle est liee a un contrat actif.",
+        409
+      );
+    }
+
+    if (
+      !STUDENT_WITHDRAWABLE_REQUEST_STATUSES.includes(
+        request.status
+      )
+    ) {
+      throw createError(
+        "Cette demande ne peut plus etre retiree, car son traitement a deja commence.",
+        409
+      );
+    }
+
+    await connection.execute(
+      `
+        UPDATE demandes_stage
+        SET
+          statut = 'ANNULEE',
+          retrait_motif = ?,
+          retiree_par_utilisateur_id = ?,
+          retiree_le = NOW()
+        WHERE id = ?
+      `,
+      [
+        withdrawalReason,
+        studentId,
+        request.id
+      ]
+    );
+
+    await connection.execute(
+      `
+        UPDATE dossiers_stage
+        SET statut = 'DEMANDE_NON_CREEE'
+        WHERE id = ?
+      `,
+      [request.folderId]
+    );
+
+    await createWorkflowEvent(connection, {
+      folderId: request.folderId,
+      actorId: studentId,
+      eventType: "DEMANDE_RETIREE",
+      oldStatus: request.status,
+      newStatus: "ANNULEE",
+      comment: withdrawalReason
+    });
+
+    if (
+      request.status === "SOUMISE" &&
+      request.supervisorId
+    ) {
+      await createNotificationForUsers(connection, {
+        title: "Demande de stage retiree",
+        message: `La demande de stage de ${[
+          request.studentFirstName,
+          request.studentLastName
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .trim() || "l'etudiant"} a ete retiree.`,
+        type: "DEMANDE_STAGE_RETIREE",
+        requestId: request.id,
+        actionUrl: `/supervisor/stages/requests/${request.id}`,
+        userIds: [request.supervisorId]
+      });
+    }
+
+    await connection.commit();
+
+    return {
+      id: Number(requestId),
+      status: "ANNULEE",
+      withdrawalReason
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+async function createWorkflowEvent(
+  connection,
+  {
+    folderId,
+    actorId,
+    eventType,
+    oldStatus,
+    newStatus,
+    comment
+  }
+) {
+  await connection.execute(
+    `
+      INSERT INTO evenements_workflow (
+        dossier_stage_id,
+        utilisateur_acteur_id,
+        type_evenement,
+        ancien_statut,
+        nouveau_statut,
+        commentaire
+      )
+      VALUES (?, ?, ?, ?, ?, ?)
+    `,
+    [
+      folderId,
+      actorId,
+      eventType,
+      oldStatus,
+      newStatus,
+      comment
+    ]
+  );
+}
+
+async function createDraftWorkflowEvent(
+  connection,
+  {
+    folderId,
+    actorId,
+    oldStatus,
+    changedFields
+  }
+) {
+  await connection.execute(
+    `
+      INSERT INTO evenements_workflow (
+        dossier_stage_id,
+        utilisateur_acteur_id,
+        type_evenement,
+        ancien_statut,
+        nouveau_statut,
+        commentaire
+      )
+      VALUES (?, ?, ?, ?, ?, ?)
+    `,
+    [
+      folderId,
+      actorId,
+      "DEMANDE_BROUILLON_ENREGISTREE",
+      oldStatus,
+      "BROUILLON",
+      JSON.stringify({
+        changedFields: changedFields.map(
+          (change) => change.label
+        )
+      })
+    ]
+  );
+}
+
+function validateRequestData(
+  data = {},
+  { draft = false } = {}
+) {
   const requestData = {
     taskSummary: clean(data.taskSummary),
-    startDate: clean(data.startDate),
-    endDate: clean(data.endDate),
+    startDate: draft
+      ? optionalDate(data.startDate, "La date de debut")
+      : clean(data.startDate),
+    endDate: draft
+      ? optionalDate(data.endDate, "La date de fin")
+      : clean(data.endDate),
 
     studentPhone: optional(data.studentPhone),
     studentAddress: optional(data.studentAddress),
     studentCity: optional(data.studentCity),
-    studentProvince: clean(data.studentProvince),
+    studentProvince: draft
+      ? optional(data.studentProvince)
+      : clean(data.studentProvince),
     studentPostalCode: optional(
       data.studentPostalCode
     ),
@@ -311,15 +573,26 @@ function validateRequestData(data = {}) {
       "La date d'expiration de l'assurance"
     ),
 
-    companyName: clean(data.companyName),
+    companyName: draft
+      ? clean(data.companyName) ||
+        "Entreprise a confirmer"
+      : clean(data.companyName),
     companyNeq: optional(data.companyNeq),
-    companyAddress: clean(data.companyAddress),
-    companyCity: clean(data.companyCity),
-    companyProvince: clean(data.companyProvince),
-    companyPostalCode: clean(
-      data.companyPostalCode
-    ),
-    companyPhone: clean(data.companyPhone),
+    companyAddress: draft
+      ? optional(data.companyAddress)
+      : clean(data.companyAddress),
+    companyCity: draft
+      ? optional(data.companyCity)
+      : clean(data.companyCity),
+    companyProvince: draft
+      ? optional(data.companyProvince)
+      : clean(data.companyProvince),
+    companyPostalCode: draft
+      ? optional(data.companyPostalCode)
+      : clean(data.companyPostalCode),
+    companyPhone: draft
+      ? optional(data.companyPhone)
+      : clean(data.companyPhone),
     companyPhoneExtension: optional(
       data.companyPhoneExtension
     ),
@@ -327,40 +600,50 @@ function validateRequestData(data = {}) {
     companyWebsite: optional(
       data.companyWebsite
     ),
-    organizationType: clean(
-      data.organizationType
-    ),
-    businessSector: clean(
-      data.businessSector
-    ),
+    organizationType: draft
+      ? optional(data.organizationType)
+      : clean(data.organizationType),
+    businessSector: draft
+      ? optional(data.businessSector)
+      : clean(data.businessSector),
 
     hrName: optional(data.hrName),
     hrEmail: optional(data.hrEmail),
     hrPhone: optional(data.hrPhone),
     hrExtension: optional(data.hrExtension),
 
-    supervisorName: clean(
-      data.supervisorName
-    ),
-    supervisorTitle: clean(
-      data.supervisorTitle
-    ),
-    supervisorEmail: clean(
-      data.supervisorEmail
-    ),
-    supervisorPhone: clean(
-      data.supervisorPhone
-    ),
+    supervisorName: draft
+      ? optional(data.supervisorName)
+      : clean(data.supervisorName),
+    supervisorTitle: draft
+      ? optional(data.supervisorTitle)
+      : clean(data.supervisorTitle),
+    supervisorEmail: draft
+      ? optional(data.supervisorEmail)
+      : clean(data.supervisorEmail),
+    supervisorPhone: draft
+      ? optional(data.supervisorPhone)
+      : clean(data.supervisorPhone),
 
-    workSchedule: clean(data.workSchedule),
+    workSchedule: draft
+      ? optional(data.workSchedule)
+      : clean(data.workSchedule),
     hoursPerWeek: toPositiveNumber(
-      data.hoursPerWeek,
+      draft && isEmpty(data.hoursPerWeek)
+        ? 1
+        : data.hoursPerWeek,
       "Le nombre d’heures par semaine"
     ),
-    workLanguage: clean(data.workLanguage),
-    scheduleType: clean(data.scheduleType),
+    workLanguage: draft
+      ? optional(data.workLanguage)
+      : clean(data.workLanguage),
+    scheduleType: draft
+      ? optional(data.scheduleType)
+      : clean(data.scheduleType),
     numberOfWeeks: toPositiveNumber(
-      data.numberOfWeeks,
+      draft && isEmpty(data.numberOfWeeks)
+        ? 1
+        : data.numberOfWeeks,
       "Le nombre de semaines"
     ),
     isPaid: Boolean(data.isPaid),
@@ -369,6 +652,28 @@ function validateRequestData(data = {}) {
       data.otherCompensation
     )
   };
+
+  if (draft) {
+    if (isEmpty(data.hoursPerWeek)) {
+      requestData.hoursPerWeek = null;
+    }
+
+    if (isEmpty(data.numberOfWeeks)) {
+      requestData.numberOfWeeks = null;
+    }
+
+    validateOptionalDraftValues(requestData);
+
+    if (requestData.isPaid) {
+      requestData.hourlySalary =
+        optionalNonNegativeNumber(
+          data.hourlySalary,
+          "Le salaire horaire"
+        );
+    }
+
+    return requestData;
+  }
 
   const requiredFields = [
     requestData.taskSummary,
@@ -510,6 +815,107 @@ function validateRequestData(data = {}) {
   return requestData;
 }
 
+function validateOptionalDraftValues(requestData) {
+  if (
+    requestData.taskSummary &&
+    (
+      requestData.taskSummary.length < 20 ||
+      requestData.taskSummary.length > 3000
+    )
+  ) {
+    throw createError(
+      "Le resume doit contenir entre 20 et 3000 caracteres.",
+      400
+    );
+  }
+
+  if (
+    requestData.startDate &&
+    requestData.endDate &&
+    requestData.endDate <= requestData.startDate
+  ) {
+    throw createError(
+      "La date de fin doit etre apres la date de debut.",
+      400
+    );
+  }
+
+  if (
+    requestData.hoursPerWeek &&
+    requestData.hoursPerWeek > 80
+  ) {
+    throw createError(
+      "Le nombre d'heures ne peut pas depasser 80.",
+      400
+    );
+  }
+
+  if (
+    requestData.numberOfWeeks &&
+    requestData.numberOfWeeks > 52
+  ) {
+    throw createError(
+      "Le nombre de semaines ne peut pas depasser 52.",
+      400
+    );
+  }
+
+  if (
+    requestData.organizationType &&
+    !["PUBLIC", "PRIVE"].includes(
+      requestData.organizationType
+    )
+  ) {
+    throw createError(
+      "Le type d'organisation est invalide.",
+      400
+    );
+  }
+
+  if (
+    requestData.scheduleType &&
+    ![
+      "TEMPS_PLEIN",
+      "TEMPS_PARTIEL"
+    ].includes(requestData.scheduleType)
+  ) {
+    throw createError(
+      "Le type d'horaire est invalide.",
+      400
+    );
+  }
+
+  if (
+    requestData.supervisorEmail &&
+    !isValidEmail(requestData.supervisorEmail)
+  ) {
+    throw createError(
+      "Le courriel du superviseur est invalide.",
+      400
+    );
+  }
+
+  if (
+    requestData.companyEmail &&
+    !isValidEmail(requestData.companyEmail)
+  ) {
+    throw createError(
+      "Le courriel de l'entreprise est invalide.",
+      400
+    );
+  }
+
+  if (
+    requestData.hrEmail &&
+    !isValidEmail(requestData.hrEmail)
+  ) {
+    throw createError(
+      "Le courriel du responsable RH est invalide.",
+      400
+    );
+  }
+}
+
 function clean(value) {
   return String(value ?? "").trim();
 }
@@ -572,6 +978,17 @@ function toNonNegativeNumber(
   return numberValue;
 }
 
+function optionalNonNegativeNumber(
+  value,
+  fieldName
+) {
+  if (isEmpty(value)) {
+    return null;
+  }
+
+  return toNonNegativeNumber(value, fieldName);
+}
+
 function isValidDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;
@@ -585,6 +1002,29 @@ function isValidDate(value) {
 function isValidEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
     value
+  );
+}
+
+function isDraftIntent(data = {}) {
+  return [
+    data.intent,
+    data.action,
+    data.status
+  ].some((value) => {
+    const text = String(value || "").trim();
+
+    return (
+      text.toLowerCase() === "draft" ||
+      text.toUpperCase() === "BROUILLON"
+    );
+  });
+}
+
+function isEmpty(value) {
+  return (
+    value === "" ||
+    value === null ||
+    value === undefined
   );
 }
 

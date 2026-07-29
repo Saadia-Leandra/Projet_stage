@@ -13,9 +13,13 @@ __pycache__/
 dist
 dist-ssr
 *.local
+
 backend/.env
+backend/.env.*
+!backend/.env.example
 backend/storage/
 backend/uploads/
+*.pem
 
 # Service Python conservé localement pour le moment
 /python-import-service/

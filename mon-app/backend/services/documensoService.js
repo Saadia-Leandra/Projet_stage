@@ -4,6 +4,9 @@ import path from "node:path";
 import { assertValidPdf } from "./contractPdfService.js";
 
 const defaultApiUrl = "https://app.documenso.com/api/v2";
+const documentLimitCode = "DOCUMENSO_DOCUMENT_LIMIT";
+const documentLimitMessage =
+  "La limite mensuelle de documents Documenso est atteinte. Augmentez le forfait Documenso ou attendez le prochain cycle, puis relancez l'envoi pour signature.";
 
 export function isDocumensoConfigured() {
   return Boolean(getDocumensoApiKey());
@@ -18,50 +21,39 @@ export async function createAndSendDocument({
   const createdDocument = await createDocumentFromPdf({
     pdfPath,
     title,
-    externalId
-  });
-
-  const createdRecipients = await addRecipients({
-    envelopeId: createdDocument.envelopeId,
+    externalId,
     recipients
   });
 
   const recipientsWithIds = mergeRecipientIds(
     recipients,
-    createdRecipients
+    extractRecipients(createdDocument.raw)
   );
-
-  if (
-    recipientsWithIds.some(
-      (recipient) => !recipient.documensoRecipientId
-    )
-  ) {
-    throw createError(
-      "Documenso n'a pas retourne tous les identifiants de destinataires.",
-      502
-    );
-  }
-
-  await addSignatureFields({
-    documentId:
-      createdDocument.documentItemId ||
-      createdDocument.envelopeId,
-    recipients: recipientsWithIds
-  });
 
   const distributedDocument =
     await sendDocumentForSignature(
       createdDocument.envelopeId
     );
+  const envelope = await getEnvelope(
+    createdDocument.envelopeId
+  ).catch(() => ({}));
 
   return {
     envelopeId: createdDocument.envelopeId,
-    documentItemId: createdDocument.documentItemId,
-    status: readStatus(distributedDocument) || "PENDING",
+    documentItemId: readFirstValue(
+      createdDocument.documentItemId,
+      extractDocumentItemId(distributedDocument),
+      extractDocumentItemId(envelope)
+    ),
+    status:
+      readStatus(distributedDocument) ||
+      readStatus(envelope) ||
+      "PENDING",
     recipients: mergeRecipientIds(
       recipientsWithIds,
       extractRecipients(distributedDocument),
-      createdRecipients
+      extractRecipients(envelope),
+      extractRecipients(createdDocument.raw)
     )
   };
 }
@@ -69,7 +61,8 @@ export async function createAndSendDocument({
 export async function createDocumentFromPdf({
   pdfPath,
   title,
-  externalId
+  externalId,
+  recipients = []
 }) {
   ensureConfigured();
   await assertValidPdf(pdfPath);
@@ -80,8 +73,27 @@ export async function createDocumentFromPdf({
     externalId,
     visibility: "EVERYONE",
     type: "DOCUMENT",
-    signingOrder: "SEQUENTIAL"
+    meta: {
+      signingOrder: "SEQUENTIAL"
+    }
   };
+
+  if (recipients.length) {
+    payload.recipients = recipients.map(
+      (recipient, index) => ({
+        name: recipient.name,
+        email: recipient.email,
+        role: "SIGNER",
+        signingOrder: recipient.signingOrder,
+        fields: [
+          createSignatureFieldPayload(
+            recipient,
+            index
+          )
+        ]
+      })
+    );
+  }
 
   const formData = new FormData();
   formData.append("payload", JSON.stringify(payload));
@@ -128,7 +140,8 @@ export async function createDocumentFromPdf({
       response?.data?.documentId,
       response?.data?.documents?.[0]?.id,
       response?.data?.envelopeItems?.[0]?.id,
-      response?.data?.items?.[0]?.id
+      response?.data?.items?.[0]?.id,
+      extractDocumentItemId(response)
     )
   };
 }
@@ -190,7 +203,6 @@ export async function addSignatureFields({
       method: "POST",
       json: {
         documentId,
-        data: fields,
         fields
       }
     }
@@ -251,6 +263,29 @@ function fallbackSignatureFieldPosition(index) {
   };
 }
 
+function createSignatureFieldPayload(recipient, index) {
+  const position =
+    signatureFieldPositionByRole(recipient.role) ||
+    fallbackSignatureFieldPosition(index);
+
+  return {
+    identifier: 0,
+    type: "SIGNATURE",
+    pageNumber: position.page,
+    pageX: position.positionX,
+    pageY: position.positionY,
+    page: position.page,
+    positionX: position.positionX,
+    positionY: position.positionY,
+    width: position.width,
+    height: position.height,
+    fieldMeta: {
+      type: "signature",
+      required: true
+    }
+  };
+}
+
 export async function sendDocumentForSignature(
   envelopeId
 ) {
@@ -267,18 +302,41 @@ export async function sendDocumentForSignature(
 export async function getDocumentStatus(envelopeId) {
   ensureConfigured();
 
-  const response = await documensoRequest(
-    `/envelope/get/${encodeURIComponent(envelopeId)}`,
-    {
-      method: "GET"
-    }
-  );
+  const response = await getEnvelope(envelopeId);
 
   return {
     raw: response,
     status: readStatus(response),
     recipients: extractRecipients(response)
   };
+}
+
+export async function getDocumensoDiagnostic() {
+  if (!isDocumensoConfigured()) {
+    return {
+      configured: false,
+      status: "non_configure",
+      message: getDocumensoConfigMessage()
+    };
+  }
+
+  try {
+    await documensoRequest("/envelope?page=1&perPage=1", {
+      method: "GET"
+    });
+
+    return {
+      configured: true,
+      status: "connexion_reussie",
+      message: "Connexion Documenso reussie."
+    };
+  } catch (error) {
+    return {
+      configured: true,
+      status: "connexion_echouee",
+      message: error.message
+    };
+  }
 }
 
 export async function downloadSignedPdf(envelopeId) {
@@ -289,6 +347,15 @@ export async function downloadSignedPdf(envelopeId) {
     {
       method: "GET",
       binary: true
+    }
+  );
+}
+
+async function getEnvelope(envelopeId) {
+  return documensoRequest(
+    `/envelope/${encodeURIComponent(envelopeId)}`,
+    {
+      method: "GET"
     }
   );
 }
@@ -362,11 +429,47 @@ async function createDocumensoError(response) {
     // Keep the text body when Documenso does not return JSON.
   }
 
-  return createError(
-    `Erreur Documenso (${response.status}): ${
-      message || response.statusText
+  return formatDocumensoError(
+    message || response.statusText,
+    response.status
+  );
+}
+
+export function formatDocumensoError(message, providerStatus) {
+  const cleanMessage = String(message || "").trim();
+
+  if (isDocumensoDocumentLimitError(cleanMessage)) {
+    const error = createError(documentLimitMessage, 429);
+    error.code = documentLimitCode;
+    error.providerStatus = providerStatus;
+    return error;
+  }
+
+  const error = createError(
+    `Erreur Documenso (${providerStatus}): ${
+      cleanMessage || "reponse invalide"
     }`,
     502
+  );
+  error.code = "DOCUMENSO_ERROR";
+  error.providerStatus = providerStatus;
+  return error;
+}
+
+export function isDocumensoDocumentLimitError(message) {
+  const normalizedMessage = String(message || "")
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
+  return (
+    normalizedMessage.includes("document limit") ||
+    normalizedMessage.includes(
+      "reached your document limit"
+    ) ||
+    (
+      normalizedMessage.includes("upgrade your plan") &&
+      normalizedMessage.includes("limit")
+    )
   );
 }
 
@@ -401,7 +504,10 @@ function mergeRecipientIds(
         readFirstValue(
           remoteRecipient?.signingUrl,
           remoteRecipient?.signing_url,
-          remoteRecipient?.url
+          remoteRecipient?.url,
+          remoteRecipient?.token
+            ? makeSigningUrl(remoteRecipient.token)
+            : ""
         ) || localRecipient.signingUrl
     };
   });
@@ -409,10 +515,15 @@ function mergeRecipientIds(
 
 function extractRecipients(response) {
   const recipients = readFirstValue(
+    Array.isArray(response) ? response : undefined,
+    Array.isArray(response?.data) ? response.data : undefined,
     response?.recipients,
     response?.data?.recipients,
     response?.envelope?.recipients,
-    response?.document?.recipients
+    response?.document?.recipients,
+    response?.payload?.recipients,
+    response?.payload?.Recipient,
+    response?.Recipient
   );
 
   if (!Array.isArray(recipients)) {
@@ -424,18 +535,53 @@ function extractRecipients(response) {
     index,
     documensoRecipientId: readFirstValue(
       recipient.id,
-      recipient.recipientId
+      recipient.recipientId,
+      recipient.recipient_id
     ),
     signingOrder: readFirstValue(
       recipient.signingOrder,
+      recipient.signing_order,
       recipient.order
     ),
     signingUrl: readFirstValue(
       recipient.signingUrl,
       recipient.signing_url,
-      recipient.url
+      recipient.url,
+      recipient.token
+        ? makeSigningUrl(recipient.token)
+        : ""
     )
   }));
+}
+
+function extractDocumentItemId(response) {
+  return readFirstValue(
+    response?.documentItemId,
+    response?.envelopeItemId,
+    response?.documentId,
+    response?.envelopeItems?.[0]?.id,
+    response?.items?.[0]?.id,
+    response?.documents?.[0]?.id,
+    response?.data?.documentItemId,
+    response?.data?.envelopeItemId,
+    response?.data?.documentId,
+    response?.data?.envelopeItems?.[0]?.id,
+    response?.data?.items?.[0]?.id,
+    response?.data?.documents?.[0]?.id,
+    response?.envelope?.envelopeItems?.[0]?.id,
+    response?.document?.envelopeItems?.[0]?.id
+  );
+}
+
+function makeSigningUrl(token) {
+  try {
+    const baseUrl = new URL(getDocumensoApiUrl());
+    return `${baseUrl.origin}/sign/${encodeURIComponent(
+      token
+    )}`;
+  } catch {
+    return "";
+  }
 }
 
 function readStatus(response) {

@@ -1,4 +1,4 @@
-USE defaultdb;
+USE stagetec;
 
 ALTER TABLE entreprises
   MODIFY COLUMN adresse VARCHAR(255) NULL;

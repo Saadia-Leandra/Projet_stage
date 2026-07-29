@@ -118,7 +118,7 @@ CREATE TABLE campus (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   code VARCHAR(30) NOT NULL UNIQUE,
   nom VARCHAR(120) NOT NULL,
-  adresse VARCHAR(255) NOT NULL,
+  adresse VARCHAR(255),
   ville VARCHAR(120),
   code_postal VARCHAR(20),
   latitude DECIMAL(10,7),
@@ -183,8 +183,8 @@ CREATE TABLE demandes_stage (
   dossier_stage_id BIGINT UNSIGNED NOT NULL,
   entreprise_id BIGINT UNSIGNED NOT NULL,
   resume_taches TEXT,
-  date_debut DATE NOT NULL,
-  date_fin DATE NOT NULL,
+  date_debut DATE,
+  date_fin DATE,
   date_debut_disponibilite DATE,
   date_fin_disponibilite DATE,
   horaire_stage VARCHAR(160),
@@ -205,6 +205,9 @@ CREATE TABLE demandes_stage (
     'ANNULEE'
   ) NOT NULL DEFAULT 'SOUMISE',
   motif_refus TEXT,
+  retrait_motif TEXT,
+  retiree_par_utilisateur_id BIGINT UNSIGNED,
+  retiree_le DATETIME,
   correction_raison TEXT,
   correction_elements TEXT,
   correction_documents_demandes TEXT,
@@ -222,6 +225,8 @@ CREATE TABLE demandes_stage (
     FOREIGN KEY (entreprise_id) REFERENCES entreprises(id),
   CONSTRAINT fk_demandes_stage_decideur
     FOREIGN KEY (decide_par_utilisateur_id) REFERENCES utilisateurs(id),
+  CONSTRAINT fk_demandes_stage_retrait_utilisateur
+    FOREIGN KEY (retiree_par_utilisateur_id) REFERENCES utilisateurs(id),
   CONSTRAINT fk_demandes_stage_correction_demandeur
     FOREIGN KEY (correction_demandee_par_utilisateur_id) REFERENCES utilisateurs(id)
 ) ENGINE=InnoDB;

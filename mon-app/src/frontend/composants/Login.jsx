@@ -51,7 +51,9 @@ export default function Login({ onLogin }) {
     startRequest();
 
     try {
-      const response = await postJson("/api/auth/forgot-password", { email });
+      const response = await postJson("/api/auth/forgot-password", {
+        email
+      });
 
       if (!response.ok) {
         setError(response.data.error || "Impossible de traiter la demande.");
@@ -112,7 +114,10 @@ export default function Login({ onLogin }) {
       });
 
       if (!response.ok) {
-        setError(response.data.error || "Impossible de modifier le mot de passe.");
+        setError(
+          response.data.error ||
+            "Impossible de modifier le mot de passe."
+        );
         return;
       }
 
@@ -174,7 +179,9 @@ export default function Login({ onLogin }) {
                 autoComplete="username"
                 name="identifier"
                 value={identifier}
-                onChange={(event) => setIdentifier(event.target.value)}
+                onChange={(event) =>
+                  setIdentifier(event.target.value)
+                }
                 placeholder="Courriel ou code permanent"
                 required
               />
@@ -186,7 +193,9 @@ export default function Login({ onLogin }) {
               value={password}
               showPassword={showPassword}
               onChange={setPassword}
-              onToggle={() => setShowPassword((current) => !current)}
+              onToggle={() =>
+                setShowPassword((current) => !current)
+              }
               autoComplete="current-password"
             />
 
@@ -195,25 +204,38 @@ export default function Login({ onLogin }) {
                 <input
                   type="checkbox"
                   checked={rememberMe}
-                  onChange={(event) => setRememberMe(event.target.checked)}
+                  onChange={(event) =>
+                    setRememberMe(event.target.checked)
+                  }
                 />
                 Se souvenir de moi
               </label>
-              <button className="linkButton" type="button" onClick={() => showMode("forgot")}>
+              <button
+                className="linkButton"
+                type="button"
+                onClick={() => showMode("forgot")}
+              >
                 Mot de passe oublié ?
               </button>
             </div>
 
             <AuthMessages error={error} notice={notice} />
 
-            <button className="primaryButton" type="submit" disabled={loading}>
+            <button
+              className="primaryButton"
+              type="submit"
+              disabled={loading}
+            >
               {loading ? "Connexion..." : "Se connecter"}
             </button>
           </form>
         )}
 
         {mode === "forgot" && (
-          <form className="authCard" onSubmit={handleForgotPassword}>
+          <form
+            className="authCard"
+            onSubmit={handleForgotPassword}
+          >
             <AuthHeader
               title="Mot de passe oublié"
               intro="Entrez le courriel associé à votre compte. Un code valide 10 minutes vous sera envoyé."
@@ -233,10 +255,18 @@ export default function Login({ onLogin }) {
 
             <AuthMessages error={error} notice={notice} />
 
-            <button className="primaryButton" type="submit" disabled={loading}>
+            <button
+              className="primaryButton"
+              type="submit"
+              disabled={loading}
+            >
               {loading ? "Envoi..." : "Envoyer le code"}
             </button>
-            <button className="authBackButton" type="button" onClick={() => showMode("login")}>
+            <button
+              className="authBackButton"
+              type="button"
+              onClick={() => showMode("login")}
+            >
               Retour à la connexion
             </button>
           </form>
@@ -258,7 +288,9 @@ export default function Login({ onLogin }) {
                 autoComplete="one-time-code"
                 value={verificationCode}
                 onChange={(event) =>
-                  setVerificationCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+                  setVerificationCode(
+                    event.target.value.replace(/\D/g, "").slice(0, 6)
+                  )
                 }
                 placeholder="000000"
                 pattern="\d{6}"
@@ -282,10 +314,18 @@ export default function Login({ onLogin }) {
             >
               {loading ? "Vérification..." : "Vérifier le code"}
             </button>
-            <button className="authBackButton" type="button" onClick={() => showMode("forgot")}>
+            <button
+              className="authBackButton"
+              type="button"
+              onClick={() => showMode("forgot")}
+            >
               Renvoyer un code
             </button>
-            <button className="authBackButton" type="button" onClick={() => showMode("login")}>
+            <button
+              className="authBackButton"
+              type="button"
+              onClick={() => showMode("login")}
+            >
               Retour à la connexion
             </button>
           </form>
@@ -304,7 +344,9 @@ export default function Login({ onLogin }) {
               value={password}
               showPassword={showPassword}
               onChange={setPassword}
-              onToggle={() => setShowPassword((current) => !current)}
+              onToggle={() =>
+                setShowPassword((current) => !current)
+              }
               autoComplete="new-password"
               minLength={12}
             />
@@ -314,17 +356,27 @@ export default function Login({ onLogin }) {
               value={confirmPassword}
               showPassword={showPassword}
               onChange={setConfirmPassword}
-              onToggle={() => setShowPassword((current) => !current)}
+              onToggle={() =>
+                setShowPassword((current) => !current)
+              }
               autoComplete="new-password"
               minLength={12}
             />
 
             <AuthMessages error={error} notice={notice} />
 
-            <button className="primaryButton" type="submit" disabled={loading}>
+            <button
+              className="primaryButton"
+              type="submit"
+              disabled={loading}
+            >
               {loading ? "Modification..." : "Modifier le mot de passe"}
             </button>
-            <button className="authBackButton" type="button" onClick={() => showMode("login")}>
+            <button
+              className="authBackButton"
+              type="button"
+              onClick={() => showMode("login")}
+            >
               Annuler
             </button>
           </form>
@@ -370,7 +422,11 @@ function PasswordField({
           className="iconButton"
           type="button"
           onClick={onToggle}
-          aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+          aria-label={
+            showPassword
+              ? "Masquer le mot de passe"
+              : "Afficher le mot de passe"
+          }
         >
           <PasswordIcon visible={showPassword} />
         </button>
@@ -382,15 +438,29 @@ function PasswordField({
 function AuthMessages({ error, notice }) {
   return (
     <>
-      {error && <p className="errorText" role="alert">{error}</p>}
-      {notice && <p className="authNotice" role="status">{notice}</p>}
+      {error && (
+        <p className="errorText" role="alert">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p className="authNotice" role="status">
+          {notice}
+        </p>
+      )}
     </>
   );
 }
 
 function PasswordIcon({ visible }) {
   return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.8">
+    <svg
+      aria-hidden="true"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth="1.8"
+    >
       <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
       <circle cx="12" cy="12" r="2.5" />
       {!visible && <path d="m4 4 16 16" />}
