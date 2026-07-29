@@ -3,10 +3,14 @@ import { createToken } from "./jwt.js";
 import { hashPassword, verifyPassword } from "./password.js";
 
 export class AuthService {
-  constructor({ usersRepo, passwordResetMailer, appPublicUrl }) {
+  constructor({
+    usersRepo,
+    passwordResetMailer,
+    resetSecret = process.env.JWT_SECRET || "dev-secret"
+  }) {
     this.usersRepo = usersRepo;
     this.passwordResetMailer = passwordResetMailer;
-    this.appPublicUrl = appPublicUrl;
+    this.resetSecret = resetSecret;
   }
 
   async login({ identifier, password, rememberMe = false }) {
@@ -42,7 +46,7 @@ export class AuthService {
     };
   }
 
-  async requestPasswordReset({ email, requestOrigin }) {
+  async requestPasswordReset({ email }) {
     const normalizedEmail = String(email || "").trim().toLowerCase();
 
     if (!isValidEmail(normalizedEmail)) {
@@ -53,52 +57,87 @@ export class AuthService {
 
     const user = await this.usersRepo.findByEmail(normalizedEmail);
     const response = {
-      message: "Si un compte correspond à cette adresse, un courriel de réinitialisation sera envoyé."
+      message: "Si un compte correspond à cette adresse, un code de vérification sera envoyé."
     };
 
     if (!user) return response;
 
-    const rawToken = crypto.randomBytes(32).toString("base64url");
-    const tokenHash = hashResetToken(rawToken);
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    const code = crypto.randomInt(0, 1_000_000).toString().padStart(6, "0");
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    await this.usersRepo.createPasswordResetToken(user.id, tokenHash, expiresAt);
+    await this.usersRepo.createPasswordResetCode(
+      user.id,
+      hashResetValue(code, this.resetSecret),
+      expiresAt
+    );
 
-    const baseUrl = String(this.appPublicUrl || requestOrigin || "").replace(/\/+$/, "");
-    const resetUrl = `${baseUrl}/?resetToken=${encodeURIComponent(rawToken)}`;
-    const mailResult = await this.passwordResetMailer.sendPasswordReset({
+    const mailResult = await this.passwordResetMailer.sendPasswordResetCode({
       email: user.email,
-      resetUrl
+      code
     });
 
-    if (mailResult.previewUrl && process.env.NODE_ENV !== "production") {
-      response.debugResetUrl = mailResult.previewUrl;
+    if (mailResult.previewCode && process.env.NODE_ENV !== "production") {
+      response.debugResetCode = mailResult.previewCode;
     }
 
     return response;
   }
 
-  async resetPassword({ token, password }) {
-    if (!token || typeof token !== "string") {
-      const error = new Error("Lien de réinitialisation invalide.");
+  async verifyPasswordResetCode({ email, code }) {
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const normalizedCode = String(code || "").replace(/\s/g, "");
+
+    if (!isValidEmail(normalizedEmail) || !/^\d{6}$/.test(normalizedCode)) {
+      throw invalidCodeError();
+    }
+
+    const user = await this.usersRepo.findByEmail(normalizedEmail);
+    if (!user) throw invalidCodeError();
+
+    const resetSession = crypto.randomBytes(32).toString("base64url");
+    const verified = await this.usersRepo.verifyPasswordResetCode({
+      userId: user.id,
+      codeHash: hashResetValue(normalizedCode, this.resetSecret),
+      sessionTokenHash: hashResetValue(resetSession, this.resetSecret),
+      sessionExpiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      maxAttempts: 5
+    });
+
+    if (!verified) throw invalidCodeError();
+
+    return {
+      resetSession,
+      message: "Code vérifié. Vous pouvez maintenant choisir un nouveau mot de passe."
+    };
+  }
+
+  async resetPassword({ resetSession, password, confirmPassword }) {
+    if (!resetSession || typeof resetSession !== "string") {
+      const error = new Error("Session de réinitialisation invalide ou expirée.");
+      error.status = 400;
+      throw error;
+    }
+
+    if (password !== confirmPassword) {
+      const error = new Error("Les deux mots de passe ne correspondent pas.");
       error.status = 400;
       throw error;
     }
 
     if (!isStrongEnoughPassword(password)) {
-      const error = new Error("Le mot de passe doit contenir au moins 8 caractères.");
+      const error = new Error("Le mot de passe doit contenir entre 12 et 128 caractères.");
       error.status = 400;
       throw error;
     }
 
     const passwordHash = await hashPassword(password);
-    const updated = await this.usersRepo.consumePasswordResetToken(
-      hashResetToken(token),
+    const updated = await this.usersRepo.consumePasswordResetSession(
+      hashResetValue(resetSession, this.resetSecret),
       passwordHash
     );
 
     if (!updated) {
-      const error = new Error("Ce lien est invalide, expiré ou déjà utilisé.");
+      const error = new Error("Cette session est invalide, expirée ou déjà utilisée.");
       error.status = 400;
       throw error;
     }
@@ -107,8 +146,8 @@ export class AuthService {
   }
 }
 
-function hashResetToken(token) {
-  return crypto.createHash("sha256").update(token).digest("hex");
+function hashResetValue(value, secret) {
+  return crypto.createHmac("sha256", secret).update(value).digest("hex");
 }
 
 function isValidEmail(email) {
@@ -116,7 +155,13 @@ function isValidEmail(email) {
 }
 
 function isStrongEnoughPassword(password) {
-  return typeof password === "string" && password.length >= 8;
+  return typeof password === "string" && password.length >= 12 && password.length <= 128;
+}
+
+function invalidCodeError() {
+  const error = new Error("Code invalide, expiré ou nombre maximal de tentatives atteint.");
+  error.status = 400;
+  return error;
 }
 
 export function toPublicUser(user) {

@@ -5,13 +5,13 @@ export function createPasswordResetMailer(env = process.env) {
 
   if (!smtpConfigured) {
     return {
-      async sendPasswordReset({ email, resetUrl }) {
+      async sendPasswordResetCode({ email, code }) {
         if (env.NODE_ENV === "production") {
           throw new Error("Le service d’envoi de courriels n’est pas configuré.");
         }
 
-        console.info(`[DEV] Réinitialisation pour ${email}: ${resetUrl}`);
-        return { previewUrl: resetUrl };
+        console.info(`[DEV] Code de réinitialisation pour ${email}: ${code}`);
+        return { previewCode: code };
       }
     };
   }
@@ -29,22 +29,25 @@ export function createPasswordResetMailer(env = process.env) {
   });
 
   return {
-    async sendPasswordReset({ email, resetUrl }) {
+    async sendPasswordResetCode({ email, code }) {
       await transporter.sendMail({
         from: env.SMTP_FROM,
         to: email,
-        subject: "Réinitialisation de votre mot de passe StageTec",
+        subject: "Votre code de vérification StageTec",
         text: [
           "Une réinitialisation de votre mot de passe StageTec a été demandée.",
           "",
-          `Utilisez ce lien dans les 30 prochaines minutes : ${resetUrl}`,
+          `Votre code de vérification est : ${code}`,
+          "",
+          "Ce code expire dans 10 minutes et ne peut être utilisé qu’une fois.",
           "",
           "Si vous n’êtes pas à l’origine de cette demande, ignorez ce courriel."
         ].join("\n"),
         html: `
           <p>Une réinitialisation de votre mot de passe StageTec a été demandée.</p>
-          <p><a href="${escapeHtml(resetUrl)}">Réinitialiser mon mot de passe</a></p>
-          <p>Ce lien expire dans 30 minutes et ne peut être utilisé qu’une fois.</p>
+          <p>Votre code de vérification est :</p>
+          <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px;">${escapeHtml(code)}</p>
+          <p>Ce code expire dans 10 minutes et ne peut être utilisé qu’une fois.</p>
           <p>Si vous n’êtes pas à l’origine de cette demande, ignorez ce courriel.</p>
         `
       });

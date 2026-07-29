@@ -7,8 +7,7 @@ export default function authRoutes({ usersRepo }) {
   const router = Router();
   const authService = new AuthService({
     usersRepo,
-    passwordResetMailer: createPasswordResetMailer(),
-    appPublicUrl: process.env.APP_PUBLIC_URL
+    passwordResetMailer: createPasswordResetMailer()
   });
 
   router.post("/login", async (req, res, next) => {
@@ -36,11 +35,16 @@ export default function authRoutes({ usersRepo }) {
 
   router.post("/forgot-password", async (req, res, next) => {
     try {
-      const requestOrigin = `${req.protocol}://${req.get("host")}`;
-      const result = await authService.requestPasswordReset({
-        ...req.body,
-        requestOrigin
-      });
+      const result = await authService.requestPasswordReset(req.body);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/verify-reset-code", async (req, res, next) => {
+    try {
+      const result = await authService.verifyPasswordResetCode(req.body);
       res.json(result);
     } catch (error) {
       next(error);
