@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Logout from "./Logout.jsx";
+import HistoryDashboard from "./HistoryDashboard.jsx";
 import PayrollDashboard from "./PayrollDashboard.jsx";
 import StageContractsDashboard from "./StageContractsDashboard.jsx";
 import StudentDashboard from "./StudentDashboard.jsx";
@@ -67,7 +68,7 @@ export default function Dashboard({ user, onLogout }) {
           <SidebarButton
             active={activeView === "dashboard"}
             label="Tableau de bord"
-            marker="DB"
+            icon="dashboard"
             onClick={() => setActiveView("dashboard")}
           />
 
@@ -76,13 +77,13 @@ export default function Dashboard({ user, onLogout }) {
               <SidebarButton
                 active={activeView === "requests"}
                 label="Demandes de stage"
-                marker="DS"
+                icon="request"
                 onClick={() => setActiveView("requests")}
               />
               <SidebarButton
                 active={activeView === "contracts"}
                 label="Contrats"
-                marker="CT"
+                icon="contract"
                 onClick={() => setActiveView("contracts")}
               />
             </>
@@ -93,28 +94,28 @@ export default function Dashboard({ user, onLogout }) {
               <SidebarButton
                 active={activeView === "stageRequests"}
                 label="Demandes à valider"
-                marker="DV"
+                icon="approval"
                 onClick={() => setActiveView("stageRequests")}
               />
 
               <SidebarButton
                 active={activeView === "stageContracts"}
                 label="Contrats stage"
-                marker="CS"
+                icon="contract"
                 onClick={() => setActiveView("stageContracts")}
               />
 
               <SidebarButton
                 active={activeView === "mileage"}
                 label="Kilométrage"
-                marker="KM"
+                icon="mileage"
                 onClick={() => setActiveView("mileage")}
               />
 
               <SidebarButton
                 active={activeView === "payroll"}
                 label="Paie"
-                marker="PA"
+                icon="payroll"
                 onClick={() => setActiveView("payroll")}
               />
             </>
@@ -124,7 +125,7 @@ export default function Dashboard({ user, onLogout }) {
             <SidebarButton
               active={activeView === "stageContracts"}
               label="Contrats stage"
-              marker="CS"
+              icon="contract"
               onClick={() => setActiveView("stageContracts")}
             />
           )}
@@ -132,8 +133,8 @@ export default function Dashboard({ user, onLogout }) {
           {currentUser.role === "CONSEILLERE" && (
             <SidebarButton
               active={activeView === "studentImport"}
-              label="Importer des etudiants"
-              marker="CSV"
+              label="Importer des étudiants"
+              icon="import"
               onClick={() => setActiveView("studentImport")}
             />
           )}
@@ -142,8 +143,17 @@ export default function Dashboard({ user, onLogout }) {
             <SidebarButton
               active={activeView === "payroll"}
               label="Paie superviseurs"
-              marker="PA"
+              icon="payroll"
               onClick={() => setActiveView("payroll")}
+            />
+          )}
+
+          {["SUPERVISEUR", "CONSEILLERE", "COMPTABILITE", "DIRECTION"].includes(currentUser.role) && (
+            <SidebarButton
+              active={["history", "historyMileage"].includes(activeView)}
+              label="Historique"
+              icon="history"
+              onClick={() => setActiveView("history")}
             />
           )}
         </nav>
@@ -163,21 +173,30 @@ export default function Dashboard({ user, onLogout }) {
           <div>
             <span className="crumb">Espace {roleLabel(currentUser.role)}</span>
             <h1>{pageTitle(activeView)}</h1>
+            <p>{pageDescription(activeView, currentUser.role)}</p>
           </div>
         </header>
 
         {error && <div className="error-message">{error}</div>}
 
-        <section className="dashboardHero">
-          <div>
-            <h2>Bonjour, {displayName(currentUser)}</h2>
-            <p>{heroText(currentUser.role)}</p>
-          </div>
-          <span className="statusPill statusGreen">{currentUser.status}</span>
-        </section>
+        {activeView === "dashboard" && (
+          <section className="dashboardHero">
+            <div>
+              <span className="heroEyebrow">Bienvenue dans votre espace</span>
+              <h2>Bonjour, {displayName(currentUser)}</h2>
+              <p>{heroText(currentUser.role)}</p>
+            </div>
+            <span className="statusPill statusGreen">{currentUser.status}</span>
+          </section>
+        )}
 
         {activeView === "studentImport" && currentUser.role === "CONSEILLERE" ? (
           <StudentCsvImport />
+        ) : ["history", "historyMileage"].includes(activeView) ? (
+          <HistoryDashboard
+            user={currentUser}
+            initialSection={activeView === "historyMileage" ? "mileage" : "payroll"}
+          />
         ) : activeView === "stageContracts" ? (
           <StageContractsDashboard user={currentUser} />
         ) : activeView === "payroll" ? (
@@ -198,13 +217,87 @@ export default function Dashboard({ user, onLogout }) {
   );
 }
 
-function SidebarButton({ active, label, marker, onClick }) {
+function SidebarButton({ active, label, icon, onClick }) {
   return (
-    <button className={active ? "active" : ""} type="button" onClick={onClick}>
-      <span className="sideNavMarker">{marker}</span>
+    <button
+      className={active ? "active" : ""}
+      type="button"
+      onClick={onClick}
+      aria-current={active ? "page" : undefined}
+    >
+      <SidebarIcon name={icon} />
       <span>{label}</span>
-      {active && <span className="sideNavArrow">&gt;</span>}
     </button>
+  );
+}
+
+function SidebarIcon({ name }) {
+  const paths = {
+    dashboard: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="1.5" />
+        <rect x="14" y="3" width="7" height="7" rx="1.5" />
+        <rect x="3" y="14" width="7" height="7" rx="1.5" />
+        <rect x="14" y="14" width="7" height="7" rx="1.5" />
+      </>
+    ),
+    request: (
+      <>
+        <path d="M6 3h8l4 4v14H6z" />
+        <path d="M14 3v5h5M9 12h6M9 16h6" />
+      </>
+    ),
+    approval: (
+      <>
+        <path d="M6 3h8l4 4v14H6z" />
+        <path d="M14 3v5h5M9 14l2 2 4-4" />
+      </>
+    ),
+    contract: (
+      <>
+        <path d="M7 3h10a2 2 0 0 1 2 2v16H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" />
+        <path d="M9 8h6M9 12h6M9 16h3" />
+      </>
+    ),
+    mileage: (
+      <>
+        <path d="M5 17h14l-1.4-6.2A2.3 2.3 0 0 0 15.4 9H8.6a2.3 2.3 0 0 0-2.2 1.8z" />
+        <path d="M7 17v2M17 17v2M4 13h16M8 13h.01M16 13h.01" />
+      </>
+    ),
+    payroll: (
+      <>
+        <rect x="3" y="6" width="18" height="13" rx="2" />
+        <path d="M3 10h18M7 15h3" />
+      </>
+    ),
+    import: (
+      <>
+        <path d="M12 3v12M8 11l4 4 4-4" />
+        <path d="M5 17v3h14v-3" />
+      </>
+    ),
+    history: (
+      <>
+        <path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6" />
+        <path d="M4 4v4.6h4.6M12 8v5l3 2" />
+      </>
+    )
+  };
+
+  return (
+    <svg
+      className="sideNavIcon"
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {paths[name] || paths.dashboard}
+    </svg>
   );
 }
 
@@ -212,7 +305,7 @@ function ProfilePanel({ user }) {
   return (
     <section className="panel">
       <div className="panelHeader">
-        <h2>Profil connecte</h2>
+        <h2>Profil connecté</h2>
         <span className="statusPill">{roleLabel(user.role)}</span>
       </div>
 
@@ -236,10 +329,10 @@ function ProfilePanel({ user }) {
 
 function roleLabel(role) {
   const labels = {
-    ETUDIANT: "Etudiant",
+    ETUDIANT: "Étudiant",
     SUPERVISEUR: "Superviseur",
-    CONSEILLERE: "Conseillere",
-    COMPTABILITE: "Comptabilite",
+    CONSEILLERE: "Conseillère",
+    COMPTABILITE: "Comptabilité",
     DIRECTION: "Direction"
   };
 
@@ -259,7 +352,7 @@ function heroText(role) {
     return "Consultez les demandes de stage et les informations de kilométrage.";
   }
 
-  return "Votre session est active. Les prochains modules seront ajoutes progressivement.";
+  return "Retrouvez les informations et les actions essentielles de votre espace.";
 }
 
 function pageTitle(view) {
@@ -268,12 +361,30 @@ function pageTitle(view) {
     requests: "Demandes de stage",
     contracts: "Contrats",
     stageContracts: "Contrats stage",
-    mileage: "Kilometrage",
+    mileage: "Kilométrage",
     stageRequests: "Demandes à valider",
-    payroll: "Paie superviseurs"
-    ,
-    studentImport: "Importation des etudiants"
+    payroll: "Paie superviseurs",
+    studentImport: "Importation des étudiants",
+    history: "Historique",
+    historyMileage: "Historique"
   };
 
   return titles[view] || "Tableau de bord";
+}
+
+function pageDescription(view, role) {
+  const descriptions = {
+    dashboard: heroText(role),
+    requests: "Créez une demande et suivez son traitement.",
+    contracts: "Consultez vos contrats et leur progression.",
+    stageContracts: "Centralisez le suivi et la signature des contrats de stage.",
+    mileage: "Déclarez et consultez les déplacements liés aux stages.",
+    stageRequests: "Examinez les demandes et traitez les actions prioritaires.",
+    payroll: "Consultez les périodes, montants et statuts de paiement.",
+    studentImport: "Ajoutez plusieurs étudiants de manière contrôlée.",
+    history: "Consultez les opérations de paie et de kilométrage déjà traitées.",
+    historyMileage: "Consultez les opérations de paie et de kilométrage déjà traitées."
+  };
+
+  return descriptions[view] || descriptions.dashboard;
 }

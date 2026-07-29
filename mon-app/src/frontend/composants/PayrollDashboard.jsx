@@ -4,7 +4,7 @@ import FrozenRouteSnapshot from "./FrozenRouteSnapshot.jsx";
 
 const FIXED_SUPERVISION_HOURS = 4;
 
-export default function PayrollDashboard({ user }) {
+export default function PayrollDashboard({ user, mode = "work", historyType = "payroll" }) {
   const [supervisors, setSupervisors] = useState([]);
   const [charges, setCharges] = useState([]);
   const [trips, setTrips] = useState([]);
@@ -185,13 +185,22 @@ export default function PayrollDashboard({ user }) {
   }
 
   const canValidate = ["COMPTABILITE", "DIRECTION"].includes(user.role);
+  const isHistory = mode === "history";
+  const displayedTrips = isHistory
+    ? trips.filter((trip) => trip.status !== "CALCULE")
+    : trips.filter((trip) => trip.status === "CALCULE");
+  const displayedCharges = isHistory
+    ? charges.filter((charge) => charge.status !== "CALCULE")
+    : charges.filter((charge) => charge.status === "CALCULE");
+  const showPayrollContent = !isHistory || historyType === "payroll";
+  const showMileageContent = !isHistory || historyType === "mileage";
 
   return (
     <>
       {error && <div className="studentError">{error}</div>}
       {message && <div className="studentSuccess">{message}</div>}
 
-      {user.role === "SUPERVISEUR" && (
+      {!isHistory && user.role === "SUPERVISEUR" && (
         <PayrollChargeForm
           settings={settings}
           user={user}
@@ -203,7 +212,7 @@ export default function PayrollDashboard({ user }) {
         />
       )}
 
-      <section className="studentPanel">
+      {!isHistory && <section className="studentPanel">
         <div className="panelHeader">
           <h2>Charges de stage a payer</h2>
           {loading && <span className="statusPill">Chargement</span>}
@@ -223,9 +232,9 @@ export default function PayrollDashboard({ user }) {
             <span>{formatCurrency(totals.totalAmount)}</span>
           </div>
         </div>
-      </section>
+      </section>}
 
-      <section className="studentPanel">
+      {!isHistory && <section className="studentPanel">
         <div className="panelHeader">
           <h2>Resume par superviseur</h2>
           <span className="statusPill">{supervisors.length} superviseur(s)</span>
@@ -275,32 +284,37 @@ export default function PayrollDashboard({ user }) {
             </tbody>
           </table>
         </div>
-      </section>
+      </section>}
 
-      <section className="studentPanel">
-        <div className="panelHeader"><h2>Deplacements a valider</h2><span className="statusPill">{trips.length} trajet(s)</span></div>
+      {showMileageContent && <section className="studentPanel">
+        <div className="panelHeader">
+          <h2>{isHistory ? "Historique du kilométrage" : "Déplacements à valider"}</h2>
+          <span className="statusPill">{displayedTrips.length} trajet(s)</span>
+        </div>
         <div className="studentTableWrap"><table>
-          <thead><tr><th>Enseignant</th><th>Date et heure</th><th>Distance</th><th>Frais de stationnement</th><th>Preuves</th><th>Statut</th>{canValidate && <th>Actions</th>}</tr></thead>
-          <tbody>{trips.map((trip) => {
+          <thead><tr><th>Enseignant</th><th>Date et heure</th><th>Distance</th><th>Frais de stationnement</th><th>Preuves</th><th>Statut</th>{canValidate && !isHistory && <th>Actions</th>}</tr></thead>
+          <tbody>{displayedTrips.map((trip) => {
             const proofIsOpen = routeProofTrip?.id === trip.id;
             return <Fragment key={trip.id}>
               <tr>
                 <td>{trip.supervisorName}</td><td>{new Date(trip.startedAt || trip.calculatedAt).toLocaleString("fr-CA")}</td><td>{formatNumber(trip.distanceKm)} km</td><td>{formatCurrency(trip.parkingAmount)}</td>
                 <td><div className="proofActions"><button className="proofLinkButton" type="button" onClick={() => setRouteProofTrip(proofIsOpen ? null : trip)}>{proofIsOpen ? "Masquer l’itinéraire enregistré" : "Voir l’itinéraire enregistré"}</button>{trip.hasParkingReceipt && <button className="proofLinkButton" type="button" onClick={() => openParkingReceipt(trip.id)}>Voir le ticket de stationnement</button>}</div></td>
                 <td><span className={`statusPill ${statusClass(trip.status)}`}>{statusLabel(trip.status)}</span>{trip.refusalReason && <span className="refusalReason"><strong>Motif :</strong> {trip.refusalReason}</span>}</td>
-                {canValidate && <td><div className="tableActions"><button className="secondaryButton fitButton" type="button" onClick={() => updateTripStatus(trip.id, "VALIDE")}>Valider</button><button className="dangerButton fitButton" type="button" onClick={() => setRefusalTarget({ type: "trip", item: trip })}>Rejeter</button></div></td>}
+                {canValidate && !isHistory && <td><div className="tableActions"><button className="secondaryButton fitButton" type="button" onClick={() => updateTripStatus(trip.id, "VALIDE")}>Valider</button><button className="dangerButton fitButton" type="button" onClick={() => setRefusalTarget({ type: "trip", item: trip })}>Rejeter</button></div></td>}
               </tr>
-              {proofIsOpen && <tr className="tripDetailsRow"><td colSpan={canValidate ? 7 : 6}>
+              {proofIsOpen && <tr className="tripDetailsRow"><td colSpan={canValidate && !isHistory ? 7 : 6}>
                 <FrozenRouteSnapshot snapshot={trip.routeSnapshot} tripId={trip.id} currentMapUrl={trip.mapUrl} />
               </td></tr>}
             </Fragment>;
-          })}</tbody>
+          })}
+          {!displayedTrips.length && <tr><td colSpan={canValidate && !isHistory ? 7 : 6}>Aucun déplacement à afficher.</td></tr>}
+          </tbody>
         </table></div>
-      </section>
-      <section className="studentPanel">
+      </section>}
+      {showPayrollContent && <section className="studentPanel">
         <div className="panelHeader">
-          <h2>Liste des stagiaires supervises</h2>
-          <span className="statusPill">{charges.length} charge(s)</span>
+          <h2>{isHistory ? "Historique de paie" : "Charges de supervision à valider"}</h2>
+          <span className="statusPill">{displayedCharges.length} charge(s)</span>
         </div>
 
         <div className="studentTableWrap">
@@ -314,11 +328,11 @@ export default function PayrollDashboard({ user }) {
                 <th>Taux</th>
                 <th>Total</th>
                 <th>Statut</th>
-                {canValidate && <th>Actions</th>}
+                {canValidate && !isHistory && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
-              {charges.map((charge) => (
+              {displayedCharges.map((charge) => (
                 <tr key={charge.id}>
                   <td>{formatDate(charge.createdAt)}</td>
                   <td>{charge.supervisorName}</td>
@@ -330,7 +344,7 @@ export default function PayrollDashboard({ user }) {
                   <td>{formatCurrency(charge.hourlyRate)}</td>
                   <td><strong>{formatCurrency(charge.totalAmount)}</strong></td>
                   <td><span className={`statusPill ${statusClass(charge.status)}`}>{statusLabel(charge.status)}</span>{charge.refusalReason && <span className="refusalReason"><strong>Motif :</strong> {charge.refusalReason}</span>}</td>
-                  {canValidate && (
+                  {canValidate && !isHistory && (
                     <td>
                       <div className="tableActions">
                         <button
@@ -355,15 +369,15 @@ export default function PayrollDashboard({ user }) {
                 </tr>
               ))}
 
-              {!charges.length && (
+              {!displayedCharges.length && (
                 <tr>
-                  <td colSpan={canValidate ? "8" : "7"}>Aucune charge de supervision pour le moment.</td>
+                  <td colSpan={canValidate && !isHistory ? "8" : "7"}>Aucune charge à afficher.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </section>
+      </section>}
       {refusalTarget && <PayrollRefusalModal
         target={refusalTarget}
         loading={actionLoadingId !== null}

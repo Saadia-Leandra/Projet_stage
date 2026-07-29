@@ -121,9 +121,7 @@ export default function SupervisorDashboard({ view, user, onNavigate }) {
   if (view === "mileage") {
     return (
       <MileageView
-        loading={loading}
         error={error}
-        trips={supervisorTrips}
         students={students}
         user={user}
         onCreated={loadTrips}
@@ -167,13 +165,13 @@ function SupervisorOverview({ user, trips, requests, loading, error, onNavigate 
             <div><strong>Kilometres</strong><span>{formatNumber(totalKm)} km</span></div>
             <div><strong>Remboursements</strong><span>{formatCurrency(totalAmount)}</span></div>
           </div>
-          <button className="linkButton panelLink" type="button" onClick={() => onNavigate("mileage")}>Voir mes deplacements</button>
+          <button className="linkButton panelLink" type="button" onClick={() => onNavigate("historyMileage")}>Voir mes déplacements</button>
         </section>
         <section className="studentPanel">
           <div className="panelHeader"><h2>Notifications</h2><span className="statusPill">{notificationCount}</span></div>
           {rejectedTrips.slice(0, 3).map((trip) => <div className="notificationItem notificationRejected" key={`rejected-trip-${trip.id}`}>
             <span className="notificationDot" />
-            <p><strong>Kilométrage du {formatDate(trip.tripDate)} refusé :</strong> {trip.refusalReason} <button className="proofLinkButton" type="button" onClick={() => onNavigate("mileage")}>Voir le trajet</button></p>
+            <p><strong>Kilométrage du {formatDate(trip.tripDate)} refusé :</strong> {trip.refusalReason} <button className="proofLinkButton" type="button" onClick={() => onNavigate("historyMileage")}>Voir le trajet</button></p>
           </div>)}
           {latestPendingRequest && <div className="notificationItem"><span className="notificationDot" /><p>La demande de {latestPendingRequest.studentFullName} est en attente de validation.</p></div>}
           {!notificationCount && <div className="notificationItem"><p>Aucune nouvelle notification.</p></div>}
@@ -185,12 +183,11 @@ function SupervisorOverview({ user, trips, requests, loading, error, onNavigate 
   );
 }
 
-function MileageView({ loading, error, trips, students, user, onCreated }) {
+function MileageView({ error, students, user, onCreated }) {
   return (
     <>
       {error && <div className="studentError">{error}</div>}
       <MileageForm user={user} students={students} onCreated={onCreated} />
-      <MileageTripsTable loading={loading} trips={trips} />
     </>
   );
 }
@@ -529,7 +526,7 @@ function MileageForm({ user, students, onCreated }) {
   );
 }
 
-function MileageTripsTable({ loading, trips }) {
+export function MileageTripsTable({ loading, trips }) {
   const [expandedTripId, setExpandedTripId] = useState(null);
 
   async function openParkingReceipt(tripId) {
