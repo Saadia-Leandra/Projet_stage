@@ -7,7 +7,8 @@ import { PDFDocument } from "pdf-lib";
 import {
   generateContractPdf,
   generateInternshipRequestPdf,
-  resolveContractStoragePath
+  resolveContractStoragePath,
+  stampContractSignaturesOnPdf
 } from "../services/contractPdfService.js";
 
 test("genere un PDF de contrat valide", async () => {
@@ -123,6 +124,65 @@ test("genere une demande de stage officielle valide", async () => {
 
   assert.equal(header.slice(0, 5), "%PDF-");
   assert.equal(pdfDoc.getPageCount(), 2);
+
+  await fs.rm(file.absolutePath, { force: true });
+});
+
+test("ajoute l'attestation des signatures au PDF final", async () => {
+  const contract = {
+    id: 789,
+    externalId: "stagetec-test-789",
+    studentFirstName: "Marie",
+    studentLastName: "Tremblay",
+    companyName: "ACME",
+    completedAt: "2026-07-31T14:30:00.000Z",
+    confirmationCode: "STG-2026-ABC123"
+  };
+  const file = await generateContractPdf(contract);
+  const sourceBuffer = await fs.readFile(
+    file.absolutePath
+  );
+
+  const stampedBuffer =
+    await stampContractSignaturesOnPdf(
+      sourceBuffer,
+      {
+        contract,
+        includeAttestation: true,
+        signers: [
+          {
+            role: "ETUDIANT",
+            name: "Marie Tremblay",
+            email: "marie@example.com",
+            status: "SIGNE",
+            signedAt:
+              "2026-07-31T14:00:00.000Z",
+            signatureProvider: "DOCUMENSO"
+          },
+          {
+            role: "ENTREPRISE",
+            name: "Julie Martin",
+            email: "julie@example.com",
+            status: "SIGNE",
+            signedAt:
+              "2026-07-31T14:10:00.000Z",
+            signatureProvider: "AUTRE"
+          },
+          {
+            role: "SUPERVISEUR",
+            name: "Tom Prof",
+            email: "tom@example.com",
+            status: "SIGNE",
+            signedAt:
+              "2026-07-31T14:20:00.000Z",
+            signatureProvider: "DOCUMENSO"
+          }
+        ]
+      }
+    );
+  const pdfDoc = await PDFDocument.load(stampedBuffer);
+
+  assert.equal(pdfDoc.getPageCount(), 8);
 
   await fs.rm(file.absolutePath, { force: true });
 });

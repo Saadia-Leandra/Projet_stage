@@ -13,6 +13,7 @@ import {
   createAndSendDocument,
   downloadSignedPdf,
   getDocumensoConfigMessage,
+  getDocumentStatus,
   isDocumensoConfigured
 } from "./documensoService.js";
 import { createNotificationForUsers } from "./notificationService.js";
@@ -21,19 +22,12 @@ const db = createDbPool();
 
 const contractStatusBySignerRole = {
   ETUDIANT: "SIGNATURE_ETUDIANT",
-  ENTREPRISE: "SIGNATURE_ENTREPRISE",
   SUPERVISEUR: "SIGNATURE_SUPERVISEUR",
   CONSEILLERE: "SIGNATURE_CONSEILLERE",
   DIRECTION: "SIGNATURE_DIRECTION"
 };
 
-const workflowSignerRoles = [
-  "ETUDIANT",
-  "ENTREPRISE",
-  "SUPERVISEUR",
-  "CONSEILLERE",
-  "DIRECTION"
-];
+const studentSignerRoles = ["ETUDIANT"];
 
 const administrativeSignerRoles = [
   "SUPERVISEUR",
@@ -389,7 +383,7 @@ export async function submitStudentContract(
 
     validateSigners(
       signers.filter((signer) =>
-        workflowSignerRoles.includes(signer.role)
+        studentSignerRoles.includes(signer.role)
       )
     );
 
@@ -430,7 +424,7 @@ export async function submitStudentContract(
       externalId,
       recipients: signers
         .filter((signer) =>
-          workflowSignerRoles.includes(signer.role)
+          studentSignerRoles.includes(signer.role)
         )
         .map((signer) => ({
           signingOrder: signer.signingOrder,
@@ -444,7 +438,7 @@ export async function submitStudentContract(
     actorId: studentId,
     contract,
     signers: signers.filter((signer) =>
-      workflowSignerRoles.includes(signer.role)
+      studentSignerRoles.includes(signer.role)
     ),
     pdf,
     documensoDocument,
@@ -456,7 +450,7 @@ export async function submitStudentContract(
     notification: {
       title: "Signature etudiante requise",
       message:
-        "Votre contrat de stage est pret. Signez votre partie avec Documenso pour lancer la chaine de signatures.",
+        "Votre contrat de stage est pret. Signez votre partie avec Documenso, puis faites signer le PDF par le milieu de stage.",
       type: "SIGNATURE_ETUDIANT_REQUISE",
       userIds: [studentId],
       contractId: contract.id,
@@ -494,6 +488,20 @@ export async function getStudentContractFile(
       : contract.pdfStudentSignedPath ||
         contract.pdfOriginalPath ||
         contract.generatedFilePath;
+
+  if (
+    type === "original" &&
+    [
+      "CONTRAT_MILIEU_A_DEPOSER",
+      "SIGNATURE_ENTREPRISE"
+    ].includes(contract.status) &&
+    !contract.pdfStudentSignedPath
+  ) {
+    throw createError(
+      "Le PDF signe par l'etudiant n'est pas encore disponible. Rechargez le dossier apres la confirmation Documenso.",
+      409
+    );
+  }
 
   if (!pathColumn) {
     throw createError(
@@ -537,7 +545,12 @@ export async function uploadMilieuSignedContract(
 
   await ensureContractGenerationAllowed(contract);
 
-  if (contract.status !== "CONTRAT_MILIEU_A_DEPOSER") {
+  if (
+    ![
+      "CONTRAT_MILIEU_A_DEPOSER",
+      "SIGNATURE_ENTREPRISE"
+    ].includes(contract.status)
+  ) {
     throw createError(
       "Le contrat signe par le milieu peut etre depose seulement apres la signature de l'etudiant.",
       400
@@ -943,7 +956,7 @@ export async function syncContractSignersForContract(
       signingOrder: 2,
       role: "ENTREPRISE",
       userId: null,
-      signatureProvider: "DOCUMENSO",
+      signatureProvider: "AUTRE",
       name: firstValue(
         source.companySignatureName,
         source.companySupervisorName,
@@ -1112,25 +1125,17 @@ export async function processDocumensoWebhook(body) {
       return { ignored: true, reason: "contract_not_found" };
     }
 
-    await updateContractFromDocumensoEvent(
-      connection,
-      contract,
-      normalizedEvent
-    );
+    const documensoPhase =
+      await updateContractFromDocumensoEvent(
+        connection,
+        contract,
+        normalizedEvent
+      );
 
-    if (normalizedEvent.type === "DOCUMENT_COMPLETED") {
-      const allWorkflowSignersCompleted =
-        await areRolesSigned(
-          connection,
-          contract.id,
-          workflowSignerRoles
-        );
-
+    if (documensoPhase) {
       completedDocumensoPhase = {
         contract,
-        type: allWorkflowSignersCompleted
-          ? "final"
-          : "student"
+        type: documensoPhase
       };
     }
 
@@ -1157,6 +1162,92 @@ export async function processDocumensoWebhook(body) {
   }
 
   return { ok: true };
+}
+
+export async function syncContractDocumensoStatusForUser(
+  user,
+  contractId
+) {
+  if (!isDocumensoConfigured()) {
+    throw createError(
+      getDocumensoConfigMessage(),
+      503
+    );
+  }
+
+  const contract = await findContractById(
+    db,
+    contractId
+  );
+  ensureContractAccessibleForUser(user, contract);
+
+  const documentId =
+    contract.documensoDocumentId ||
+    contract.externalDocumentId ||
+    contract.externalEnvelopeId;
+
+  if (!documentId) {
+    throw createError(
+      "Aucun document Documenso n'est associe a ce contrat.",
+      400
+    );
+  }
+
+  const documensoStatus =
+    await getDocumentStatus(documentId);
+  const eventType =
+    documensoSyncEventType(documensoStatus);
+
+  await processDocumensoWebhook({
+    event: eventType,
+    payload: {
+      id: documentId,
+      externalId: contract.externalId,
+      recipients: documensoStatus.recipients || []
+    }
+  });
+
+  return { ok: true };
+}
+
+export async function syncPendingDocumensoContractsForUser(
+  user,
+  contracts,
+  { limit = 5 } = {}
+) {
+  if (!isDocumensoConfigured()) {
+    return false;
+  }
+
+  const candidates = (contracts || [])
+    .filter(shouldSyncDocumensoContract)
+    .slice(0, limit);
+
+  let synced = false;
+
+  for (const contract of candidates) {
+    try {
+      await syncContractDocumensoStatusForUser(
+        user,
+        contract.id
+      );
+      synced = true;
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  return synced;
+}
+
+function shouldSyncDocumensoContract(contract) {
+  return Boolean(
+    contract?.id &&
+      contract.documensoDocumentId &&
+      String(contract.status || "").startsWith(
+        "SIGNATURE_"
+      )
+  );
 }
 
 export function normalizeDocumensoWebhookEvent(body = {}) {
@@ -1216,6 +1307,89 @@ export function normalizeDocumensoWebhookEvent(body = {}) {
     documentId: documentId ? String(documentId) : "",
     externalId: externalId ? String(externalId) : ""
   };
+}
+
+function ensureContractAccessibleForUser(user, contract) {
+  const role = user?.role;
+  const userId = String(user?.id || "");
+
+  if (
+    role === "ETUDIANT" &&
+    String(contract.studentId || "") === userId
+  ) {
+    return;
+  }
+
+  if (
+    role === "SUPERVISEUR" &&
+    String(contract.teacherId || "") === userId
+  ) {
+    return;
+  }
+
+  if (
+    role === "CONSEILLERE" ||
+    role === "DIRECTION"
+  ) {
+    return;
+  }
+
+  throw createError(
+    "Contrat introuvable ou acces refuse.",
+    404
+  );
+}
+
+function documensoSyncEventType(documensoStatus = {}) {
+  const status = String(documensoStatus.status || "")
+    .toUpperCase();
+  const recipients = documensoStatus.recipients || [];
+
+  if (
+    status === "COMPLETED" ||
+    status === "SIGNED" ||
+    recipients.length > 0 &&
+      recipients.every(
+        (recipient) =>
+          mapDocumensoRecipientStatus(recipient) ===
+          "SIGNE"
+      )
+  ) {
+    return "DOCUMENT_COMPLETED";
+  }
+
+  if (
+    status === "REJECTED" ||
+    status === "DECLINED"
+  ) {
+    return "DOCUMENT_REJECTED";
+  }
+
+  if (status === "CANCELLED") {
+    return "DOCUMENT_CANCELLED";
+  }
+
+  if (
+    recipients.some(
+      (recipient) =>
+        mapDocumensoRecipientStatus(recipient) ===
+        "SIGNE"
+    )
+  ) {
+    return "DOCUMENT_RECIPIENT_COMPLETED";
+  }
+
+  if (
+    recipients.some(
+      (recipient) =>
+        String(recipient.readStatus || "")
+          .toUpperCase() === "OPENED"
+    )
+  ) {
+    return "DOCUMENT_OPENED";
+  }
+
+  return "DOCUMENT_SENT";
 }
 
 async function saveDocumensoPhaseSubmission({
@@ -2120,28 +2294,77 @@ async function updateContractFromDocumensoEvent(
     return;
   }
 
+  const studentSignatureCompleted =
+    await areRolesSigned(
+      connection,
+      contract.id,
+      studentSignerRoles
+    );
+
+  if (
+    contract.status === "SIGNATURE_ETUDIANT" &&
+    studentSignatureCompleted &&
+    (
+      event.type === "DOCUMENT_COMPLETED" ||
+      event.type === "DOCUMENT_SIGNED" ||
+      event.type === "DOCUMENT_RECIPIENT_COMPLETED"
+    )
+  ) {
+    await markStudentSignatureCompleted(
+      connection,
+      contract
+    );
+
+    return event.type === "DOCUMENT_COMPLETED"
+      ? "student"
+      : null;
+  }
+
+  if (
+    event.type === "DOCUMENT_COMPLETED" &&
+    studentSignatureCompleted &&
+    [
+      "CONTRAT_MILIEU_A_DEPOSER",
+      "SIGNATURE_ENTREPRISE"
+    ].includes(contract.status)
+  ) {
+    return "student";
+  }
+
   if (
     event.type === "DOCUMENT_COMPLETED" &&
     await areRolesSigned(
       connection,
       contract.id,
-      workflowSignerRoles
+      administrativeSignerRoles
     )
   ) {
-    return;
+    return "final";
   }
 
   if (
-    event.type === "DOCUMENT_SENT" ||
-    event.type === "DOCUMENT_OPENED" ||
-    event.type === "DOCUMENT_SIGNED" ||
-    event.type === "DOCUMENT_RECIPIENT_COMPLETED"
+    isAdministrativeSignatureStatus(contract.status) &&
+    (
+      event.type === "DOCUMENT_SENT" ||
+      event.type === "DOCUMENT_OPENED" ||
+      event.type === "DOCUMENT_SIGNED" ||
+      event.type === "DOCUMENT_RECIPIENT_COMPLETED"
+    )
   ) {
     await moveContractToNextSigner(
       connection,
-      contract
+      contract,
+      administrativeSignerRoles
     );
   }
+
+  return null;
+}
+
+function isAdministrativeSignatureStatus(status) {
+  return administrativeSignerRoles.some(
+    (role) => contractStatusBySignerRole[role] === status
+  );
 }
 
 async function updateSignersFromWebhook(
@@ -2159,10 +2382,12 @@ async function updateSignersFromWebhook(
 
     const signedAt =
       status === "SIGNE"
-        ? firstValue(
-            recipient.signedAt,
-            recipient.signed_at,
-            recipient.completedAt
+        ? toMysqlDateTime(
+            firstValue(
+              recipient.signedAt,
+              recipient.signed_at,
+              recipient.completedAt
+            )
           )
         : null;
 
@@ -2194,9 +2419,29 @@ async function updateSignersFromWebhook(
   }
 }
 
+function toMysqlDateTime(value) {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date
+    ? value
+    : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date
+    .toISOString()
+    .slice(0, 19)
+    .replace("T", " ");
+}
+
 async function moveContractToNextSigner(
   connection,
-  contract
+  contract,
+  signerRoles
 ) {
   const signers = (
     await getContractSigners(
@@ -2204,7 +2449,7 @@ async function moveContractToNextSigner(
       contract.id
     )
   ).filter((signer) =>
-    workflowSignerRoles.includes(signer.role)
+    signerRoles.includes(signer.role)
   );
 
   const refusedSigner = signers.find(
@@ -2279,6 +2524,49 @@ async function moveContractToNextSigner(
       nextSigner
     );
   }
+}
+
+async function markStudentSignatureCompleted(
+  connection,
+  contract
+) {
+  await connection.execute(
+    `
+      UPDATE contrats
+      SET statut = 'CONTRAT_MILIEU_A_DEPOSER'
+      WHERE id = ?
+    `,
+    [contract.id]
+  );
+
+  await connection.execute(
+    `
+      UPDATE dossiers_stage
+      SET statut = 'ATTENTE_SIGNATURE'
+      WHERE id = ?
+    `,
+    [contract.folderId]
+  );
+
+  await createWorkflowEvent(connection, {
+    folderId: contract.folderId,
+    actorId: contract.studentId,
+    eventType: "CONTRAT_SIGNE_ETUDIANT",
+    oldStatus: contract.status,
+    newStatus: "CONTRAT_MILIEU_A_DEPOSER",
+    comment:
+      "La signature electronique de l'etudiant est terminee. Le contrat signe par le milieu doit maintenant etre depose."
+  });
+
+  await createNotificationForUsers(connection, {
+    title: "Contrat du milieu a deposer",
+    message:
+      "Votre signature est confirmee. Telechargez le PDF, faites-le signer par le milieu de stage, puis deposez-le sur StageTec.",
+    type: "CONTRAT_MILIEU_A_DEPOSER",
+    contractId: contract.id,
+    actionUrl: `/contracts/${contract.id}`,
+    userIds: [contract.studentId]
+  });
 }
 
 async function notifyNextSigner(
@@ -2433,39 +2721,18 @@ async function downloadAndSaveDocumensoPdf(
   documentId,
   type
 ) {
-  const [rows] = await db.execute(
-    `
-      SELECT
-        c.id,
-        c.dossier_stage_id AS folderId,
-        c.external_id AS externalId,
-        c.statut AS status,
-        c.document_externe_id AS externalDocumentId,
-        c.code_confirmation_reception AS confirmationCode,
-        ds.etudiant_id AS studentId
-      FROM contrats c
-      INNER JOIN dossiers_stage ds
-        ON ds.id = c.dossier_stage_id
-      WHERE c.id = ?
-      LIMIT 1
-    `,
-    [contractId]
+  const contract = await findContractById(
+    db,
+    contractId
   );
-
-  const contract = rows[0];
-
-  if (!contract) {
-    return;
-  }
 
   const signedPdfBuffer = await downloadSignedPdf(
     contract.externalDocumentId || documentId
   );
-  const pdf = await saveSignedContractPdf(
-    contract,
-    signedPdfBuffer
+  const signers = await getContractSigners(
+    db,
+    contractId
   );
-
   const connection = await db.getConnection();
 
   try {
@@ -2477,6 +2744,18 @@ async function downloadAndSaveDocumensoPdf(
             connection
           )
         : null;
+    const pdf = await saveSignedContractPdf(
+      {
+        ...contract,
+        confirmationCode:
+          confirmationCode || contract.confirmationCode
+      },
+      signedPdfBuffer,
+      {
+        signers,
+        includeAttestation: type === "final"
+      }
+    );
 
     if (type === "student") {
       await connection.execute(

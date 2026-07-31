@@ -12,6 +12,8 @@ import {
   getStudentContractReceipt,
   getStudentContracts,
   MAX_MILIEU_SIGNED_PDF_SIZE_BYTES,
+  syncContractDocumensoStatusForUser,
+  syncPendingDocumensoContractsForUser,
   submitStudentContract,
   uploadMilieuSignedContract,
   updateStudentContract
@@ -25,9 +27,20 @@ router.use(requireRole("ETUDIANT"));
 
 router.get("/", async (req, res, next) => {
   try {
-    const contracts = await getStudentContracts(
+    let contracts = await getStudentContracts(
       req.user.id
     );
+
+    if (
+      await syncPendingDocumensoContractsForUser(
+        req.user,
+        contracts
+      )
+    ) {
+      contracts = await getStudentContracts(
+        req.user.id
+      );
+    }
 
     res.json({ contracts });
   } catch (error) {
@@ -41,10 +54,22 @@ router.get("/:contractId", async (req, res, next) => {
       req.params.contractId
     );
 
-    const contract = await getStudentContractById(
+    let contract = await getStudentContractById(
       req.user.id,
       contractId
     );
+
+    if (
+      await syncPendingDocumensoContractsForUser(
+        req.user,
+        [contract]
+      )
+    ) {
+      contract = await getStudentContractById(
+        req.user.id,
+        contractId
+      );
+    }
 
     res.json({ contract });
   } catch (error) {
@@ -99,6 +124,31 @@ router.post(
       );
 
       const contract = await submitStudentContract(
+        req.user.id,
+        contractId
+      );
+
+      res.json({ contract });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/:contractId/sync-documenso",
+  async (req, res, next) => {
+    try {
+      const contractId = validateContractId(
+        req.params.contractId
+      );
+
+      await syncContractDocumensoStatusForUser(
+        req.user,
+        contractId
+      );
+
+      const contract = await getStudentContractById(
         req.user.id,
         contractId
       );

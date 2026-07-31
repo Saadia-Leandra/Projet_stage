@@ -11,6 +11,10 @@ import {
   getStageRequestsForUser
 } from "../services/stageManagementService.js";
 import {
+  syncContractDocumensoStatusForUser,
+  syncPendingDocumensoContractsForUser
+} from "../services/contractService.js";
+import {
   getDocumensoDiagnostic
 } from "../services/documensoService.js";
 
@@ -23,9 +27,20 @@ router.use(
 
 router.get("/contracts", async (req, res, next) => {
   try {
-    const contracts = await getStageContractsForUser(
+    let contracts = await getStageContractsForUser(
       req.user
     );
+
+    if (
+      await syncPendingDocumensoContractsForUser(
+        req.user,
+        contracts
+      )
+    ) {
+      contracts = await getStageContractsForUser(
+        req.user
+      );
+    }
 
     res.json({ contracts });
   } catch (error) {
@@ -46,6 +61,44 @@ router.get(
         req.user,
         contractId
       );
+
+      res.json({ contract });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+router.post(
+  "/contracts/:contractId/sync-documenso",
+  async (req, res, next) => {
+    try {
+      const contractId = validateId(
+        req.params.contractId,
+        "Identifiant de contrat invalide."
+      );
+
+      await syncContractDocumensoStatusForUser(
+        req.user,
+        contractId
+      );
+
+      let contract = await getStageContractForUser(
+        req.user,
+        contractId
+      );
+
+      if (
+        await syncPendingDocumensoContractsForUser(
+          req.user,
+          [contract]
+        )
+      ) {
+        contract = await getStageContractForUser(
+          req.user,
+          contractId
+        );
+      }
 
       res.json({ contract });
     } catch (error) {

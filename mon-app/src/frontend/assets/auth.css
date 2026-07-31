@@ -1359,6 +1359,20 @@ h2 {
   width: auto;
 }
 
+.contractUploadForm {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+}
+
+.contractUploadForm .primaryButton {
+  justify-self: end;
+  width: auto;
+}
+
 @media (max-width: 900px) {
   .loginPage,
   .appLayout,

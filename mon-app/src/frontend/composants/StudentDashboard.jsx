@@ -22,11 +22,16 @@ export default function StudentDashboard({
     useState("");
   const [loading, setLoading] = useState(true);
 
-  const latestRequest = useMemo(
+  const activeRequest = useMemo(
     () =>
       requests.find(isActiveStudentStageRequest) ||
       null,
     [requests]
+  );
+
+  const latestRequest = useMemo(
+    () => activeRequest || requests[0] || null,
+    [activeRequest, requests]
   );
 
   const latestContract = useMemo(
@@ -170,6 +175,14 @@ export default function StudentDashboard({
           requests={requests}
           onNavigate={onNavigate}
           onReload={loadDashboard}
+        />
+      )}
+
+      {view === "history" && (
+        <StudentHistoryView
+          loading={loading}
+          requests={requests}
+          contracts={contracts}
         />
       )}
 
@@ -480,11 +493,7 @@ function RequestsView({
   );
 
   const historyRequests = useMemo(
-    () =>
-      requests.filter(
-        (request) =>
-          !isActiveStudentStageRequest(request)
-      ),
+    () => studentHistoryRequests(requests),
     [requests]
   );
 
@@ -633,6 +642,95 @@ function RequestsView({
   );
 }
 
+function StudentHistoryView({
+  loading,
+  requests,
+  contracts
+}) {
+  const [selectedRequest, setSelectedRequest] =
+    useState(null);
+
+  const historyRequests = useMemo(
+    () => studentHistoryRequests(requests),
+    [requests]
+  );
+  const completedContracts = contracts.filter(
+    (contract) =>
+      contract.status === "DOSSIER_COMPLET" ||
+      contract.folderStatus === "DOSSIER_COMPLET"
+  );
+  const refusedRequests = historyRequests.filter(
+    (request) =>
+      effectiveRequestStatus(request) === "REFUSEE"
+  );
+
+  return (
+    <>
+      <section className="studentPanel">
+        <div className="panelHeader">
+          <div>
+            <h2>Historique étudiant</h2>
+            <p>
+              Les demandes terminées, retirées ou
+              refusées restent consultables ici.
+            </p>
+          </div>
+
+          {loading && (
+            <span className="statusPill">
+              Chargement
+            </span>
+          )}
+        </div>
+
+        <div className="studentInfo twoColumns">
+          <div>
+            <strong>Demandes archivées</strong>
+            <span>{historyRequests.length}</span>
+          </div>
+
+          <div>
+            <strong>Dossiers complets</strong>
+            <span>{completedContracts.length}</span>
+          </div>
+
+          <div>
+            <strong>Demandes refusées</strong>
+            <span>{refusedRequests.length}</span>
+          </div>
+
+          <div>
+            <strong>Dernière activité</strong>
+            <span>
+              {formatDateTime(
+                historyRequests[0]?.withdrawnAt ||
+                  historyRequests[0]?.decidedAt ||
+                  historyRequests[0]?.updatedAt ||
+                  historyRequests[0]?.createdAt
+              )}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <RequestHistoryTable
+        requests={historyRequests}
+        selectedRequest={selectedRequest}
+        onSelect={setSelectedRequest}
+      />
+
+      {selectedRequest && (
+        <RequestDetails
+          request={selectedRequest}
+          onClose={() =>
+            setSelectedRequest(null)
+          }
+        />
+      )}
+    </>
+  );
+}
+
 function ContractsView({
   contracts,
   requests,
@@ -730,6 +828,10 @@ function ContractDetails({
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] =
     useState(false);
+  const [uploadingMilieu, setUploadingMilieu] =
+    useState(false);
+  const [syncingDocumenso, setSyncingDocumenso] =
+    useState(false);
   const [receipt, setReceipt] = useState(
     contract.receipt || null
   );
@@ -751,12 +853,13 @@ function ContractDetails({
   const isEditable =
     contract.status === "A_COMPLETER_ETUDIANT";
 
-  const currentSigner = contract.signers?.find(
-    (signer) =>
-      ["ENVOYE", "EN_ATTENTE"].includes(
-        signer.status
+  const currentSigner = !isEditable
+    ? contract.signers?.find((signer) =>
+        ["ENVOYE", "EN_ATTENTE"].includes(
+          signer.status
+        )
       )
-  );
+    : null;
 
   const studentSigner = contract.signers?.find(
     (signer) =>
@@ -764,8 +867,18 @@ function ContractDetails({
       signer.status === "ENVOYE"
   );
 
-  const isMilieuSignaturePending =
-    contract.status === "SIGNATURE_ENTREPRISE";
+  const canUploadMilieuContract = [
+    "CONTRAT_MILIEU_A_DEPOSER",
+    "SIGNATURE_ENTREPRISE"
+  ].includes(contract.status);
+  const canDownloadMilieuPdf =
+    !canUploadMilieuContract ||
+    contract.studentSignedPdfAvailable;
+  const canSyncDocumenso =
+    Boolean(contract.documensoDocumentId) &&
+    String(contract.status || "").startsWith(
+      "SIGNATURE_"
+    );
   const confirmationCode =
     receipt?.confirmationCode ||
     contract.confirmationCode;
@@ -884,6 +997,120 @@ function ContractDetails({
     }
   }
 
+  async function uploadMilieuSignedDocument(event) {
+    event.preventDefault();
+
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setError("Session expiree.");
+      return;
+    }
+
+    const file =
+      event.currentTarget.elements
+        .milieuSignedDocument?.files?.[0];
+
+    if (!file) {
+      setError(
+        "Le PDF signe par le milieu est obligatoire."
+      );
+      return;
+    }
+
+    const payload = new FormData();
+    payload.append("file", file);
+
+    setUploadingMilieu(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch(
+        `/api/contracts/${contract.id}/milieu-signed-document`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`
+          },
+          body: payload
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        setError(
+          data.error ||
+            "Impossible de deposer le contrat signe par le milieu."
+        );
+        return;
+      }
+
+      setReceipt(data.contract?.receipt || null);
+      await onReload();
+      setMessage(
+        data.contract?.documensoWarning
+          ? `Contrat signe par le milieu recu. ${data.contract.documensoWarning}`
+          : "Contrat signe par le milieu recu. La signature electronique de l'enseignant est lancee."
+      );
+      event.currentTarget.reset();
+    } catch (requestError) {
+      console.error(requestError);
+      setError("Erreur de connexion au serveur.");
+    } finally {
+      setUploadingMilieu(false);
+    }
+  }
+
+  async function syncDocumensoStatus() {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setError("Session expiree.");
+      return;
+    }
+
+    setSyncingDocumenso(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await fetch(
+        `/api/contracts/${contract.id}/sync-documenso`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        setError(
+          data.error ||
+            "Impossible d'actualiser le statut Documenso."
+        );
+        return;
+      }
+
+      await onReload();
+      setReceipt(data.contract?.receipt || null);
+      setMessage("Statut Documenso actualise.");
+    } catch (requestError) {
+      console.error(requestError);
+      setError("Erreur de connexion au serveur.");
+    } finally {
+      setSyncingDocumenso(false);
+    }
+  }
+
   async function downloadContract(type) {
     const token = localStorage.getItem("token");
 
@@ -975,14 +1202,22 @@ function ContractDetails({
         </p>
       )}
 
-      {isMilieuSignaturePending && (
+      {canUploadMilieuContract && (
         <p className="notice">
-          Le milieu de stage doit signer le contrat avec
-          Documenso. StageTec enregistrera le PDF signe
-          automatiquement quand Documenso confirmera la
-          signature.
+          Telechargez le PDF signe par vous, faites-le
+          signer par le milieu de stage en presentiel,
+          puis deposez le PDF signe ici.
         </p>
       )}
+
+      {canUploadMilieuContract &&
+        !contract.studentSignedPdfAvailable && (
+          <p className="notice">
+            Le PDF signe par l'etudiant est en cours de
+            reception depuis Documenso. Rechargez le dossier
+            dans quelques instants.
+          </p>
+        )}
 
       {message && (
         <div className="studentSuccess">
@@ -1317,7 +1552,9 @@ function ContractDetails({
             type="button"
             disabled={
               saving ||
-              submitting
+              submitting ||
+              uploadingMilieu ||
+              syncingDocumenso
             }
             onClick={saveContract}
           >
@@ -1334,7 +1571,8 @@ function ContractDetails({
             disabled={
               saving ||
               submitting ||
-              !contract.documensoConfigured
+              uploadingMilieu ||
+              syncingDocumenso
             }
             onClick={submitContract}
           >
@@ -1360,22 +1598,36 @@ function ContractDetails({
           </button>
         )}
 
-        {contract.generatedPdfAvailable && (
+        {canSyncDocumenso && (
           <button
             className="secondaryButton"
             type="button"
-            disabled={Boolean(downloading)}
-            onClick={() =>
-              downloadContract("original")
-            }
+            disabled={syncingDocumenso}
+            onClick={syncDocumensoStatus}
           >
-            {downloading === "original"
-              ? "Telechargement..."
-              : isMilieuSignaturePending
-                ? "Telecharger le PDF envoye au milieu"
-                : "Telecharger le PDF"}
+            {syncingDocumenso
+              ? "Actualisation..."
+              : "Actualiser Documenso"}
           </button>
         )}
+
+        {contract.generatedPdfAvailable &&
+          canDownloadMilieuPdf && (
+            <button
+              className="secondaryButton"
+              type="button"
+              disabled={Boolean(downloading)}
+              onClick={() =>
+                downloadContract("original")
+              }
+            >
+              {downloading === "original"
+                ? "Telechargement..."
+                : canUploadMilieuContract
+                  ? "Telecharger le PDF a signer par le milieu"
+                  : "Telecharger le PDF"}
+            </button>
+          )}
 
         {contract.signedPdfAvailable && (
           <button
@@ -1390,6 +1642,42 @@ function ContractDetails({
           </button>
         )}
       </div>
+
+      {canUploadMilieuContract && (
+        <form
+          className="contractUploadForm"
+          onSubmit={uploadMilieuSignedDocument}
+        >
+          <ContractField
+            label="PDF signe par le milieu *"
+            wide
+          >
+            <input
+              type="file"
+              name="milieuSignedDocument"
+              accept="application/pdf"
+              disabled={
+                uploadingMilieu ||
+                syncingDocumenso
+              }
+              required
+            />
+          </ContractField>
+
+          <button
+            className="primaryButton fitButton"
+            type="submit"
+            disabled={
+              uploadingMilieu ||
+              syncingDocumenso
+            }
+          >
+            {uploadingMilieu
+              ? "Depot..."
+              : "Deposer le PDF signe"}
+          </button>
+        </form>
+      )}
 
       {confirmationCode && (
         <div className="receiptPanel">
@@ -1883,11 +2171,11 @@ function RequestHistoryTable({
                   <td>
                     <span
                       className={`statusPill ${statusClass(
-                        request.status
+                        effectiveRequestStatus(request)
                       )}`}
                     >
                       {statusLabel(
-                        request.status
+                        effectiveRequestStatus(request)
                       )}
                     </span>
                   </td>
@@ -1953,6 +2241,23 @@ function RequestHistoryTable({
   );
 }
 
+function studentHistoryRequests(requests) {
+  return requests.filter(
+    (request) =>
+      !isActiveStudentStageRequest(request)
+  );
+}
+
+function effectiveRequestStatus(request) {
+  if (
+    request?.folderStatus === "DOSSIER_COMPLET"
+  ) {
+    return "DOSSIER_COMPLET";
+  }
+
+  return request?.status;
+}
+
 function ContractWorkflowProgress({ contract }) {
   const currentStep = progressStep(
     contract.requestStatus,
@@ -1963,7 +2268,7 @@ function ContractWorkflowProgress({ contract }) {
     "Contrat genere",
     "Contrat complete",
     "Signature de l'etudiant",
-    "Signature du milieu recue",
+    "PDF du milieu depose",
     "Signature de l'enseignant",
     "Signature de la conseillere",
     "Signature de la direction",
@@ -1974,8 +2279,12 @@ function ContractWorkflowProgress({ contract }) {
     <ol className="workflowStepList">
       {steps.map((label, index) => {
         const stepNumber = index + 1;
+        const isFinalCompleted =
+          currentStep === steps.length &&
+          stepNumber === currentStep;
         const className =
-          stepNumber < currentStep
+          stepNumber < currentStep ||
+          isFinalCompleted
             ? "workflowStepDone"
             : stepNumber === currentStep
               ? "workflowStepCurrent"
@@ -2010,10 +2319,10 @@ function RequestDetails({
         <div className="requestDetailsHeaderActions">
           <span
             className={`statusPill ${statusClass(
-              request.status
+              effectiveRequestStatus(request)
             )}`}
           >
-            {statusLabel(request.status)}
+            {statusLabel(effectiveRequestStatus(request))}
           </span>
 
           <button
@@ -2622,7 +2931,7 @@ function contractStatusLabel(contract) {
     CONTRAT_MILIEU_A_DEPOSER:
       "Contrat signe par le milieu a recevoir",
     SIGNATURE_ENTREPRISE:
-      "Signature du milieu requise",
+      "Contrat signe par le milieu a recevoir",
     SIGNATURE_SUPERVISEUR:
       "En attente de l'enseignant",
     SIGNATURE_CONSEILLERE:

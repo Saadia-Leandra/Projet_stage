@@ -2,6 +2,7 @@
 
 import CityInput from "./CityInput.jsx";
 import ProvinceInput from "./ProvinceInput.jsx";
+import { calculateStageWeeks } from "../utils/stageDuration.js";
 
 const initialForm = {
   // Informations de l'etudiant
@@ -65,6 +66,7 @@ export default function StudentRequestForm({ student, onCreated }) {
   const [fieldErrors, setFieldErrors] = useState({});
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const [weeksManuallyEdited, setWeeksManuallyEdited] = useState(false);
 
   useEffect(() => {
     const defaults = studentProfileDefaults(student);
@@ -98,19 +100,53 @@ export default function StudentRequestForm({ student, onCreated }) {
 
   function updateField(event) {
     const { name, value, type, checked } = event.target;
+    const fieldValue = type === "checkbox" ? checked : value;
 
-    setForm((currentForm) => ({
-      ...currentForm,
-      [name]: type === "checkbox" ? checked : value
-    }));
+    if (name === "numberOfWeeks") {
+      setWeeksManuallyEdited(value !== "");
+    }
+
+    setForm((currentForm) => {
+      const nextForm = {
+        ...currentForm,
+        [name]: fieldValue
+      };
+
+      if (
+        (name === "startDate" || name === "endDate") &&
+        !weeksManuallyEdited
+      ) {
+        nextForm.numberOfWeeks = calculateStageWeeks(
+          name === "startDate" ? value : currentForm.startDate,
+          name === "endDate" ? value : currentForm.endDate
+        );
+      }
+
+      return nextForm;
+    });
 
     setFieldErrors((currentErrors) => {
-      if (!currentErrors[name]) {
+      const fieldsToClear = [name];
+
+      if (
+        (name === "startDate" || name === "endDate") &&
+        !weeksManuallyEdited
+      ) {
+        fieldsToClear.push("numberOfWeeks");
+      }
+
+      if (
+        !fieldsToClear.some(
+          (fieldName) => currentErrors[fieldName]
+        )
+      ) {
         return currentErrors;
       }
 
       const nextErrors = { ...currentErrors };
-      delete nextErrors[name];
+      fieldsToClear.forEach((fieldName) => {
+        delete nextErrors[fieldName];
+      });
       return nextErrors;
     });
   }
@@ -189,6 +225,7 @@ export default function StudentRequestForm({ student, onCreated }) {
           ...initialForm,
           ...studentProfileDefaults(student)
         });
+        setWeeksManuallyEdited(false);
       }
       setFieldErrors({});
       setSuccess(

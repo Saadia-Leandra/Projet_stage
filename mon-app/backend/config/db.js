@@ -1,8 +1,6 @@
-import dotenv from "dotenv";
+import "./env.js";
 import mysql from "mysql2/promise";
 import { readFileSync } from "node:fs";
-
-dotenv.config({ path: "backend/.env" });
 
 export function createDbPool() {
   const ssl = createSslConfig();

@@ -230,7 +230,15 @@ test("demandes retirees exclues des demandes actives", () => {
   );
   assert.equal(
     isActiveStudentStageRequest({
-      status: "APPROUVEE"
+      status: "APPROUVEE",
+      folderStatus: "DOSSIER_COMPLET"
+    }),
+    false
+  );
+  assert.equal(
+    isActiveStudentStageRequest({
+      status: "APPROUVEE",
+      folderStatus: "ATTENTE_SIGNATURE"
     }),
     true
   );
