@@ -11,6 +11,10 @@ const terminalRequestStatuses = new Set([
   "ANNULEE"
 ]);
 
+const completedFolderStatuses = new Set([
+  "DOSSIER_COMPLET"
+]);
+
 const correctionStatuses = new Set([
   "A_REVISER",
   "DOCUMENTS_MANQUANTS"
@@ -33,6 +37,10 @@ export function isActiveStudentStageRequest(request) {
   }
 
   if (terminalRequestStatuses.has(request.status)) {
+    return false;
+  }
+
+  if (completedFolderStatuses.has(request.folderStatus)) {
     return false;
   }
 
@@ -300,18 +308,17 @@ export function getStudentStageDisplayState({
       title:
         "Votre contrat doit etre signe par le milieu de stage.",
       message:
-        "Documenso enverra la signature a StageTec automatiquement.",
+        "Faites signer le PDF par le milieu de stage, puis deposez-le dans StageTec.",
       nextStep:
-        "Attendre la confirmation de signature du milieu.",
-      actionLabel:
-        "Suivre la signature du milieu",
-      actionType: "follow",
+        "Deposer le PDF signe par le milieu.",
+      actionLabel: "Deposer le PDF signe",
+      actionType: "upload",
       targetView: "contracts",
       progressStep: 5,
       canEdit: false,
       canWithdraw: false,
       canSubmit: false,
-      canUpload: false,
+      canUpload: true,
       canSign: false,
       canDownload: true
     };
@@ -325,17 +332,17 @@ export function getStudentStageDisplayState({
       title:
         "Le contrat signe par le milieu doit etre recu.",
       message:
-        "Utilisez Documenso pour terminer la signature du milieu.",
+        "Faites signer le PDF par le milieu de stage, puis deposez-le dans StageTec.",
       nextStep:
-        "Attendre la confirmation de reception.",
-      actionLabel: "Suivre le contrat",
-      actionType: "follow",
+        "Deposer le PDF signe par le milieu.",
+      actionLabel: "Deposer le PDF signe",
+      actionType: "upload",
       targetView: "contracts",
       progressStep: 5,
       canEdit: false,
       canWithdraw: false,
       canSubmit: false,
-      canUpload: false,
+      canUpload: true,
       canSign: false,
       canDownload: true
     };

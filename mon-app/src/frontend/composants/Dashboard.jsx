@@ -88,6 +88,12 @@ export default function Dashboard({ user, onLogout }) {
                 icon="contract"
                 onClick={() => setActiveView("contracts")}
               />
+              <SidebarButton
+                active={activeView === "history"}
+                label="Historique"
+                icon="history"
+                onClick={() => setActiveView("history")}
+              />
             </>
           )}
 
@@ -203,7 +209,8 @@ export default function Dashboard({ user, onLogout }) {
 
         {activeView === "studentImport" && ["CONSEILLERE", "DIRECTION"].includes(currentUser.role) ? (
           <StudentCsvImport />
-        ) : ["history", "historyMileage"].includes(activeView) ? (
+        ) : ["history", "historyMileage"].includes(activeView) &&
+          currentUser.role !== "ETUDIANT" ? (
           <HistoryDashboard
             user={currentUser}
             initialSection={activeView === "historyMileage" ? "mileage" : "payroll"}
@@ -394,6 +401,10 @@ function pageTitle(view) {
 }
 
 function pageDescription(view, role) {
+  if (view === "history" && role === "ETUDIANT") {
+    return "Consultez vos demandes archivées et les décisions associées.";
+  }
+
   const descriptions = {
     dashboard: heroText(role),
     requests: "Créez une demande et suivez son traitement.",

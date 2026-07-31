@@ -6,6 +6,7 @@ import {
 
 import CityInput from "./CityInput.jsx";
 import ProvinceInput from "./ProvinceInput.jsx";
+import { calculateStageWeeks } from "../utils/stageDuration.js";
 
 const documentOptions = [
   ["ATTESTATION", "Attestation"],
@@ -73,11 +74,23 @@ export default function StudentRequestEditForm({
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
+  const [weeksManuallyEdited, setWeeksManuallyEdited] = useState(false);
 
   useEffect(() => {
     if (!request) {
       return;
     }
+
+    const startDate = formatInputDate(
+      request.startDate
+    );
+    const endDate = formatInputDate(
+      request.endDate
+    );
+    const savedNumberOfWeeks =
+      request.numberOfWeeks || "";
+
+    setWeeksManuallyEdited(false);
 
     setForm({
       studentPhone:
@@ -103,12 +116,8 @@ export default function StudentRequestEditForm({
         ),
 
       taskSummary: request.taskSummary || "",
-      startDate: formatInputDate(
-        request.startDate
-      ),
-      endDate: formatInputDate(
-        request.endDate
-      ),
+      startDate,
+      endDate,
 
       companyName: request.companyName || "",
       companyNeq: request.companyNeq || "",
@@ -157,7 +166,8 @@ export default function StudentRequestEditForm({
         request.scheduleType ||
         "TEMPS_PLEIN",
       numberOfWeeks:
-        request.numberOfWeeks || "",
+        savedNumberOfWeeks ||
+        calculateStageWeeks(startDate, endDate),
       isPaid: Boolean(request.isPaid),
       hourlySalary:
         request.hourlySalary || "",
@@ -173,22 +183,54 @@ export default function StudentRequestEditForm({
       type,
       checked
     } = event.target;
+    const fieldValue =
+      type === "checkbox" ? checked : value;
 
-    setForm((currentForm) => ({
-      ...currentForm,
-      [name]:
-        type === "checkbox"
-          ? checked
-          : value
-    }));
+    if (name === "numberOfWeeks") {
+      setWeeksManuallyEdited(value !== "");
+    }
+
+    setForm((currentForm) => {
+      const nextForm = {
+        ...currentForm,
+        [name]: fieldValue
+      };
+
+      if (
+        (name === "startDate" || name === "endDate") &&
+        !weeksManuallyEdited
+      ) {
+        nextForm.numberOfWeeks = calculateStageWeeks(
+          name === "startDate" ? value : currentForm.startDate,
+          name === "endDate" ? value : currentForm.endDate
+        );
+      }
+
+      return nextForm;
+    });
 
     setFieldErrors((currentErrors) => {
-      if (!currentErrors[name]) {
+      const fieldsToClear = [name];
+
+      if (
+        (name === "startDate" || name === "endDate") &&
+        !weeksManuallyEdited
+      ) {
+        fieldsToClear.push("numberOfWeeks");
+      }
+
+      if (
+        !fieldsToClear.some(
+          (fieldName) => currentErrors[fieldName]
+        )
+      ) {
         return currentErrors;
       }
 
       const nextErrors = { ...currentErrors };
-      delete nextErrors[name];
+      fieldsToClear.forEach((fieldName) => {
+        delete nextErrors[fieldName];
+      });
       return nextErrors;
     });
   }

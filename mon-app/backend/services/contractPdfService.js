@@ -96,7 +96,11 @@ export async function generateInternshipRequestPdf(
 
 export async function saveSignedContractPdf(
   contract,
-  pdfBuffer
+  pdfBuffer,
+  {
+    signers = [],
+    includeAttestation = false
+  } = {}
 ) {
   if (!isPdfBuffer(pdfBuffer)) {
     throw createError(
@@ -109,14 +113,72 @@ export async function saveSignedContractPdf(
   const relativePath = path.join("signed", fileName);
   const absolutePath =
     resolveContractStoragePath(relativePath);
+  const signedBuffer =
+    signers.length || includeAttestation
+      ? await stampContractSignaturesOnPdf(
+          pdfBuffer,
+          {
+            contract,
+            signers,
+            includeAttestation
+          }
+        )
+      : pdfBuffer;
 
-  await savePdfBuffer(absolutePath, pdfBuffer);
+  await savePdfBuffer(absolutePath, signedBuffer);
 
   return {
     fileName,
     relativePath: normalizeStoragePath(relativePath),
     absolutePath
   };
+}
+
+export async function stampContractSignaturesOnPdf(
+  pdfBuffer,
+  {
+    contract = {},
+    signers = [],
+    includeAttestation = false
+  } = {}
+) {
+  if (!isPdfBuffer(pdfBuffer)) {
+    throw createError(
+      "Le document signe retourne par Documenso n'est pas un PDF valide.",
+      502
+    );
+  }
+
+  const pdfDoc = await PDFDocument.load(pdfBuffer);
+  const font = await pdfDoc.embedFont(
+    StandardFonts.Helvetica
+  );
+  const boldFont = await pdfDoc.embedFont(
+    StandardFonts.HelveticaBold
+  );
+  const fonts = { font, boldFont };
+  const normalizedSigners =
+    normalizeContractSigners(signers);
+  const signedSigners = normalizedSigners.filter(
+    (signer) => signer.status === "SIGNE"
+  );
+
+  drawOfficialSignatureStamps(
+    pdfDoc,
+    fonts,
+    signedSigners
+  );
+
+  if (includeAttestation) {
+    drawSignatureAttestationPage(
+      pdfDoc,
+      fonts,
+      contract,
+      normalizedSigners
+    );
+  }
+
+  return Buffer.from(await pdfDoc.save());
 }
 
 export function resolveContractStoragePath(relativePath) {
@@ -189,6 +251,423 @@ async function savePdfBuffer(absolutePath, pdfBuffer) {
 
   await fs.writeFile(absolutePath, pdfBuffer);
   await assertValidPdf(absolutePath);
+}
+
+const signerRoleOrder = [
+  "ETUDIANT",
+  "ENTREPRISE",
+  "SUPERVISEUR",
+  "CONSEILLERE",
+  "DIRECTION"
+];
+
+const officialSignatureStampPositions = {
+  ETUDIANT: {
+    pageIndex: 2,
+    x: 28,
+    y: 764,
+    width: 160,
+    height: 22,
+    dateX: 190,
+    dateWidth: 70
+  },
+  SUPERVISEUR: {
+    pageIndex: 2,
+    x: 318,
+    y: 764,
+    width: 176,
+    height: 22,
+    dateX: 500,
+    dateWidth: 70
+  },
+  ENTREPRISE: {
+    pageIndex: 2,
+    x: 28,
+    y: 712,
+    width: 160,
+    height: 22,
+    dateX: 190,
+    dateWidth: 70
+  },
+  DIRECTION: {
+    pageIndex: 2,
+    x: 318,
+    y: 712,
+    width: 176,
+    height: 22,
+    dateX: 500,
+    dateWidth: 70
+  }
+};
+
+function drawOfficialSignatureStamps(
+  pdfDoc,
+  fonts,
+  signers
+) {
+  const pages = pdfDoc.getPages();
+
+  signers.forEach((signer) => {
+    const position =
+      officialSignatureStampPositions[signer.role];
+
+    if (!position || !pages[position.pageIndex]) {
+      return;
+    }
+
+    drawOfficialSignatureStamp(
+      pages[position.pageIndex],
+      fonts,
+      signer,
+      position
+    );
+  });
+}
+
+function drawOfficialSignatureStamp(
+  page,
+  fonts,
+  signer,
+  position
+) {
+  const signedDate = formatDateTimeForPdf(
+    signer.signedAt
+  );
+
+  page.drawRectangle({
+    x: position.x,
+    y: position.y,
+    width: position.width,
+    height: position.height,
+    color: rgb(1, 1, 1),
+    borderColor: rgb(0.08, 0.24, 0.48),
+    borderWidth: 0.6
+  });
+
+  drawValue(
+    page,
+    fonts.boldFont,
+    signer.name || signer.email || signerRolePdfLabel(signer.role),
+    position.x + 4,
+    position.y + 11,
+    {
+      maxWidth: position.width - 8,
+      size: 7,
+      verticalOffset: 0
+    }
+  );
+  drawValue(
+    page,
+    fonts.font,
+    `${signerRolePdfLabel(signer.role)} - ${signatureProviderLabel(signer)}`,
+    position.x + 4,
+    position.y + 3,
+    {
+      maxWidth: position.width - 8,
+      size: 5.8,
+      verticalOffset: 0
+    }
+  );
+
+  page.drawRectangle({
+    x: position.dateX,
+    y: position.y,
+    width: position.dateWidth,
+    height: position.height,
+    color: rgb(1, 1, 1),
+    borderColor: rgb(0.08, 0.24, 0.48),
+    borderWidth: 0.6
+  });
+  drawValue(
+    page,
+    fonts.font,
+    signedDate,
+    position.dateX + 4,
+    position.y + 8,
+    {
+      maxWidth: position.dateWidth - 8,
+      size: 6,
+      verticalOffset: 0
+    }
+  );
+}
+
+function drawSignatureAttestationPage(
+  pdfDoc,
+  fonts,
+  contract,
+  signers
+) {
+  const page = pdfDoc.addPage([612, 792]);
+  const signedAt = formatDateTimeForPdf(
+    contract.completedAt || contract.completeAt || new Date()
+  );
+  const confirmationCode =
+    contract.confirmationCode || "";
+
+  page.drawRectangle({
+    x: 0,
+    y: 0,
+    width: 612,
+    height: 792,
+    color: rgb(0.98, 0.99, 1)
+  });
+
+  drawValue(
+    page,
+    fonts.boldFont,
+    "Attestation des signatures StageTec",
+    48,
+    720,
+    {
+      maxWidth: 420,
+      size: 18,
+      verticalOffset: 0
+    }
+  );
+  drawValue(
+    page,
+    fonts.font,
+    "Cette page confirme les signatures recueillies pour le contrat de stage.",
+    48,
+    698,
+    {
+      maxWidth: 490,
+      size: 10,
+      verticalOffset: 0
+    }
+  );
+
+  drawAttestationMeta(page, fonts, contract, signedAt);
+
+  const signersByRole = new Map(
+    signers.map((signer) => [signer.role, signer])
+  );
+
+  signerRoleOrder.forEach((role, index) => {
+    drawAttestationSignerRow(
+      page,
+      fonts,
+      role,
+      signersByRole.get(role),
+      640 - index * 74
+    );
+  });
+
+  drawValue(
+    page,
+    fonts.boldFont,
+    "Code de confirmation",
+    48,
+    132,
+    {
+      maxWidth: 220,
+      size: 11,
+      verticalOffset: 0
+    }
+  );
+  drawValue(
+    page,
+    fonts.font,
+    confirmationCode || "Non attribue",
+    48,
+    114,
+    {
+      maxWidth: 220,
+      size: 10,
+      verticalOffset: 0
+    }
+  );
+
+  if (confirmationCode) {
+    drawConfirmationBarcode(
+      page,
+      confirmationCode,
+      300,
+      104
+    );
+  }
+}
+
+function drawAttestationMeta(
+  page,
+  fonts,
+  contract,
+  signedAt
+) {
+  const rows = [
+    [
+      "Etudiant",
+      fullStudentName(contract) || "-"
+    ],
+    [
+      "Entreprise",
+      contract.companyName || "-"
+    ],
+    [
+      "Contrat",
+      contract.externalId || `Contrat ${contract.id || "-"}`
+    ],
+    [
+      "Dossier complete le",
+      signedAt || "-"
+    ]
+  ];
+
+  rows.forEach(([label, value], index) => {
+    const x = index % 2 === 0 ? 48 : 320;
+    const y = index < 2 ? 666 : 626;
+
+    drawValue(page, fonts.boldFont, label, x, y, {
+      maxWidth: 180,
+      size: 7.5,
+      verticalOffset: 0
+    });
+    drawValue(page, fonts.font, value, x, y - 15, {
+      maxWidth: 220,
+      size: 9,
+      verticalOffset: 0
+    });
+  });
+}
+
+function drawAttestationSignerRow(
+  page,
+  fonts,
+  role,
+  signer,
+  y
+) {
+  const signed = signer?.status === "SIGNE";
+  const statusColor = signed
+    ? rgb(0.04, 0.42, 0.28)
+    : rgb(0.71, 0.29, 0.03);
+
+  page.drawRectangle({
+    x: 48,
+    y,
+    width: 516,
+    height: 56,
+    color: rgb(1, 1, 1),
+    borderColor: rgb(0.86, 0.9, 0.96),
+    borderWidth: 0.8
+  });
+
+  drawValue(
+    page,
+    fonts.boldFont,
+    signerRolePdfLabel(role),
+    64,
+    y + 35,
+    {
+      maxWidth: 140,
+      size: 9,
+      verticalOffset: 0
+    }
+  );
+  drawValue(
+    page,
+    fonts.font,
+    signer?.name || "-",
+    210,
+    y + 35,
+    {
+      maxWidth: 210,
+      size: 9,
+      verticalOffset: 0
+    }
+  );
+  drawValue(
+    page,
+    fonts.font,
+    signer?.email || "-",
+    210,
+    y + 20,
+    {
+      maxWidth: 210,
+      size: 7,
+      verticalOffset: 0
+    }
+  );
+  drawValue(
+    page,
+    fonts.boldFont,
+    signerStatusPdfLabel(signer?.status),
+    430,
+    y + 35,
+    {
+      maxWidth: 110,
+      size: 8,
+      verticalOffset: 0
+    }
+  );
+  drawValue(
+    page,
+    fonts.font,
+    signed
+      ? formatDateTimeForPdf(signer.signedAt)
+      : "En attente",
+    430,
+    y + 20,
+    {
+      maxWidth: 110,
+      size: 7,
+      verticalOffset: 0
+    }
+  );
+
+  page.drawRectangle({
+    x: 64,
+    y: y + 12,
+    width: 10,
+    height: 10,
+    color: statusColor
+  });
+  drawValue(
+    page,
+    fonts.font,
+    signatureProviderLabel(signer),
+    80,
+    y + 12,
+    {
+      maxWidth: 160,
+      size: 7,
+      verticalOffset: 0
+    }
+  );
+}
+
+function drawConfirmationBarcode(
+  page,
+  value,
+  x,
+  y
+) {
+  const bars = Array.from(String(value || ""))
+    .flatMap((character) => {
+      const code = character.charCodeAt(0);
+      return [1, 2, 3].map((offset) => ({
+        width: code % (offset + 2) === 0 ? 4 : 2,
+        active: (code + offset) % 2 === 0
+      }));
+    })
+    .slice(0, 60);
+
+  let currentX = x;
+
+  bars.forEach((bar) => {
+    if (bar.active) {
+      page.drawRectangle({
+        x: currentX,
+        y,
+        width: bar.width,
+        height: 46,
+        color: rgb(0.05, 0.18, 0.34)
+      });
+    }
+
+    currentX += bar.width + 2;
+  });
 }
 
 function drawContractValues(pdfDoc, font, contract) {
@@ -1021,6 +1500,96 @@ function firstValue(...values) {
       value !== null &&
       value !== ""
   );
+}
+
+function normalizeContractSigners(signers) {
+  if (!Array.isArray(signers)) {
+    return [];
+  }
+
+  return signers
+    .map((signer) => ({
+      ...signer,
+      role: String(signer.role || "").toUpperCase(),
+      status: String(signer.status || "").toUpperCase(),
+      signedAt: signer.signedAt || signer.signeLe || null,
+      signatureProvider: firstValue(
+        signer.signatureProvider,
+        signer.provider,
+        signer.fournisseurSignature
+      )
+    }))
+    .filter((signer) =>
+      signerRoleOrder.includes(signer.role)
+    )
+    .sort(
+      (first, second) =>
+        signerRoleOrder.indexOf(first.role) -
+        signerRoleOrder.indexOf(second.role)
+    );
+}
+
+function signerRolePdfLabel(role) {
+  const labels = {
+    ETUDIANT: "Etudiant",
+    ENTREPRISE: "Milieu de stage",
+    SUPERVISEUR: "Enseignant",
+    CONSEILLERE: "Conseillere",
+    DIRECTION: "Direction"
+  };
+
+  return labels[role] || role || "-";
+}
+
+function signerStatusPdfLabel(status) {
+  const labels = {
+    SIGNE: "Signe",
+    ENVOYE: "Envoye",
+    EN_ATTENTE: "En attente",
+    REFUSE: "Refuse",
+    EXPIRE: "Expire"
+  };
+
+  return labels[status] || status || "-";
+}
+
+function signatureProviderLabel(signer = {}) {
+  if (!signer) {
+    return "-";
+  }
+
+  const provider = String(
+    signer.signatureProvider || ""
+  ).toUpperCase();
+
+  if (provider === "DOCUMENSO") {
+    return "Signature Documenso";
+  }
+
+  if (provider === "AUTRE") {
+    return "Signature en presentiel";
+  }
+
+  return provider
+    ? `Signature ${provider}`
+    : "Signature StageTec";
+}
+
+function formatDateTimeForPdf(value) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return formatDate(value) || "-";
+  }
+
+  return date.toLocaleString("fr-CA", {
+    dateStyle: "short",
+    timeStyle: "short"
+  });
 }
 
 function createError(message, status) {

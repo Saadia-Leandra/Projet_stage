@@ -237,6 +237,7 @@ async function getContractSigners(contractId) {
         nom_signataire AS name,
         courriel_signataire AS email,
         statut AS status,
+        fournisseur_signature AS signatureProvider,
         url_signature AS signingUrl,
         signe_le AS signedAt
       FROM signatures_contrat
@@ -267,6 +268,7 @@ function contractColumns() {
     c.dossier_stage_id AS folderId,
     c.demande_stage_id AS requestId,
     c.statut AS status,
+    c.documenso_document_id AS documensoDocumentId,
     c.documenso_status AS documensoStatus,
     c.submitted_at AS submittedAt,
     c.completed_at AS completedAt,

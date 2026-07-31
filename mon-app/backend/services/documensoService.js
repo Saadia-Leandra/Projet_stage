@@ -1,3 +1,4 @@
+import "../config/env.js";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
@@ -216,37 +217,37 @@ function signatureFieldPositionByRole(role) {
     ETUDIANT: {
       page: 3,
       positionX: 4,
-      positionY: 5,
-      width: 28,
-      height: 6
+      positionY: 1.2,
+      width: 31,
+      height: 4.6
     },
     ENTREPRISE: {
       page: 3,
       positionX: 4,
-      positionY: 11,
-      width: 28,
-      height: 6
+      positionY: 7.7,
+      width: 31,
+      height: 4.6
     },
     SUPERVISEUR: {
       page: 3,
       positionX: 52,
-      positionY: 5,
-      width: 28,
-      height: 6
+      positionY: 1.2,
+      width: 31,
+      height: 4.6
     },
     CONSEILLERE: {
-      page: 1,
-      positionX: 34,
-      positionY: 9,
-      width: 20,
-      height: 6
+      page: 3,
+      positionX: 52,
+      positionY: 13.2,
+      width: 31,
+      height: 4.2
     },
     DIRECTION: {
       page: 3,
       positionX: 52,
-      positionY: 11,
-      width: 28,
-      height: 6
+      positionY: 7.7,
+      width: 31,
+      height: 4.6
     }
   };
 

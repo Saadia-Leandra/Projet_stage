@@ -1,5 +1,5 @@
+import "./config/env.js";
 import express from "express";
-import dotenv from "dotenv";
 import { createServer as createHttpServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,8 +24,6 @@ import supervisorStageRoutes from "./routes/supervisorStageRoute.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const appRoot = path.resolve(__dirname, "..");
-
-dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
 const server = createHttpServer(app);

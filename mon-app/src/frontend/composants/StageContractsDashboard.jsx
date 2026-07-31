@@ -16,6 +16,7 @@ export default function StageContractsDashboard({ user }) {
     useState("TOUS");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [syncingId, setSyncingId] = useState(null);
   const contractDetailsRef = useRef(null);
 
   async function loadData() {
@@ -180,6 +181,50 @@ export default function StageContractsDashboard({ user }) {
       "_blank",
       "noopener,noreferrer"
     );
+  }
+
+  async function syncDocumensoStatus(contractId) {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setError("Session expiree.");
+      return;
+    }
+
+    setSyncingId(contractId);
+    setError("");
+
+    try {
+      const response = await fetch(
+        `/api/stage-management/contracts/${contractId}/sync-documenso`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        setError(
+          data.error ||
+            "Impossible d'actualiser le statut Documenso."
+        );
+        return;
+      }
+
+      await loadData();
+      setSelectedId(contractId);
+    } catch (requestError) {
+      console.error(requestError);
+      setError("Erreur de connexion au serveur.");
+    } finally {
+      setSyncingId(null);
+    }
   }
 
   return (
@@ -378,7 +423,7 @@ export default function StageContractsDashboard({ user }) {
                 Signature etudiante
               </option>
               <option value="SIGNATURE_ENTREPRISE">
-                Signature milieu
+                Depot milieu
               </option>
               <option value="SIGNATURE">
                 En signature
@@ -485,6 +530,21 @@ export default function StageContractsDashboard({ user }) {
                             Signer
                           </button>
                         )}
+
+                        {canSyncDocumensoContract(contract) && (
+                          <button
+                            className="secondaryButton"
+                            type="button"
+                            disabled={syncingId === contract.id}
+                            onClick={() =>
+                              syncDocumensoStatus(contract.id)
+                            }
+                          >
+                            {syncingId === contract.id
+                              ? "Actualisation..."
+                              : "Actualiser"}
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -545,6 +605,27 @@ export default function StageContractsDashboard({ user }) {
                 }
               >
                 Signer avec Documenso
+              </button>
+            </div>
+          )}
+
+          {canSyncDocumensoContract(selectedContract) && (
+            <div className="studentSuccess">
+              <span>
+                Actualisez Documenso apres une signature si
+                le statut ne change pas automatiquement.
+              </span>
+              <button
+                className="secondaryButton fitButton"
+                type="button"
+                disabled={syncingId === selectedContract.id}
+                onClick={() =>
+                  syncDocumensoStatus(selectedContract.id)
+                }
+              >
+                {syncingId === selectedContract.id
+                  ? "Actualisation..."
+                  : "Actualiser Documenso"}
               </button>
             </div>
           )}
@@ -707,10 +788,13 @@ function contractNextAction(contract) {
     };
   }
 
-  if (contract.status === "CONTRAT_MILIEU_A_DEPOSER") {
+  if (
+    contract.status === "CONTRAT_MILIEU_A_DEPOSER" ||
+    contract.status === "SIGNATURE_ENTREPRISE"
+  ) {
     return {
       title: "Milieu de stage",
-      detail: "Recevoir la signature du milieu."
+      detail: "Attendre le PDF signe par le milieu."
     };
   }
 
@@ -770,6 +854,15 @@ function canCurrentUserSign(signer, user) {
   );
 }
 
+function canSyncDocumensoContract(contract) {
+  return Boolean(
+    contract?.documensoDocumentId &&
+      String(contract.status || "").startsWith(
+        "SIGNATURE_"
+      )
+  );
+}
+
 function isSignerForUser(signer, user) {
   return Boolean(
     signer &&
@@ -821,7 +914,7 @@ function statusLabel(status) {
     CONTRAT_MILIEU_A_DEPOSER:
       "Contrat du milieu a recevoir",
     SIGNATURE_ENTREPRISE:
-      "Signature du milieu requise",
+      "Contrat du milieu a recevoir",
     SIGNATURE_SUPERVISEUR:
       "En attente de l'enseignant",
     SIGNATURE_CONSEILLERE:
