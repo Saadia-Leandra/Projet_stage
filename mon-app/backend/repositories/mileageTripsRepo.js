@@ -49,12 +49,40 @@
           LEFT JOIN demandes_stage d ON d.id = latest.requestId
           LEFT JOIN entreprises ent ON ent.id = d.entreprise_id
           WHERE e.superviseur_id = ?
+            AND u.statut = 'ACTIF'
           ORDER BY u.nom, u.prenom
         `,
         [supervisorUserId]
       );
 
       return rows;
+    },
+
+    async assertActiveStudents(supervisorUserId, studentIds) {
+      const ids = [...new Set((studentIds || []).map(Number).filter(Number.isInteger))];
+
+      if (!ids.length) {
+        const error = new Error("Un étudiant actif est obligatoire pour calculer le kilométrage.");
+        error.status = 400;
+        throw error;
+      }
+
+      const placeholders = ids.map(() => "?").join(", ");
+      const [rows] = await db.execute(
+        `SELECT COUNT(*) AS activeCount
+         FROM etudiants e
+         JOIN utilisateurs u ON u.id = e.utilisateur_id
+         WHERE e.superviseur_id = ?
+           AND u.statut = 'ACTIF'
+           AND e.utilisateur_id IN (${placeholders})`,
+        [supervisorUserId, ...ids]
+      );
+
+      if (Number(rows[0]?.activeCount) !== ids.length) {
+        const error = new Error("Le kilométrage ne peut pas être calculé pour un étudiant archivé ou non assigné.");
+        error.status = 409;
+        throw error;
+      }
     },
 
     async create(data) {
@@ -146,14 +174,16 @@
       }
     },
 
-    async list(supervisorUserId = null) {
+    async list(supervisorUserId = null, historyOnly = false) {
       const params = [];
-      let supervisorFilter = "";
+      const filters = [];
 
       if (supervisorUserId) {
-        supervisorFilter = "WHERE dk.superviseur_id = ?";
+        filters.push("dk.superviseur_id = ?");
         params.push(supervisorUserId);
       }
+
+      if (historyOnly) filters.push("dk.statut != 'CALCULE'");
 
       const [rows] = await db.execute(
         `
@@ -187,7 +217,7 @@
           FROM deplacements_kilometrage dk
           JOIN utilisateurs u ON u.id = dk.superviseur_id
           JOIN campus ca ON ca.id = dk.campus_id
-          ${supervisorFilter}
+          ${filters.length ? `WHERE ${filters.join(" AND ")}` : ""}
           ORDER BY dk.calcule_le DESC
         `,
         params

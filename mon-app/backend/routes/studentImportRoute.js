@@ -4,7 +4,7 @@ import { readMultipartFormData } from "../services/multipartService.js";
 import {
   importStudentCsv,
   previewStudentCsv
-} from "../services/studentCsvImportService.js";
+} from "../services/claraStudentCsvImportService.js";
 
 const router = Router();
 const MAX_REQUEST_BYTES = 6 * 1024 * 1024;
@@ -31,7 +31,7 @@ router.post("/commit", async (req, res, next) => {
     });
     const result = await importStudentCsv(files.csv);
     res.status(201).json({
-      message: `${result.imported} etudiant(s) importe(s) avec succes.`,
+      message: `${result.imported} étudiant(s) importé(s) avec succès.`,
       ...result
     });
   } catch (error) {

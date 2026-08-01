@@ -1,0 +1,1 @@
+# Aucune dependance externe : Python 3.10+ suffit.

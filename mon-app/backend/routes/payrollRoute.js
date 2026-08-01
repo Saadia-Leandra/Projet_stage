@@ -20,7 +20,7 @@ export default function payrollRoutes({ payrollRepo }) {
 
   router.get(
     "/supervisors",
-    requireRole("SUPERVISEUR", "CONSEILLERE", "COMPTABILITE", "DIRECTION"),
+    requireRole("SUPERVISEUR", "CONSEILLERE", "COMPTABILITE"),
     async (req, res, next) => {
       try {
         res.json({
@@ -48,7 +48,7 @@ export default function payrollRoutes({ payrollRepo }) {
 
   router.get(
     "/reports/supervisors/:id.csv",
-    requireRole("SUPERVISEUR", "COMPTABILITE", "DIRECTION"),
+    requireRole("SUPERVISEUR", "COMPTABILITE"),
     async (req, res, next) => {
       try {
         const report = await payrollRepo.getSupervisorPayrollReport({
@@ -86,7 +86,7 @@ export default function payrollRoutes({ payrollRepo }) {
 
   router.patch(
     "/supervision-charges/:id/status",
-    requireRole("COMPTABILITE", "DIRECTION"),
+    requireRole("COMPTABILITE"),
     async (req, res, next) => {
       try {
         await payrollRepo.updateSupervisionChargeStatus({

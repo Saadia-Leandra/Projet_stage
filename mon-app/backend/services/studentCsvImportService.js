@@ -1,5 +1,5 @@
 import { createDbPool } from "../config/db.js";
-import { hashPassword } from "./password.js";
+import { DEFAULT_INITIAL_PASSWORD, hashPassword } from "./password.js";
 
 const db = createDbPool();
 const MAX_CSV_BYTES = 5 * 1024 * 1024;
@@ -95,13 +95,14 @@ export async function importStudentCsv(file) {
         connection,
         row.numero_employe_superviseur
       );
-      const passwordHash = await hashPassword(row.mot_de_passe_temporaire);
+      const passwordHash = await hashPassword(DEFAULT_INITIAL_PASSWORD);
       const [userResult] = await connection.execute(
         `
           INSERT INTO utilisateurs (
-            courriel, mot_de_passe_hash, prenom, nom, telephone, role, statut
+            courriel, mot_de_passe_hash, mot_de_passe_updated,
+            prenom, nom, telephone, role, statut
           )
-          VALUES (?, ?, ?, ?, ?, 'ETUDIANT', 'ACTIF')
+          VALUES (?, ?, FALSE, ?, ?, ?, 'ETUDIANT', 'ACTIF')
         `,
         [
           row.courriel,
@@ -271,10 +272,7 @@ function normalizeCsv(file) {
       }
     });
 
-    if (!row.mot_de_passe_temporaire) {
-      row.mot_de_passe_temporaire =
-        row.code_permanent || row.code_etudiant || row.courriel.split("@")[0] || "password123";
-    }
+    row.mot_de_passe_temporaire = DEFAULT_INITIAL_PASSWORD;
 
     if (!Object.values(row).some((value) => value !== "")) {
       continue;

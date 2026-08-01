@@ -14,7 +14,6 @@ export default function Login({ onLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [debugResetCode, setDebugResetCode] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleLogin(event) {
@@ -61,7 +60,6 @@ export default function Login({ onLogin }) {
       }
 
       setNotice(response.data.message);
-      setDebugResetCode(response.data.debugResetCode || "");
       setMode("verify");
     } catch {
       setError("Erreur de connexion au serveur.");
@@ -136,7 +134,6 @@ export default function Login({ onLogin }) {
   function startRequest() {
     setError("");
     setNotice("");
-    setDebugResetCode("");
     setLoading(true);
   }
 
@@ -144,7 +141,6 @@ export default function Login({ onLogin }) {
     setMode(nextMode);
     setError("");
     setNotice("");
-    setDebugResetCode("");
     setVerificationCode("");
     setResetSession("");
     setPassword("");
@@ -300,12 +296,6 @@ export default function Login({ onLogin }) {
             </label>
 
             <AuthMessages error={error} notice={notice} />
-
-            {debugResetCode && (
-              <p className="resetPreviewCode">
-                Code de développement : <strong>{debugResetCode}</strong>
-              </p>
-            )}
 
             <button
               className="primaryButton"

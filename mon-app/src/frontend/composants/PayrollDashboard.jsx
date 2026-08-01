@@ -38,7 +38,7 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
 
     try {
       const [supervisorsResponse, chargesResponse, tripsResponse] = await Promise.all([
-        fetch("/api/payroll/supervisors", {
+        mode === "history" ? Promise.resolve(null) : fetch("/api/payroll/supervisors", {
           headers: { Authorization: `Bearer ${token}` }
         }),
         fetch("/api/payroll/supervision-charges", {
@@ -49,11 +49,11 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
         })
       ]);
 
-      const supervisorsData = await supervisorsResponse.json().catch(() => ({}));
+      const supervisorsData = supervisorsResponse ? await supervisorsResponse.json().catch(() => ({})) : { supervisors: [] };
       const chargesData = await chargesResponse.json().catch(() => ({}));
       const tripsData = await tripsResponse.json().catch(() => ({}));
 
-      if (!supervisorsResponse.ok) {
+      if (supervisorsResponse && !supervisorsResponse.ok) {
         setError(supervisorsData.error || "Impossible de charger les totaux de paie.");
         return;
       }
@@ -72,7 +72,7 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [mode]);
 
   const loadSettings = useCallback(async () => {
     if (user.role !== "SUPERVISEUR") {
@@ -184,7 +184,7 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
     }
   }
 
-  const canValidate = ["COMPTABILITE", "DIRECTION"].includes(user.role);
+  const canValidate = user.role === "COMPTABILITE";
   const isHistory = mode === "history";
   const displayedTrips = isHistory
     ? trips.filter((trip) => trip.status !== "CALCULE")

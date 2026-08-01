@@ -482,11 +482,10 @@ export async function getStudentContractFile(
     );
   }
 
-  const pathColumn =
+  let pathColumn =
     type === "signed"
       ? contract.pdfSignedPath
-      : contract.pdfStudentSignedPath ||
-        contract.pdfOriginalPath ||
+      : contract.pdfOriginalPath ||
         contract.generatedFilePath;
 
   if (
@@ -520,9 +519,38 @@ export async function getStudentContractFile(
     );
   }
 
-  const absolutePath =
+  let absolutePath =
     resolveContractStoragePath(pathColumn);
-  await assertValidPdf(absolutePath);
+
+  try {
+    await assertValidPdf(absolutePath);
+  } catch (error) {
+    if (type !== "original" || error.status !== 404) {
+      throw error;
+    }
+
+    const signers = await getContractSigners(db, contract.id);
+    const regeneratedPdf = await generateContractPdf(contract, signers);
+
+    await db.execute(
+      `
+        UPDATE contrats
+        SET
+          chemin_fichier_genere = ?,
+          pdf_original_path = ?,
+          genere_le = NOW()
+        WHERE id = ?
+      `,
+      [
+        regeneratedPdf.relativePath,
+        regeneratedPdf.relativePath,
+        contract.id
+      ]
+    );
+
+    pathColumn = regeneratedPdf.relativePath;
+    absolutePath = regeneratedPdf.absolutePath;
+  }
 
   return {
     absolutePath,

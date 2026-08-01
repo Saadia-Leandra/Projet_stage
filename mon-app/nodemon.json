@@ -1,0 +1,9 @@
+{
+  "watch": ["backend"],
+  "ext": "js,json",
+  "ignore": [
+    "backend/storage/**",
+    "backend/uploads/**",
+    "backend/tests/**"
+  ]
+}

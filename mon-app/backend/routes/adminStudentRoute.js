@@ -5,7 +5,7 @@ export default function adminStudentRoutes({ db }) {
   const router = Router();
 
   router.use(requireLogin);
-  router.use(requireRole("DIRECTION"));
+  router.use(requireRole("CONSEILLERE", "DIRECTION"));
 
   router.get("/", async (_req, res, next) => {
     try {
@@ -75,7 +75,7 @@ export default function adminStudentRoutes({ db }) {
     try {
       const userId = positiveId(req.params.userId);
       const [result] = await db.execute(
-        "DELETE FROM utilisateurs WHERE id = ? AND role = 'ETUDIANT'",
+        "UPDATE utilisateurs SET statut = 'INACTIF' WHERE id = ? AND role = 'ETUDIANT'",
         [userId]
       );
 
@@ -83,7 +83,33 @@ export default function adminStudentRoutes({ db }) {
         throw httpError("Étudiant introuvable.", 404);
       }
 
-      res.json({ message: "Étudiant supprimé." });
+      res.json({ message: "Étudiant archivé." });
+    } catch (error) {
+      next(normalizeDatabaseError(error));
+    }
+  });
+
+  router.patch("/:userId/status", async (req, res, next) => {
+    try {
+      const userId = positiveId(req.params.userId);
+      const status = String(req.body.status || "").toUpperCase();
+
+      if (!new Set(["ACTIF", "INACTIF"]).has(status)) {
+        throw httpError("Statut étudiant invalide.", 400);
+      }
+
+      const [result] = await db.execute(
+        "UPDATE utilisateurs SET statut = ? WHERE id = ? AND role = 'ETUDIANT'",
+        [status, userId]
+      );
+
+      if (result.affectedRows === 0) {
+        throw httpError("Étudiant introuvable.", 404);
+      }
+
+      res.json({
+        message: status === "ACTIF" ? "Étudiant réactivé." : "Étudiant archivé."
+      });
     } catch (error) {
       next(normalizeDatabaseError(error));
     }

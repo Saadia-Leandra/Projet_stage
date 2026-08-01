@@ -35,6 +35,7 @@ CREATE TABLE utilisateurs (
   id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   courriel VARCHAR(255) NOT NULL UNIQUE,
   mot_de_passe_hash VARCHAR(255) NOT NULL,
+  mot_de_passe_updated BOOLEAN NOT NULL DEFAULT FALSE,
   prenom VARCHAR(80) NOT NULL,
   nom VARCHAR(80) NOT NULL,
   telephone VARCHAR(40),

@@ -58,7 +58,7 @@ test("le code de vérification ouvre une session puis permet de changer le mot d
   const passwordResetMailer = {
     async sendPasswordResetCode({ code }) {
       sentCode = code;
-      return { previewCode: code };
+      return {};
     }
   };
   const service = new AuthService({
@@ -72,7 +72,7 @@ test("le code de vérification ouvre une session puis permet de changer le mot d
   });
 
   assert.match(sentCode, /^\d{6}$/);
-  assert.equal(requested.debugResetCode, sentCode);
+  assert.equal(requested.debugResetCode, undefined);
 
   const verified = await service.verifyPasswordResetCode({
     email: "test@example.com",
@@ -133,6 +133,34 @@ test("verifyPasswordResetCode refuse un code invalide", async () => {
     }),
     /Code invalide/
   );
+});
+
+test("la première connexion remplace le mot de passe temporaire", async () => {
+  let storedPasswordHash = "";
+  const usersRepo = {
+    async setFirstLoginPassword(userId, passwordHash) {
+      assert.equal(userId, 1);
+      storedPasswordHash = passwordHash;
+      return true;
+    },
+    async findById() {
+      return {
+        ...testUser(storedPasswordHash),
+        mustChangePassword: false
+      };
+    }
+  };
+  const service = new AuthService({ usersRepo });
+
+  const result = await service.completeFirstLogin({
+    userId: 1,
+    password: "nouvelle phrase secrète",
+    confirmPassword: "nouvelle phrase secrète"
+  });
+
+  assert.equal(result.user.mustChangePassword, false);
+  assert.equal(await verifyPassword("nouvelle phrase secrète", storedPasswordHash), true);
+  assert.ok(result.token);
 });
 
 function testUser(passwordHash) {

@@ -5,13 +5,8 @@ export function createPasswordResetMailer(env = process.env) {
 
   if (!smtpConfigured) {
     return {
-      async sendPasswordResetCode({ email, code }) {
-        if (env.NODE_ENV === "production") {
-          throw new Error("Le service d’envoi de courriels n’est pas configuré.");
-        }
-
-        console.info(`[DEV] Code de réinitialisation pour ${email}: ${code}`);
-        return { previewCode: code };
+      async sendPasswordResetCode() {
+        throw new Error("Le service d’envoi de courriels n’est pas configuré.");
       }
     };
   }

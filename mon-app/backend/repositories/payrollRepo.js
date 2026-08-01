@@ -38,6 +38,7 @@ export function createPayrollRepo(db) {
             ON ds.etudiant_id = e.utilisateur_id
             AND ds.superviseur_id = e.superviseur_id
           WHERE e.superviseur_id = ?
+            AND u.statut = 'ACTIF'
           ORDER BY studentName ASC
         `,
         [supervisorUserId]
@@ -85,6 +86,7 @@ export function createPayrollRepo(db) {
               ON ds.etudiant_id = e.utilisateur_id
               AND ds.superviseur_id = e.superviseur_id
             WHERE e.superviseur_id = ?
+              AND u.statut = 'ACTIF'
               AND e.code_etudiant = ?
               AND e.programme = ?
               AND e.groupe = ?
@@ -170,6 +172,10 @@ export function createPayrollRepo(db) {
       if (user.role === "SUPERVISEUR") {
         where.push("cps.superviseur_id = ?");
         params.push(user.id);
+      }
+
+      if (user.role === "DIRECTION") {
+        where.push("cps.statut != 'CALCULE'");
       }
 
       const [rows] = await db.execute(

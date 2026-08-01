@@ -7,6 +7,8 @@ import StudentDashboard from "./StudentDashboard.jsx";
 import StudentCsvImport from "./StudentCsvImport.jsx";
 import AdminStudents from "./AdminStudents.jsx";
 import SupervisorDashboard from "./SupervisorDashboard.jsx";
+import NotificationBell from "./NotificationBell.jsx";
+import DashboardNotifications from "./DashboardNotifications.jsx";
 import "../assets/auth.css";
 import { clearAuthSession } from "../services/authSession.js";
 
@@ -147,7 +149,7 @@ export default function Dashboard({ user, onLogout }) {
             />
           )}
 
-          {currentUser.role === "DIRECTION" && (
+          {["CONSEILLERE", "DIRECTION"].includes(currentUser.role) && (
             <SidebarButton
               active={activeView === "adminStudents"}
               label="Gérer les étudiants"
@@ -156,7 +158,7 @@ export default function Dashboard({ user, onLogout }) {
             />
           )}
 
-          {["CONSEILLERE", "COMPTABILITE", "DIRECTION"].includes(currentUser.role) && (
+          {["CONSEILLERE", "COMPTABILITE"].includes(currentUser.role) && (
             <SidebarButton
               active={activeView === "payroll"}
               label="Paie superviseurs"
@@ -192,11 +194,13 @@ export default function Dashboard({ user, onLogout }) {
             <h1>{pageTitle(activeView)}</h1>
             <p>{pageDescription(activeView, currentUser.role)}</p>
           </div>
+          <NotificationBell onNavigate={setActiveView} />
         </header>
 
         {error && <div className="error-message">{error}</div>}
 
         {activeView === "dashboard" && (
+          <>
           <section className="dashboardHero">
             <div>
               <span className="heroEyebrow">Bienvenue dans votre espace</span>
@@ -205,6 +209,7 @@ export default function Dashboard({ user, onLogout }) {
             </div>
             <span className="statusPill statusGreen">{currentUser.status}</span>
           </section>
+          </>
         )}
 
         {activeView === "studentImport" && ["CONSEILLERE", "DIRECTION"].includes(currentUser.role) ? (
@@ -215,7 +220,7 @@ export default function Dashboard({ user, onLogout }) {
             user={currentUser}
             initialSection={activeView === "historyMileage" ? "mileage" : "payroll"}
           />
-        ) : activeView === "adminStudents" && ["DIRECTION"].includes(currentUser.role) ? (
+        ) : activeView === "adminStudents" && ["CONSEILLERE", "DIRECTION"].includes(currentUser.role) ? (
           <AdminStudents />
         ) : activeView === "stageContracts" ? (
           <StageContractsDashboard user={currentUser} />
@@ -230,7 +235,7 @@ export default function Dashboard({ user, onLogout }) {
             onNavigate={setActiveView}
           />
         ) : (
-          <ProfilePanel user={currentUser} />
+          <ProfilePanel user={currentUser} onNavigate={setActiveView} />
         )}
       </main>
     </section>
@@ -329,8 +334,9 @@ function SidebarIcon({ name }) {
   );
 }
 
-function ProfilePanel({ user }) {
+function ProfilePanel({ user, onNavigate }) {
   return (
+    <>
     <section className="panel">
       <div className="panelHeader">
         <h2>Profil connecté</h2>
@@ -344,14 +350,22 @@ function ProfilePanel({ user }) {
         </div>
         <div>
           <strong>Identifiant</strong>
-          <span>{user.codePermanent || user.studentCode || user.employeeNumber || "-"}</span>
+          <span>{user.codePermanent || user.studentCode || user.employeeNumber || `USR-${user.id}`}</span>
         </div>
+        {(user.department || user.service || user.title) && <div>
+          <strong>Profil</strong>
+          <span>{user.department || user.service || user.title}</span>
+        </div>}
         <div>
           <strong>Statut</strong>
           <span>{user.status}</span>
         </div>
       </div>
     </section>
+    {["CONSEILLERE", "COMPTABILITE", "DIRECTION"].includes(user.role) && (
+      <DashboardNotifications onNavigate={onNavigate} />
+    )}
+    </>
   );
 }
 

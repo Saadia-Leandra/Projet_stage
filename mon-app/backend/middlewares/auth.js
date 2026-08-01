@@ -16,7 +16,18 @@ export function auth(req, res, next) {
   }
 }
 
-export const requireLogin = auth;
+export function requireLogin(req, res, next) {
+  auth(req, res, () => {
+    if (req.user.mustChangePassword) {
+      return res.status(403).json({
+        error: "Vous devez créer votre mot de passe personnel avant de continuer.",
+        code: "PASSWORD_CHANGE_REQUIRED"
+      });
+    }
+
+    next();
+  });
+}
 
 export function requireRole(...roles) {
   return (req, res, next) => {

@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node backend/server.js",
+    "dev": "nodemon backend/server.js",
     "dev:frontend": "vite",
-    "dev:backend": "node backend/server.js",
+    "dev:backend": "nodemon backend/server.js",
     "dev:csv": "python python-import-service/app.py",
     "start": "node backend/server.js",
     "test": "node --test backend/tests/*.test.js",
@@ -30,6 +30,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "oxlint": "^1.71.0",
-    "vite": "^8.1.1"
+    "vite": "^8.1.1",
+    "nodemon": "^3.1.14"
   }
 }

@@ -486,6 +486,143 @@ h2 {
   font-weight: 600;
 }
 
+.notificationBell {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.notificationBellButton {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  color: #173f83;
+  background: #ffffff;
+  box-shadow: var(--shadow-panel);
+}
+
+.notificationBellButton:hover {
+  color: #ffffff;
+  background: #173f83;
+}
+
+.notificationBellButton svg {
+  width: 23px;
+  height: 23px;
+}
+
+.notificationBellBadge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  place-items: center;
+  min-width: 21px;
+  height: 21px;
+  padding: 0 5px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  color: #ffffff;
+  background: #dc2626;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.notificationPopover {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(380px, calc(100vw - 36px));
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.18);
+}
+
+.notificationPopover > header {
+  padding: 16px 18px;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.notificationPopover > header strong,
+.notificationPopover > header span {
+  display: block;
+}
+
+.notificationPopover > header span {
+  margin-top: 3px;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.notificationPopoverList {
+  max-height: 410px;
+  overflow-y: auto;
+}
+
+.notificationPopoverItem {
+  display: grid;
+  grid-template-columns: 9px minmax(0, 1fr);
+  gap: 11px;
+  width: 100%;
+  padding: 14px 18px;
+  border: 0;
+  border-bottom: 1px solid #eef2f7;
+  color: #334155;
+  text-align: left;
+  background: #ffffff;
+}
+
+.notificationPopoverItem:hover,
+.notificationPopoverItem.unread {
+  background: #eff6ff;
+}
+
+.notificationPopoverItem strong,
+.notificationPopoverItem small {
+  display: block;
+}
+
+.notificationPopoverItem strong {
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.notificationPopoverItem small {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.notificationPopoverDot {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+
+.notificationPopoverItem.unread .notificationPopoverDot {
+  background: #f97316;
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.14);
+}
+
+.notificationPopoverMessage {
+  margin: 0;
+  padding: 24px 18px;
+  color: #64748b;
+  text-align: center;
+  font-size: 13px;
+}
+
 .dashboardHero,
 .panel,
 .studentPanel {
@@ -878,6 +1015,9 @@ h2 {
   margin: 0;
   line-height: 1.45;
 }
+
+.dashboardNotificationItem { width: 100%; border: 0; text-align: left; cursor: pointer; }
+.dashboardNotificationItem.unread { background: #eff6ff; }
 
 .legendPanel {
   margin-top: 18px;
@@ -1397,6 +1537,17 @@ h2 {
   .studentProgressRow {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .topHeader {
+    position: relative;
+    padding-right: 58px;
+  }
+
+  .topHeader .notificationBell {
+    position: absolute;
+    top: 0;
+    right: 0;
   }
 
   .studentDashboardGrid,
