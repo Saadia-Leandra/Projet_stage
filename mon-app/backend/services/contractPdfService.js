@@ -150,7 +150,20 @@ export function resolveContractStoragePath(relativePath) {
 }
 
 export async function assertValidPdf(filePath) {
-  const handle = await fs.open(filePath, "r");
+  let handle;
+
+  try {
+    handle = await fs.open(filePath, "r");
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      throw createError(
+        "Le fichier PDF demandé est introuvable sur le serveur.",
+        404
+      );
+    }
+
+    throw error;
+  }
 
   try {
     const buffer = Buffer.alloc(5);

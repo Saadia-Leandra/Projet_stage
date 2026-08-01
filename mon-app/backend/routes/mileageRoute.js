@@ -36,6 +36,10 @@ export default function mileageRoutes({ mileageTripsRepo }) {
 
   router.post("/calculate", requireRole("SUPERVISEUR"), async (req, res, next) => {
     try {
+      await mileageTripsRepo.assertActiveStudents(req.user.id, [
+        req.body.studentId,
+        ...(req.body.destinations || []).map((destination) => destination.studentId)
+      ]);
       const parkingAmount = Number(req.body.parkingAmount || 0);
       if (!Number.isFinite(parkingAmount) || parkingAmount < 0) {
         const error = new Error("Le montant de stationnement est invalide."); error.status = 400; throw error;
@@ -81,11 +85,11 @@ export default function mileageRoutes({ mileageTripsRepo }) {
     }
   });
 
-  router.get("/trips", requireRole("SUPERVISEUR", "COMPTABILITE", "CONSEILLERE"), async (req, res, next) => {
+  router.get("/trips", requireRole("SUPERVISEUR", "COMPTABILITE", "DIRECTION", "CONSEILLERE"), async (req, res, next) => {
     try {
       const supervisorUserId = req.user.role === "SUPERVISEUR" ? req.user.id : null;
 
-      res.json({ trips: await mileageTripsRepo.list(supervisorUserId) });
+      res.json({ trips: await mileageTripsRepo.list(supervisorUserId, req.user.role === "DIRECTION") });
     } catch (error) {
       next(error);
     }
@@ -115,7 +119,7 @@ export default function mileageRoutes({ mileageTripsRepo }) {
       res.type("png").set("Cache-Control", "private, max-age=31536000, immutable").send(contents);
     } catch (error) { next(error); }
   });
-  router.patch("/trips/:id/status", requireRole("COMPTABILITE", "DIRECTION"), async (req, res, next) => {
+  router.patch("/trips/:id/status", requireRole("COMPTABILITE"), async (req, res, next) => {
     try {
       await mileageTripsRepo.updateStatus(req.params.id, req.body.status, req.body.refusalReason);
       res.json({ ok: true });

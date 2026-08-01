@@ -22,7 +22,7 @@ export class AuthService {
 
     const user = await this.usersRepo.findByIdentifier(identifier);
 
-    if (!user) {
+    if (!user || user.status === "INACTIF") {
       const error = new Error("Identifiants invalides.");
       error.status = 401;
       throw error;
@@ -71,14 +71,10 @@ export class AuthService {
       expiresAt
     );
 
-    const mailResult = await this.passwordResetMailer.sendPasswordResetCode({
+    await this.passwordResetMailer.sendPasswordResetCode({
       email: user.email,
       code
     });
-
-    if (mailResult.previewCode && process.env.NODE_ENV !== "production") {
-      response.debugResetCode = mailResult.previewCode;
-    }
 
     return response;
   }
@@ -144,6 +140,39 @@ export class AuthService {
 
     return { message: "Votre mot de passe a été modifié. Vous pouvez maintenant vous connecter." };
   }
+
+  async completeFirstLogin({ userId, password, confirmPassword }) {
+    if (password !== confirmPassword) {
+      const error = new Error("Les deux mots de passe ne correspondent pas.");
+      error.status = 400;
+      throw error;
+    }
+
+    if (!isStrongEnoughPassword(password)) {
+      const error = new Error("Le mot de passe doit contenir entre 12 et 128 caractères.");
+      error.status = 400;
+      throw error;
+    }
+
+    const passwordHash = await hashPassword(password);
+    const updated = await this.usersRepo.setFirstLoginPassword(userId, passwordHash);
+
+    if (!updated) {
+      const error = new Error("Le changement initial du mot de passe n’est plus requis.");
+      error.status = 409;
+      throw error;
+    }
+
+    const user = await this.usersRepo.findById(userId);
+    const publicUser = toPublicUser(user);
+
+    return {
+      token: createToken(publicUser),
+      user: publicUser,
+      expiresIn: "8h",
+      message: "Votre mot de passe personnel a été créé."
+    };
+  }
 }
 
 function hashResetValue(value, secret) {
@@ -173,7 +202,11 @@ export function toPublicUser(user) {
     studentCode: user.studentCode,
     employeeNumber: user.employeeNumber,
     mileageRate: user.mileageRate,
+    department: user.department,
+    service: user.service,
+    title: user.title,
     role: user.role,
-    status: user.status
+    status: user.status,
+    mustChangePassword: Boolean(user.mustChangePassword)
   };
 }

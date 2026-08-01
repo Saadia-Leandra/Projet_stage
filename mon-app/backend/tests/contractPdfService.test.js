@@ -5,6 +5,7 @@ import test from "node:test";
 import { PDFDocument } from "pdf-lib";
 
 import {
+  assertValidPdf,
   generateContractPdf,
   generateInternshipRequestPdf,
   resolveContractStoragePath
@@ -131,5 +132,20 @@ test("rejette les chemins de stockage relatifs dangereux", () => {
   assert.throws(
     () => resolveContractStoragePath("../secret.pdf"),
     /Chemin de fichier invalide/
+  );
+});
+
+test("retourne une erreur 404 explicite lorsqu'un PDF stocke est absent", async () => {
+  const missingPath = resolveContractStoragePath(
+    `original/pdf-absent-${Date.now()}.pdf`
+  );
+
+  await assert.rejects(
+    assertValidPdf(missingPath),
+    (error) => {
+      assert.equal(error.status, 404);
+      assert.match(error.message, /introuvable/);
+      return true;
+    }
   );
 });

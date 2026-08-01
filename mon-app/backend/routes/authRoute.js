@@ -33,6 +33,24 @@ export default function authRoutes({ usersRepo }) {
     }
   });
 
+  router.post("/first-login-password", auth, async (req, res, next) => {
+    try {
+      if (!req.user.mustChangePassword) {
+        return res.status(409).json({
+          error: "Le changement initial du mot de passe n’est pas requis."
+        });
+      }
+
+      const result = await authService.completeFirstLogin({
+        userId: req.user.id,
+        ...req.body
+      });
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/forgot-password", async (req, res, next) => {
     try {
       const result = await authService.requestPasswordReset(req.body);

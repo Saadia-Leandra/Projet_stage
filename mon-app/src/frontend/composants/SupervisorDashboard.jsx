@@ -331,11 +331,13 @@ function MileageForm({ user, students, onCreated }) {
           parkingReceipt: parkingReceipt ? await fileToPayload(parkingReceipt) : null,
           destinations: [
             {
+              studentId: form.studentId,
               companyId: selectedStudentCompanyId(students, form.studentId),
               label: form.companyName || form.studentName || "Destination",
               address: form.destinationAddress
             },
             ...additionalStops.map((stop) => ({
+              studentId: stop.studentId,
               companyId: selectedStudentCompanyId(students, stop.studentId),
               label: stop.label || "Destination",
               address: stop.address

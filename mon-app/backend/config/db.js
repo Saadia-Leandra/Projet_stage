@@ -14,6 +14,7 @@ export function createDbPool() {
     user: process.env.DB_USER || "root",
     password: process.env.DB_PASSWORD || "",
     ...(ssl ? { ssl } : {}),
+    timezone: "Z",
     waitForConnections: true,
     connectionLimit: 10
   });

@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 
 const scrypt = promisify(crypto.scrypt);
 const SCRYPT_KEY_LENGTH = 64;
+export const DEFAULT_INITIAL_PASSWORD = "secret123";
 
 export async function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString("base64url");

@@ -14,7 +14,7 @@ export default function AdminStudents() {
   const [editingStudent, setEditingStudent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
+  const [statusLoadingId, setStatusLoadingId] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -103,37 +103,42 @@ export default function AdminStudents() {
     }
   }
 
-  async function deleteStudent(student) {
+  async function changeStudentStatus(student) {
+    const isActive = student.statut === "ACTIF";
+    const nextStatus = isActive ? "INACTIF" : "ACTIF";
     const fullName = `${student.prenom} ${student.nom}`.trim();
     const confirmed = window.confirm(
-      `Voulez-vous vraiment supprimer ${fullName || "cet étudiant"} ? Cette action est définitive.`
+      isActive
+        ? `Voulez-vous archiver ${fullName || "cet étudiant"} ? Ses dossiers et historiques seront conservés.`
+        : `Voulez-vous réactiver ${fullName || "cet étudiant"} ?`
     );
 
     if (!confirmed) return;
 
-    setDeletingId(student.userId);
+    setStatusLoadingId(student.userId);
     setError("");
     setSuccess("");
 
     try {
-      const response = await fetch(`/api/admin/students/${student.userId}`, {
-        method: "DELETE",
-        headers: authHeaders()
+      const response = await fetch(`/api/admin/students/${student.userId}/status`, {
+        method: "PATCH",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ status: nextStatus })
       });
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.error || "Impossible de supprimer cet étudiant.");
+        throw new Error(data.error || "Impossible de modifier le statut de cet étudiant.");
       }
 
-      setStudents((current) =>
-        current.filter((item) => item.userId !== student.userId)
-      );
-      setSuccess("L’étudiant a été supprimé.");
-    } catch (deleteError) {
-      setError(deleteError.message || "Impossible de supprimer cet étudiant.");
+      setStudents((current) => current.map((item) =>
+        item.userId === student.userId ? { ...item, statut: nextStatus } : item
+      ));
+      setSuccess(isActive ? "L’étudiant a été archivé." : "L’étudiant a été réactivé.");
+    } catch (statusError) {
+      setError(statusError.message || "Impossible de modifier le statut de cet étudiant.");
     } finally {
-      setDeletingId(null);
+      setStatusLoadingId(null);
     }
   }
 
@@ -196,14 +201,14 @@ export default function AdminStudents() {
                         Modifier
                       </button>
                       <button
-                        className="dangerButton fitButton"
+                        className={`${student.statut === "ACTIF" ? "dangerButton" : "secondaryButton"} fitButton`}
                         type="button"
-                        disabled={deletingId === student.userId}
-                        onClick={() => deleteStudent(student)}
+                        disabled={statusLoadingId === student.userId}
+                        onClick={() => changeStudentStatus(student)}
                       >
-                        {deletingId === student.userId
-                          ? "Suppression..."
-                          : "Supprimer"}
+                        {statusLoadingId === student.userId
+                          ? "Enregistrement..."
+                          : student.statut === "ACTIF" ? "Archiver" : "Réactiver"}
                       </button>
                     </div>
                   </td>

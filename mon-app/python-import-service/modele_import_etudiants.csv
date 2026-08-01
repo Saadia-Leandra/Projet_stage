@@ -1,0 +1,2 @@
+courriel,prenom,nom,telephone,mot_de_passe_temporaire,code_etudiant,programme,cohorte,adresse,ville,province,code_postal,code_permanent,groupe,expiration_caq,expiration_permis_etudes,expiration_assurance,numero_employe_superviseur
+etudiant@example.com,Marie,Tremblay,514-555-0101,ChangerMoi123!,2600100,Developpement web,2026,100 rue Exemple,Montreal,Quebec,H2X 1A1,TREM01010101,WEB-2026-A,2027-08-31,2027-08-31,2027-08-31,EMP-001

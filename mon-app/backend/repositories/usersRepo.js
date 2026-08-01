@@ -9,17 +9,24 @@ export function createUsersRepo(db) {
             u.id,
             u.courriel AS email,
             u.mot_de_passe_hash AS passwordHash,
+            NOT u.mot_de_passe_updated AS mustChangePassword,
             u.prenom AS firstName,
             u.nom AS lastName,
             u.role,
             u.statut AS status,
             e.code_permanent AS codePermanent,
             e.code_etudiant AS studentCode,
-            s.numero_employe AS employeeNumber,
-            s.taux_kilometrique AS mileageRate
+            COALESCE(s.numero_employe, cpt.numero_employe) AS employeeNumber,
+            s.taux_kilometrique AS mileageRate,
+            co.departement AS department,
+            cpt.service,
+            dir.titre AS title
           FROM utilisateurs u
           LEFT JOIN etudiants e ON e.utilisateur_id = u.id
           LEFT JOIN superviseurs s ON s.utilisateur_id = u.id
+          LEFT JOIN conseillere co ON co.utilisateur_id = u.id
+          LEFT JOIN comptabilite cpt ON cpt.utilisateur_id = u.id
+          LEFT JOIN direction dir ON dir.utilisateur_id = u.id
           WHERE u.id = ?
           LIMIT 1
         `,
@@ -38,25 +45,34 @@ export function createUsersRepo(db) {
             u.id,
             u.courriel AS email,
             u.mot_de_passe_hash AS passwordHash,
+            NOT u.mot_de_passe_updated AS mustChangePassword,
             u.prenom AS firstName,
             u.nom AS lastName,
             u.role,
             u.statut AS status,
             e.code_permanent AS codePermanent,
             e.code_etudiant AS studentCode,
-            s.numero_employe AS employeeNumber,
-            s.taux_kilometrique AS mileageRate
+            COALESCE(s.numero_employe, cpt.numero_employe) AS employeeNumber,
+            s.taux_kilometrique AS mileageRate,
+            co.departement AS department,
+            cpt.service,
+            dir.titre AS title
           FROM utilisateurs u
           LEFT JOIN etudiants e ON e.utilisateur_id = u.id
           LEFT JOIN superviseurs s ON s.utilisateur_id = u.id
+          LEFT JOIN conseillere co ON co.utilisateur_id = u.id
+          LEFT JOIN comptabilite cpt ON cpt.utilisateur_id = u.id
+          LEFT JOIN direction dir ON dir.utilisateur_id = u.id
           WHERE
             LOWER(u.courriel) = ?
             OR LOWER(e.code_permanent) = ?
             OR LOWER(e.code_etudiant) = ?
             OR LOWER(s.numero_employe) = ?
+            OR LOWER(cpt.numero_employe) = ?
           LIMIT 1
         `,
         [
+          normalizedIdentifier,
           normalizedIdentifier,
           normalizedIdentifier,
           normalizedIdentifier,
@@ -79,6 +95,22 @@ export function createUsersRepo(db) {
       );
 
       return rows[0] || null;
+    },
+
+    async setFirstLoginPassword(userId, passwordHash) {
+      const [result] = await db.execute(
+        `
+          UPDATE utilisateurs
+          SET
+            mot_de_passe_hash = ?,
+            mot_de_passe_updated = TRUE
+          WHERE id = ?
+            AND mot_de_passe_updated = FALSE
+        `,
+        [passwordHash, userId]
+      );
+
+      return result.affectedRows > 0;
     },
 
     async createPasswordResetCode(userId, codeHash, expiresAt) {
@@ -202,7 +234,13 @@ export function createUsersRepo(db) {
         }
 
         await connection.execute(
-          "UPDATE utilisateurs SET mot_de_passe_hash = ? WHERE id = ?",
+          `
+            UPDATE utilisateurs
+            SET
+              mot_de_passe_hash = ?,
+              mot_de_passe_updated = TRUE
+            WHERE id = ?
+          `,
           [passwordHash, resetSession.userId]
         );
         await connection.execute(
