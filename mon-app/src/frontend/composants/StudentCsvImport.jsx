@@ -10,7 +10,16 @@ const CLARA_HEADERS = [
   "spe",
   "telephone_principal",
   "telephone_secondaire",
-  "email"
+  "email",
+  "session",
+  "no_cours",
+  "titre_du_cours",
+  "discipline",
+  "horaire",
+  "titulaires",
+  "ponderation",
+  "date_de_debut",
+  "date_de_fin"
 ];
 
 const CLARA_EXAMPLE = [
@@ -23,7 +32,16 @@ const CLARA_EXAMPLE = [
   "Developpement web",
   "514-555-0101",
   "",
-  "marie.tremblay@example.com"
+  "marie.tremblay@example.com",
+  "Hiver 2026",
+  "420-STR-TT",
+  "Stage en reseau",
+  "420 - Technique de l'informatique",
+  "Mar 16:00 a 17:00",
+  '"Alcindor, R. (AICR);"',
+  "00-14-03",
+  "2026-01-07",
+  "2026-04-24"
 ];
 
 export default function StudentCsvImport() {
@@ -118,15 +136,15 @@ export default function StudentCsvImport() {
       </div>
 
       <div className="csvImportHelp">
-        <strong>Colonnes Clara reconnues</strong>
+        <strong>Informations requises dans le fichier Clara</strong>
         <span>
-          numero_dossier, nom, prenom, code_permanent, numero_programme,
-          numero_grille, spe, telephone_principal, telephone_secondaire et
-          email.
+          Chaque étudiant doit avoir un numero_dossier, un nom, un prenom, un
+          email et un programme (spe ou numero_programme). Une ligne incomplète
+          sera signalée avant l’importation.
         </span>
         <span>
-          Le numéro de dossier devient le code étudiant, « spe » devient le
-          programme et « email » devient le courriel de connexion.
+          Le code_permanent, le numero_grille et les numéros de téléphone sont
+          facultatifs, mais ils seront enregistrés lorsqu’ils sont présents.
         </span>
       </div>
 
@@ -222,6 +240,7 @@ function ImportPreview({ preview }) {
                 <th>Courriel</th>
                 <th>Programme</th>
                 <th>Grille</th>
+                <th>Encadreur</th>
               </tr>
             </thead>
             <tbody>
@@ -234,6 +253,7 @@ function ImportPreview({ preview }) {
                   <td>{row.courriel}</td>
                   <td>{row.programme}</td>
                   <td>{row.groupe || "—"}</td>
+                  <td>{row.numero_employe_superviseur || "—"}</td>
                 </tr>
               ))}
             </tbody>

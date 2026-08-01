@@ -5,7 +5,9 @@ import PayrollDashboard from "./PayrollDashboard.jsx";
 import StageContractsDashboard from "./StageContractsDashboard.jsx";
 import StudentDashboard from "./StudentDashboard.jsx";
 import StudentCsvImport from "./StudentCsvImport.jsx";
+import EmployeeCsvImport from "./EmployeeCsvImport.jsx";
 import AdminStudents from "./AdminStudents.jsx";
+import AdminEmployees from "./AdminEmployees.jsx";
 import SupervisorDashboard from "./SupervisorDashboard.jsx";
 import NotificationBell from "./NotificationBell.jsx";
 import DashboardNotifications from "./DashboardNotifications.jsx";
@@ -140,7 +142,7 @@ export default function Dashboard({ user, onLogout }) {
             />
           )}
 
-          {["CONSEILLERE", "DIRECTION"].includes(currentUser.role) && (
+          {currentUser.role === "CONSEILLERE" && (
             <SidebarButton
               active={activeView === "studentImport"}
               label="Importer des étudiants"
@@ -149,12 +151,30 @@ export default function Dashboard({ user, onLogout }) {
             />
           )}
 
-          {["CONSEILLERE", "DIRECTION"].includes(currentUser.role) && (
+          {currentUser.role === "DIRECTION" && (
+            <SidebarButton
+              active={activeView === "employeeImport"}
+              label="Importer des employés"
+              icon="import"
+              onClick={() => setActiveView("employeeImport")}
+            />
+          )}
+
+          {currentUser.role === "CONSEILLERE" && (
             <SidebarButton
               active={activeView === "adminStudents"}
               label="Gérer les étudiants"
               icon="students"
               onClick={() => setActiveView("adminStudents")}
+            />
+          )}
+
+          {currentUser.role === "DIRECTION" && (
+            <SidebarButton
+              active={activeView === "adminEmployees"}
+              label="Gérer les employés"
+              icon="students"
+              onClick={() => setActiveView("adminEmployees")}
             />
           )}
 
@@ -212,16 +232,20 @@ export default function Dashboard({ user, onLogout }) {
           </>
         )}
 
-        {activeView === "studentImport" && ["CONSEILLERE", "DIRECTION"].includes(currentUser.role) ? (
+        {activeView === "studentImport" && currentUser.role === "CONSEILLERE" ? (
           <StudentCsvImport />
+        ) : activeView === "employeeImport" && currentUser.role === "DIRECTION" ? (
+          <EmployeeCsvImport />
         ) : ["history", "historyMileage"].includes(activeView) &&
           currentUser.role !== "ETUDIANT" ? (
           <HistoryDashboard
             user={currentUser}
             initialSection={activeView === "historyMileage" ? "mileage" : "payroll"}
           />
-        ) : activeView === "adminStudents" && ["CONSEILLERE", "DIRECTION"].includes(currentUser.role) ? (
+        ) : activeView === "adminStudents" && currentUser.role === "CONSEILLERE" ? (
           <AdminStudents />
+        ) : activeView === "adminEmployees" && currentUser.role === "DIRECTION" ? (
+          <AdminEmployees />
         ) : activeView === "stageContracts" ? (
           <StageContractsDashboard user={currentUser} />
         ) : activeView === "payroll" ? (
@@ -407,6 +431,8 @@ function pageTitle(view) {
     stageRequests: "Demandes à valider",
     payroll: "Paie superviseurs",
     studentImport: "Importation des étudiants",
+    employeeImport: "Importation des employés",
+    adminEmployees: "Gestion des employés",
     history: "Historique",
     historyMileage: "Historique"
   };
@@ -428,6 +454,8 @@ function pageDescription(view, role) {
     stageRequests: "Examinez les demandes et traitez les actions prioritaires.",
     payroll: "Consultez les périodes, montants et statuts de paiement.",
     studentImport: "Ajoutez plusieurs étudiants de manière contrôlée.",
+    employeeImport: "Créez les comptes du personnel à partir du fichier préparé par l’école.",
+    adminEmployees: "Consultez et mettez à jour les comptes du personnel.",
     history: "Consultez les opérations de paie et de kilométrage déjà traitées.",
     historyMileage: "Consultez les opérations de paie et de kilométrage déjà traitées."
   };

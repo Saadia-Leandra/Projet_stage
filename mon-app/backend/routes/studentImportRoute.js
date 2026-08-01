@@ -10,7 +10,7 @@ const router = Router();
 const MAX_REQUEST_BYTES = 6 * 1024 * 1024;
 
 router.use(requireLogin);
-router.use(requireRole("CONSEILLERE", "DIRECTION"));
+router.use(requireRole("CONSEILLERE"));
 
 router.post("/preview", async (req, res, next) => {
   try {
