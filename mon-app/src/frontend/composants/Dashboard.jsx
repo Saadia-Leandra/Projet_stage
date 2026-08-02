@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import Logout from "./Logout.jsx";
 import HistoryDashboard from "./HistoryDashboard.jsx";
+import DocumentsPanel from "./DocumentsPanel.jsx";
+import MessagesPanel from "./MessagesPanel.jsx";
 import PayrollDashboard from "./PayrollDashboard.jsx";
 import StageContractsDashboard from "./StageContractsDashboard.jsx";
 import StudentDashboard from "./StudentDashboard.jsx";
@@ -77,6 +79,24 @@ export default function Dashboard({ user, onLogout }) {
             icon="dashboard"
             onClick={() => setActiveView("dashboard")}
           />
+
+          {["ETUDIANT", "CONSEILLERE"].includes(currentUser.role) && (
+            <SidebarButton
+              active={activeView === "documents"}
+              label="Documents"
+              icon="documents"
+              onClick={() => setActiveView("documents")}
+            />
+          )}
+
+          {["ETUDIANT", "SUPERVISEUR", "CONSEILLERE"].includes(currentUser.role) && (
+            <SidebarButton
+              active={activeView === "messages"}
+              label="Messagerie"
+              icon="messages"
+              onClick={() => setActiveView("messages")}
+            />
+          )}
 
           {currentUser.role === "ETUDIANT" && (
             <>
@@ -246,6 +266,11 @@ export default function Dashboard({ user, onLogout }) {
           <AdminStudents />
         ) : activeView === "adminEmployees" && currentUser.role === "DIRECTION" ? (
           <AdminEmployees />
+        ) : activeView === "documents" && ["ETUDIANT", "CONSEILLERE"].includes(currentUser.role) ? (
+          <DocumentsPanel user={currentUser} />
+        ) : activeView === "messages" &&
+          ["ETUDIANT", "SUPERVISEUR", "CONSEILLERE"].includes(currentUser.role) ? (
+          <MessagesPanel user={currentUser} />
         ) : activeView === "stageContracts" ? (
           <StageContractsDashboard user={currentUser} />
         ) : activeView === "payroll" ? (
@@ -339,6 +364,18 @@ function SidebarIcon({ name }) {
         <path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6" />
         <path d="M4 4v4.6h4.6M12 8v5l3 2" />
       </>
+    ),
+    documents: (
+      <>
+        <path d="M3 6a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+        <path d="M3 10h18" />
+      </>
+    ),
+    messages: (
+      <>
+        <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4 4v-4H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" />
+        <path d="M8 10h8M8 13h5" />
+      </>
     )
   };
 
@@ -424,6 +461,8 @@ function heroText(role) {
 function pageTitle(view) {
   const titles = {
     dashboard: "Tableau de bord",
+    documents: "Documents",
+    messages: "Messagerie",
     requests: "Demandes de stage",
     contracts: "Contrats",
     stageContracts: "Contrats stage",
@@ -447,6 +486,8 @@ function pageDescription(view, role) {
 
   const descriptions = {
     dashboard: heroText(role),
+    documents: "Déposez et suivez les documents du dossier de stage.",
+    messages: "Échangez avec les acteurs de votre stage.",
     requests: "Créez une demande et suivez son traitement.",
     contracts: "Consultez vos contrats et leur progression.",
     stageContracts: "Centralisez le suivi et la signature des contrats de stage.",

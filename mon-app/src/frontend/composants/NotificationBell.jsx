@@ -131,6 +131,8 @@ function notificationDestination(actionUrl = "") {
     : "contracts";
   if (actionUrl.includes("/supervisor/stages/requests/")) return "stageRequests";
   if (actionUrl.includes("/demandes-stage/")) return "requests";
+  if (actionUrl.includes("/messages")) return "messages";
+  if (actionUrl.includes("/documents")) return "documents";
   return "";
 }
 
