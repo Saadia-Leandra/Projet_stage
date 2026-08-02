@@ -99,6 +99,19 @@ test("envoie un message après autorisation et normalise son contenu", async () 
   assert.equal(message.content, "Bonjour");
 });
 
+test("refuse un message dépassant 2000 caractères avant l'autorisation", async () => {
+  let authorizationChecked = false;
+  const service = createService({
+    async isParticipant() { authorizationChecked = true; return true; }
+  });
+
+  await assert.rejects(
+    service.sendMessage({ conversationId: 4, userId: 7, content: "a".repeat(2001) }),
+    (error) => error.status === 400 && /2000/.test(error.message)
+  );
+  assert.equal(authorizationChecked, false);
+});
+
 test("refuse de marquer comme lu un message appartenant à une autre conversation", async () => {
   let marked = false;
   const service = createService({

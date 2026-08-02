@@ -60,6 +60,9 @@ export class ChatService {
     const senderId = validId(userId, "Utilisateur invalide.");
     const cleanContent = String(content || "").trim();
     if (!cleanContent) throw httpError("Le contenu du message est requis.", 400);
+    if (cleanContent.length > 2000) {
+      throw httpError("Le message ne peut pas dépasser 2000 caractères.", 400);
+    }
     await this.assertParticipant(id, senderId);
     return this.chatRepo.createMessage({ conversationId: id, senderId, content: cleanContent });
   }
