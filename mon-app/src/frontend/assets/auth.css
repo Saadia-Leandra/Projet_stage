@@ -1976,6 +1976,25 @@ h2 {
   box-shadow: 0 24px 70px rgba(18, 53, 99, 0.22);
 }
 
+/* Le titre des fenêtres de gestion doit rester lisible sur l’en-tête bleu. */
+.appLayout .modalCard .managementModalHeader h2 {
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(9, 30, 58, 0.28);
+}
+
+.appLayout .modalCard .managementModalHeader .panelSubtle {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.modalCard .managementModalHeader h2 {
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(9, 30, 58, 0.22);
+}
+
+.modalCard .managementModalHeader .panelSubtle {
+  color: rgba(255, 255, 255, 0.86);
+}
+
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,

@@ -378,6 +378,7 @@
   position: sticky;
   bottom: 0;
   z-index: 2;
+  justify-content: center;
   margin: 24px -28px 0;
   padding: 16px 28px;
   border-top: 1px solid #dfe6ef;
@@ -387,6 +388,8 @@
 }
 
 .managementModalActions button {
+  flex: 1 1 0;
+  max-width: 260px;
   min-height: 44px;
   padding-inline: 20px;
   border-radius: 10px;
@@ -426,6 +429,10 @@
     margin-left: -18px;
     padding-right: 18px;
     padding-left: 18px;
+  }
+
+  .managementModalActions button {
+    max-width: none;
   }
   .supervisorStageFilters {
     flex-direction: column;
