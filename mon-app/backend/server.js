@@ -16,11 +16,14 @@ import studentImportRoutes from "./routes/studentImportRoute.js";
 import employeeImportRoutes from "./routes/employeeImportRoute.js";
 import adminStudentRoutes from "./routes/adminStudentRoute.js";
 import adminEmployeeRoutes from "./routes/adminEmployeeRoute.js";
+import chatRoutes from "./routes/chatRoute.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import { createDbPool } from "./config/db.js";
 import { createMileageTripsRepo } from "./repositories/mileageTripsRepo.js";
 import { createPayrollRepo } from "./repositories/payrollRepo.js";
 import { createUsersRepo } from "./repositories/usersRepo.js";
+import { createChatRepo } from "./repositories/chatRepo.js";
+import { ChatService } from "./services/chatService.js";
 import supervisorStageRoutes from "./routes/supervisorStageRoute.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -33,6 +36,8 @@ const db = createDbPool();
 const usersRepo = createUsersRepo(db);
 const mileageTripsRepo = createMileageTripsRepo(db);
 const payrollRepo = createPayrollRepo(db);
+const chatRepo = createChatRepo(db);
+const chatService = new ChatService({ chatRepo });
 
 app.use(express.json({ limit: "15mb" }));
 
@@ -49,6 +54,7 @@ app.use("/api/stage-management", stageManagementRoutes);
 app.use("/api/mileage", mileageRoutes({ mileageTripsRepo }));
 app.use("/api/supervisor/stages", supervisorStageRoutes);
 app.use("/api/payroll", payrollRoutes({ payrollRepo }));
+app.use("/api/chat", chatRoutes({ chatService }));
 
 const vite = await createViteServer({
   root: appRoot,
