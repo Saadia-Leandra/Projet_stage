@@ -171,14 +171,16 @@ function normalizeDestinations(destinations) {
         return {
           label: `Destination ${index + 1}`,
           address: destination.trim(),
-          companyId: null
+          companyId: null,
+          studentId: null
         };
       }
 
       return {
         label: String(destination?.label || destination?.name || `Destination ${index + 1}`).trim(),
         address: String(destination?.address || "").trim(),
-        companyId: destination?.companyId || null
+        companyId: destination?.companyId || null,
+        studentId: destination?.studentId || null
       };
     })
     .filter((destination) => destination.address);

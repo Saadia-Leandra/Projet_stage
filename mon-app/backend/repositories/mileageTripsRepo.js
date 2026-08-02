@@ -85,6 +85,27 @@
       }
     },
 
+    async assertNoDuplicateTripStudents(supervisorUserId, tripDate, studentIds) {
+      const ids = [...new Set((studentIds || []).map(Number).filter(Number.isInteger))];
+      if (!ids.length || !tripDate) return;
+      const placeholders = ids.map(() => "?").join(", ");
+      const [rows] = await db.execute(
+        `SELECT etudiant_id
+           FROM etudiants_deplacement_kilometrage
+          WHERE superviseur_id = ? AND date_deplacement = ?
+            AND etudiant_id IN (${placeholders})
+          LIMIT 1`,
+        [supervisorUserId, tripDate, ...ids]
+      );
+      if (rows.length) {
+        const error = new Error(
+          "Une charge de kilométrage existe déjà pour cet étudiant à cette date."
+        );
+        error.status = 409;
+        throw error;
+      }
+    },
+
     async create(data) {
       const connection = await db.getConnection();
 
@@ -92,6 +113,39 @@
         await connection.beginTransaction();
 
         const campusId = await findCampusId(connection, data.campus);
+        const selectedStudentIds = data.destinations
+          .map((destination) => Number(destination.studentId))
+          .filter((id) => Number.isInteger(id) && id > 0);
+        const studentIds = [...new Set(selectedStudentIds)];
+
+        if (!studentIds.length) {
+          const error = new Error("Au moins un étudiant est requis pour le kilométrage.");
+          error.status = 400;
+          throw error;
+        }
+        if (studentIds.length !== selectedStudentIds.length) {
+          const error = new Error("Un étudiant ne peut apparaître qu’une seule fois dans un déplacement.");
+          error.status = 400;
+          throw error;
+        }
+
+        const studentMarks = studentIds.map(() => "?").join(", ");
+        const [duplicates] = await connection.execute(
+          `SELECT etudiant_id
+             FROM etudiants_deplacement_kilometrage
+            WHERE superviseur_id = ? AND date_deplacement = ?
+              AND etudiant_id IN (${studentMarks})
+            LIMIT 1 FOR UPDATE`,
+          [data.supervisorUserId, data.tripDate, ...studentIds]
+        );
+        if (duplicates.length) {
+          const error = new Error(
+            "Une charge de kilométrage existe déjà pour cet étudiant à cette date. Choisissez une autre date."
+          );
+          error.status = 409;
+          throw error;
+        }
+
         const [result] = await connection.execute(
           `
             INSERT INTO deplacements_kilometrage (
@@ -132,8 +186,8 @@
             nullable(data.mapUrl),
             data.routeSnapshot ? JSON.stringify(data.routeSnapshot) : null,
             data.gpsTrace?.length ? JSON.stringify(data.gpsTrace) : null,
-            data.startedAt || null,
-            data.endedAt || null,
+            toSqlDateTime(data.startedAt, "heure de départ"),
+            toSqlDateTime(data.endedAt, "heure d’arrivée"),
             nullable(data.parkingReceipt?.name),
             nullable(data.parkingReceipt?.type),
             nullable(data.parkingReceipt?.storedName)
@@ -141,6 +195,15 @@
         );
 
         const tripId = result.insertId;
+
+        for (const studentId of studentIds) {
+          await connection.execute(
+            `INSERT INTO etudiants_deplacement_kilometrage
+              (deplacement_kilometrage_id, superviseur_id, etudiant_id, date_deplacement)
+             VALUES (?, ?, ?, ?)`,
+            [tripId, data.supervisorUserId, studentId, data.tripDate]
+          );
+        }
 
         for (const [index, destination] of data.destinations.entries()) {
           await connection.execute(
@@ -168,6 +231,10 @@
         return { id: tripId };
       } catch (error) {
         await connection.rollback();
+        if (error.code === "ER_DUP_ENTRY") {
+          error.message = "Une charge de kilométrage existe déjà pour cet étudiant à cette date.";
+          error.status = 409;
+        }
         throw error;
       } finally {
         connection.release();
@@ -283,6 +350,17 @@ async function findCampusId(connection, campus) {
 function nullable(value) {
   const cleaned = String(value || "").trim();
   return cleaned || null;
+}
+
+function toSqlDateTime(value, label) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    const error = new Error(`L’${label} est invalide.`);
+    error.status = 400;
+    throw error;
+  }
+  return date.toISOString().slice(0, 19).replace("T", " ");
 }
 
 function validateRefusalReason(status, value) {
