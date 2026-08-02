@@ -40,6 +40,14 @@ export default function mileageRoutes({ mileageTripsRepo }) {
         req.body.studentId,
         ...(req.body.destinations || []).map((destination) => destination.studentId)
       ]);
+      await mileageTripsRepo.assertNoDuplicateTripStudents(
+        req.user.id,
+        req.body.tripDate,
+        [
+          req.body.studentId,
+          ...(req.body.destinations || []).map((destination) => destination.studentId)
+        ]
+      );
       const parkingAmount = Number(req.body.parkingAmount || 0);
       if (!Number.isFinite(parkingAmount) || parkingAmount < 0) {
         const error = new Error("Le montant de stationnement est invalide."); error.status = 400; throw error;

@@ -109,6 +109,38 @@ export function createPayrollRepo(db) {
         const hourlyRate = Number(supervisorRows[0].hourlyRate);
         const comment = buildChargeComment(chargeData);
 
+        const [existingCharges] = await connection.execute(
+          `SELECT cps.id
+             FROM charges_paie_supervision cps
+             INNER JOIN etudiants_charge_paie ecp
+               ON ecp.charge_paie_supervision_id = cps.id
+            WHERE cps.superviseur_id = ? AND ecp.etudiant_id = ?
+            LIMIT 1 FOR UPDATE`,
+          [supervisorUserId, student.studentUserId]
+        );
+        if (existingCharges.length) {
+          throw createError(
+            "Une charge de paie de supervision existe déjà pour cet étudiant.",
+            409
+          );
+        }
+
+        try {
+          await connection.execute(
+            `INSERT INTO verrous_charge_paie_supervision (superviseur_id, etudiant_id)
+             VALUES (?, ?)`,
+            [supervisorUserId, student.studentUserId]
+          );
+        } catch (error) {
+          if (error.code === "ER_DUP_ENTRY") {
+            throw createError(
+              "Une charge de paie de supervision existe déjà pour cet étudiant.",
+              409
+            );
+          }
+          throw error;
+        }
+
         const [result] = await connection.execute(
           `
             INSERT INTO charges_paie_supervision (

@@ -383,11 +383,15 @@ function MileageForm({ user, students, onCreated }) {
             Etudiant
             <select name="studentId" value={form.studentId} onChange={updateField} required>
               <option value="">Choisir un etudiant</option>
-              {students.map((student) => (
+              {students
+                .filter((student) => !additionalStops.some(
+                  (stop) => String(stop.studentId) === String(student.id)
+                ))
+                .map((student) => (
                 <option key={student.id} value={student.id}>
                   {student.studentName} - {student.studentCode}
                 </option>
-              ))}
+                ))}
             </select>
           </label>
 
@@ -461,7 +465,21 @@ function MileageForm({ user, students, onCreated }) {
               <label className="field">Etudiant - arret {index + 2}
                 <select value={stop.studentId} onChange={(event) => updateStop(index, "studentId", event.target.value)} required>
                   <option value="">Choisir un etudiant</option>
-                  {students.map((student) => <option key={student.id} value={student.id}>{student.studentName}</option>)}
+                  {students
+                    .filter((student) => {
+                      const studentId = String(student.id);
+                      if (studentId === String(stop.studentId)) return true;
+                      if (studentId === String(form.studentId)) return false;
+                      return !additionalStops.some(
+                        (otherStop, otherIndex) => otherIndex !== index &&
+                          String(otherStop.studentId) === studentId
+                      );
+                    })
+                    .map((student) => (
+                      <option key={student.id} value={student.id}>
+                        {student.studentName} - {student.studentCode}
+                      </option>
+                    ))}
                 </select>
               </label>
               <label className="field">Adresse

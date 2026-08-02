@@ -10,8 +10,10 @@ DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS lignes_rapport_paie;
 DROP TABLE IF EXISTS rapports_paie;
 DROP TABLE IF EXISTS destinations_deplacement;
+DROP TABLE IF EXISTS etudiants_deplacement_kilometrage;
 DROP TABLE IF EXISTS deplacements_kilometrage;
 DROP TABLE IF EXISTS etudiants_charge_paie;
+DROP TABLE IF EXISTS verrous_charge_paie_supervision;
 DROP TABLE IF EXISTS charges_paie_supervision;
 DROP TABLE IF EXISTS evenements_workflow;
 DROP TABLE IF EXISTS documents;
@@ -452,6 +454,33 @@ CREATE TABLE deplacements_kilometrage (
   CONSTRAINT fk_deplacements_campus
     FOREIGN KEY (campus_id) REFERENCES campus(id),
   CONSTRAINT ck_deplacements_distance CHECK (distance_km >= 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE etudiants_deplacement_kilometrage (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  deplacement_kilometrage_id BIGINT UNSIGNED NOT NULL,
+  superviseur_id BIGINT UNSIGNED NOT NULL,
+  etudiant_id BIGINT UNSIGNED NOT NULL,
+  date_deplacement DATE NOT NULL,
+  UNIQUE KEY uq_kilometrage_superviseur_etudiant_date
+    (superviseur_id, etudiant_id, date_deplacement),
+  CONSTRAINT fk_etudiants_deplacement_deplacement
+    FOREIGN KEY (deplacement_kilometrage_id) REFERENCES deplacements_kilometrage(id) ON DELETE CASCADE,
+  CONSTRAINT fk_etudiants_deplacement_superviseur
+    FOREIGN KEY (superviseur_id) REFERENCES superviseurs(utilisateur_id),
+  CONSTRAINT fk_etudiants_deplacement_etudiant
+    FOREIGN KEY (etudiant_id) REFERENCES etudiants(utilisateur_id)
+) ENGINE=InnoDB;
+
+CREATE TABLE verrous_charge_paie_supervision (
+  superviseur_id BIGINT UNSIGNED NOT NULL,
+  etudiant_id BIGINT UNSIGNED NOT NULL,
+  cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (superviseur_id, etudiant_id),
+  CONSTRAINT fk_verrous_charge_superviseur
+    FOREIGN KEY (superviseur_id) REFERENCES superviseurs(utilisateur_id),
+  CONSTRAINT fk_verrous_charge_etudiant
+    FOREIGN KEY (etudiant_id) REFERENCES etudiants(utilisateur_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE destinations_deplacement (
