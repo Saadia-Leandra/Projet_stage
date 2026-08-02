@@ -351,7 +351,6 @@ CREATE TABLE documents (
     'PERMIS_ETUDES',
     'ASSURANCE',
     'PIECE_IDENTITE',
-    'CV',
     'AUTRE'
   ) NOT NULL DEFAULT 'AUTRE',
   nom_fichier VARCHAR(180) NOT NULL,

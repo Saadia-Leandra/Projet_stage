@@ -21,7 +21,6 @@ export const documentsStorageRoot = path.resolve(
 export const MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024;
 
 const ALLOWED_DOCUMENT_TYPES = new Set([
-  "CV",
   "ATTESTATION",
   "ASSURANCE",
   "CAQ",
@@ -108,7 +107,6 @@ async function logAction(connection, { documentId, userId, action, details }) {
 }
 
 const CHECKLIST_TYPES = [
-  { type: "CV", label: "CV" },
   { type: "ATTESTATION", label: "Attestation de stage" },
   { type: "ASSURANCE", label: "Assurance" },
   { type: "CAQ", label: "CAQ" },

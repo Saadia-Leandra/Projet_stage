@@ -57,9 +57,15 @@ export default function MessagesPanel({ user }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [attachment, setAttachment] = useState(null);
+  const [recipientQuery, setRecipientQuery] = useState("");
+  const [recipientOpen, setRecipientOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
+
+  const matchingContacts = contacts.filter((contact) =>
+    normalizeSearch(contact.name).startsWith(normalizeSearch(recipientQuery))
+  );
 
   const loadContacts = useCallback(async () => {
     try {
@@ -100,6 +106,8 @@ export default function MessagesPanel({ user }) {
 
   async function openContact(contact) {
     setActiveContact(contact);
+    setRecipientQuery(contact.name || "");
+    setRecipientOpen(false);
     setMessages([]);
     await loadConversation(contact.id);
     loadContacts();
@@ -169,15 +177,57 @@ export default function MessagesPanel({ user }) {
   }
 
   return (
-    <section className="panel">
-      <div className="panelHeader">
-        <h2>Messagerie</h2>
+    <section className="panel messagesPanel">
+      <div className="panelHeader messagesPanelHeader">
+        <div>
+          <span className="messagesEyebrow">Communications</span>
+          <h2>Messagerie</h2>
+          <p>Échangez simplement avec les personnes liées à votre dossier.</p>
+        </div>
+        <span className="messagesContactCount">{contacts.length} contact(s)</span>
       </div>
 
       {error && <div className="error-message">{error}</div>}
 
-      <div style={{ display: "flex", gap: 16, minHeight: 420, flexWrap: "wrap" }}>
-        <div style={{ flex: "1 1 240px", maxWidth: 320, borderRight: "1px solid #e2e8f0", paddingRight: 12 }}>
+      <div className="messagesWorkspace">
+        <div className="messagesContacts">
+          <div className="messageRecipientPicker">
+            <label htmlFor="messageRecipient">Destinataire</label>
+            <div className="messageRecipientInputWrap">
+              <span className="messageRecipientSearch" aria-hidden="true">⌕</span>
+              <input
+                id="messageRecipient"
+                type="text"
+                value={recipientQuery}
+                placeholder="Saisir un nom..."
+                autoComplete="off"
+                onFocus={() => setRecipientOpen(true)}
+                onChange={(event) => {
+                  setRecipientQuery(event.target.value);
+                  setRecipientOpen(true);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") setRecipientOpen(false);
+                  if (event.key === "Enter" && matchingContacts.length === 1) {
+                    event.preventDefault();
+                    openContact(matchingContacts[0]);
+                  }
+                }}
+              />
+              <button type="button" aria-label="Afficher les destinataires" onClick={() => setRecipientOpen((open) => !open)}>⌄</button>
+            </div>
+            {recipientOpen && (
+              <div className="messageRecipientOptions">
+                {matchingContacts.length ? matchingContacts.map((contact) => (
+                  <button key={contact.id} type="button" onClick={() => openContact(contact)}>
+                    <span className="messageRecipientAvatar">{contact.name?.charAt(0)?.toUpperCase() || "?"}</span>
+                    <span><strong>{contact.name}</strong><small>{roleLabel(contact.role)}</small></span>
+                  </button>
+                )) : <p>Aucun destinataire trouvé.</p>}
+              </div>
+            )}
+          </div>
+          <div className="messagesContactsTitle"><strong>Conversations</strong><span>{contacts.filter((contact) => contact.unread > 0).length} non lue(s)</span></div>
           {contacts.length === 0 ? (
             <p className="emptyState">Aucun contact disponible.</p>
           ) : (
@@ -186,6 +236,7 @@ export default function MessagesPanel({ user }) {
                 key={contact.id}
                 type="button"
                 onClick={() => openContact(contact)}
+                className={`messageContact ${activeContact?.id === contact.id ? "active" : ""}`}
                 style={{
                   display: "block",
                   width: "100%",
@@ -198,46 +249,55 @@ export default function MessagesPanel({ user }) {
                   background: activeContact?.id === contact.id ? "#dae8fc" : "transparent"
                 }}
               >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+                <span className="messageContactAvatar">{contact.name?.charAt(0)?.toUpperCase() || "?"}</span>
+                <span className="messageContactContent">
+                <div className="messageContactTopline" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
                   <strong>{contact.name}</strong>
                   {contact.unread > 0 && (
-                    <span style={{ background: "#ef4444", color: "#fff", borderRadius: 999, fontSize: "0.72rem", padding: "1px 7px" }}>
+                    <span className="messageUnreadBadge" style={{ background: "#ef4444", color: "#fff", borderRadius: 999, fontSize: "0.72rem", padding: "1px 7px" }}>
                       {contact.unread}
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: "0.75rem", color: "#64748b" }}>{roleLabel(contact.role)}</div>
+                <div className="messageContactRole" style={{ fontSize: "0.75rem", color: "#64748b" }}>{roleLabel(contact.role)}</div>
                 {contact.lastMessage && (
-                  <div style={{ fontSize: "0.78rem", color: "#94a3b8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <div className="messageContactPreview" style={{ fontSize: "0.78rem", color: "#94a3b8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {contact.lastMessage}
                   </div>
                 )}
+                </span>
               </button>
             ))
           )}
         </div>
 
-        <div style={{ flex: "2 1 340px", display: "flex", flexDirection: "column", minHeight: 420 }}>
+        <div className="messagesConversation">
           {!activeContact ? (
-            <div className="emptyState" style={{ margin: "auto" }}>
-              Choisissez un contact pour commencer une conversation.
+            <div className="messagesEmptyState">
+              <span className="messagesEmptyIcon">✉</span>
+              <strong>Sélectionnez une conversation</strong>
+              <p>Choisissez un contact dans la liste pour consulter vos échanges.</p>
             </div>
           ) : (
             <>
-              <div style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: 8, marginBottom: 8 }}>
+              <div className="conversationHeader" style={{ borderBottom: "1px solid #e2e8f0", paddingBottom: 8, marginBottom: 8 }}>
+                <span className="conversationAvatar">{activeContact.name?.charAt(0)?.toUpperCase() || "?"}</span>
+                <div>
                 <strong>{activeContact.name}</strong>{" "}
-                <span style={{ fontSize: "0.8rem", color: "#64748b" }}>· {roleLabel(activeContact.role)}</span>
+                <span className="conversationRole" style={{ fontSize: "0.8rem", color: "#64748b" }}>{roleLabel(activeContact.role)}</span>
+                </div>
               </div>
 
-              <div style={{ flex: 1, overflowY: "auto", maxHeight: 340, paddingRight: 6 }}>
+              <div className="conversationMessages" style={{ flex: 1, overflowY: "auto", maxHeight: 340, paddingRight: 6 }}>
                 {messages.length === 0 ? (
                   <p className="emptyState">Aucun message. Ecrivez le premier !</p>
                 ) : (
                   messages.map((m) => {
                     const mine = m.senderId === user.id;
                     return (
-                      <div key={m.id} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", marginBottom: 8 }}>
+                      <div key={m.id} className={`messageRow ${mine ? "mine" : "theirs"}`} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", marginBottom: 8 }}>
                         <div
+                          className="messageBubble"
                           style={{
                             maxWidth: "75%",
                             padding: "8px 12px",
@@ -249,6 +309,7 @@ export default function MessagesPanel({ user }) {
                           {m.content && <div style={{ whiteSpace: "pre-wrap" }}>{m.content}</div>}
                           {m.attachmentName && (
                             <button
+                              className="messageAttachment"
                               type="button"
                               onClick={() => downloadAttachment(m)}
                               style={{
@@ -270,7 +331,7 @@ export default function MessagesPanel({ user }) {
                               </span>
                             </button>
                           )}
-                          <div style={{ fontSize: "0.68rem", opacity: 0.75, marginTop: 3, textAlign: "right" }}>
+                          <div className="messageTime" style={{ fontSize: "0.68rem", opacity: 0.75, marginTop: 3, textAlign: "right" }}>
                             {formatTime(m.createdAt)}
                           </div>
                         </div>
@@ -281,9 +342,9 @@ export default function MessagesPanel({ user }) {
                 <div ref={bottomRef} />
               </div>
 
-              <form onSubmit={handleSend} style={{ marginTop: 8 }}>
+              <form className="messageComposer" onSubmit={handleSend} style={{ marginTop: 8 }}>
                 {attachment && (
-                  <div
+                  <div className="messageAttachmentChip"
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
@@ -298,6 +359,7 @@ export default function MessagesPanel({ user }) {
                     <PaperclipIcon />
                     {attachment.name}
                     <button
+                      className="messageAttachmentRemove"
                       type="button"
                       onClick={() => setAttachment(null)}
                       style={{ border: "none", background: "none", cursor: "pointer", color: "#b91c1c" }}
@@ -307,8 +369,9 @@ export default function MessagesPanel({ user }) {
                     </button>
                   </div>
                 )}
-                <div style={{ display: "flex", gap: 8 }}>
+                <div className="messageComposerRow" style={{ display: "flex", gap: 8 }}>
                   <label
+                    className="messageFileButton"
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -330,6 +393,7 @@ export default function MessagesPanel({ user }) {
                     />
                   </label>
                   <input
+                    className="messageInput"
                     type="text"
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
@@ -348,4 +412,12 @@ export default function MessagesPanel({ user }) {
       </div>
     </section>
   );
+}
+
+function normalizeSearch(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
 }
