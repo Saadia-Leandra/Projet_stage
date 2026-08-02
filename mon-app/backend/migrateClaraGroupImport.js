@@ -15,6 +15,7 @@ const connection = await mysql.createConnection({
 });
 
 const columns = [
+  ["utilisateurs", "mot_de_passe_updated", "BOOLEAN NOT NULL DEFAULT FALSE AFTER mot_de_passe_hash"],
   ["utilisateurs", "telephone_secondaire", "VARCHAR(40) NULL AFTER telephone"],
   ["etudiants", "session", "VARCHAR(30) NULL AFTER groupe"],
   ["etudiants", "numero_cours", "VARCHAR(30) NULL AFTER session"],
@@ -38,7 +39,7 @@ try {
       console.log(`Colonne ajoutée : ${table}.${column}`);
     }
   }
-  console.log("Migration des colonnes Clara terminée.");
+  console.log("Migration des colonnes de la base terminée.");
 } finally {
   await connection.end();
 }
