@@ -41,6 +41,7 @@ CREATE TABLE utilisateurs (
   prenom VARCHAR(80) NOT NULL,
   nom VARCHAR(80) NOT NULL,
   telephone VARCHAR(40),
+  telephone_secondaire VARCHAR(40),
   role ENUM('ETUDIANT', 'SUPERVISEUR', 'CONSEILLERE', 'COMPTABILITE', 'DIRECTION') NOT NULL,
   statut ENUM('ACTIF', 'INACTIF') NOT NULL DEFAULT 'ACTIF',
   cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -89,6 +90,14 @@ CREATE TABLE etudiants (
   expiration_caq DATE,
   expiration_permis_etudes DATE,
   expiration_assurance DATE,
+  session VARCHAR(30),
+  numero_cours VARCHAR(30),
+  titre_cours VARCHAR(160),
+  discipline VARCHAR(160),
+  horaire VARCHAR(500),
+  ponderation VARCHAR(30),
+  date_debut_groupe DATE,
+  date_fin_groupe DATE,
   CONSTRAINT fk_etudiants_utilisateur
     FOREIGN KEY (utilisateur_id) REFERENCES utilisateurs(id) ON DELETE CASCADE,
   CONSTRAINT fk_etudiants_superviseur

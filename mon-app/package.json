@@ -11,6 +11,8 @@
     "start": "node backend/server.js",
     "test": "node --test backend/tests/*.test.js",
     "test:csv": "python -m unittest discover -s python-import-service/tests -v",
+    "migrate:clara": "node backend/migrateClaraGroupImport.js",
+    "migrate:db": "node backend/migrateClaraGroupImport.js",
     "migrate:business-rules": "node backend/migrateBusinessRules.js",
     "build": "vite build",
     "lint": "oxlint",

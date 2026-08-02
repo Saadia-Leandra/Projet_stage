@@ -8,6 +8,8 @@ const HEADERS = [
   "prenom",
   "nom",
   "telephone",
+  "telephone_secondaire",
+  "nom_prenom",
   "mot_de_passe_temporaire",
   "code_etudiant",
   "programme",
@@ -21,7 +23,15 @@ const HEADERS = [
   "expiration_caq",
   "expiration_permis_etudes",
   "expiration_assurance",
-  "numero_employe_superviseur"
+  "numero_employe_superviseur",
+  "session",
+  "numero_cours",
+  "titre_cours",
+  "discipline",
+  "horaire",
+  "ponderation",
+  "date_debut_groupe",
+  "date_fin_groupe"
 ];
 const REQUIRED_HEADERS = new Set([
   "courriel",
@@ -33,7 +43,9 @@ const REQUIRED_HEADERS = new Set([
 const DATE_HEADERS = [
   "expiration_caq",
   "expiration_permis_etudes",
-  "expiration_assurance"
+  "expiration_assurance",
+  "date_debut_groupe",
+  "date_fin_groupe"
 ];
 const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const HEADER_ALIASES = {
@@ -41,9 +53,11 @@ const HEADER_ALIASES = {
   email: "courriel",
   prenom: "prenom",
   nom: "nom",
+  nom_prenom: "nom_prenom",
   telephone: "telephone",
   telephone_principal: "telephone",
-  telephone_secondaire: "telephone",
+  telephone_secondaire: "telephone_secondaire",
+  telephone_sec: "telephone_secondaire",
   mot_de_passe_temporaire: "mot_de_passe_temporaire",
   mot_de_passe: "mot_de_passe_temporaire",
   password: "mot_de_passe_temporaire",
@@ -61,7 +75,29 @@ const HEADER_ALIASES = {
   groupe: "groupe",
   expiration_caq: "expiration_caq",
   expiration_permis_etudes: "expiration_permis_etudes",
-  expiration_assurance: "expiration_assurance"
+  expiration_assurance: "expiration_assurance",
+  numero_employe_superviseur: "numero_employe_superviseur",
+  titulaire: "numero_employe_superviseur",
+  titulaires: "numero_employe_superviseur",
+  code_titulaire: "numero_employe_superviseur",
+  encadreur: "numero_employe_superviseur",
+  session: "session",
+  numero_cours: "numero_cours",
+  no_cours: "numero_cours",
+  titre_du_cours: "titre_cours",
+  titre_cours: "titre_cours",
+  discipline: "discipline",
+  horaire: "horaire",
+  ponderation: "ponderation",
+  date_de_debut: "date_debut_groupe",
+  date_debut: "date_debut_groupe",
+  date_de_fin: "date_fin_groupe",
+  date_fin: "date_fin_groupe",
+  no_etu: "code_etudiant",
+  no_prog: "programme",
+  no_grille: "groupe",
+  telephone_princ: "telephone",
+  telephone_sec: "telephone_secondaire"
 };
 
 export async function previewStudentCsv(file) {
@@ -100,16 +136,17 @@ export async function importStudentCsv(file) {
         `
           INSERT INTO utilisateurs (
             courriel, mot_de_passe_hash, mot_de_passe_updated,
-            prenom, nom, telephone, role, statut
+            prenom, nom, telephone, telephone_secondaire, role, statut
           )
-          VALUES (?, ?, FALSE, ?, ?, ?, 'ETUDIANT', 'ACTIF')
+          VALUES (?, ?, FALSE, ?, ?, ?, ?, 'ETUDIANT', 'ACTIF')
         `,
         [
           row.courriel,
           passwordHash,
           row.prenom,
           row.nom,
-          nullable(row.telephone)
+          nullable(row.telephone),
+          nullable(row.telephone_secondaire)
         ]
       );
 
@@ -118,9 +155,11 @@ export async function importStudentCsv(file) {
           INSERT INTO etudiants (
             utilisateur_id, superviseur_id, code_etudiant, programme, cohorte,
             adresse, ville, province, code_postal, code_permanent, groupe,
-            expiration_caq, expiration_permis_etudes, expiration_assurance
+            expiration_caq, expiration_permis_etudes, expiration_assurance,
+            session, numero_cours, titre_cours, discipline, horaire,
+            ponderation, date_debut_groupe, date_fin_groupe
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           userResult.insertId,
@@ -136,7 +175,15 @@ export async function importStudentCsv(file) {
           nullable(row.groupe),
           nullable(row.expiration_caq),
           nullable(row.expiration_permis_etudes),
-          nullable(row.expiration_assurance)
+          nullable(row.expiration_assurance),
+          nullable(row.session),
+          nullable(row.numero_cours),
+          nullable(row.titre_cours),
+          nullable(row.discipline),
+          nullable(row.horaire),
+          nullable(row.ponderation),
+          nullable(row.date_debut_groupe),
+          nullable(row.date_fin_groupe)
         ]
       );
 
@@ -191,25 +238,33 @@ async function assertNoDatabaseDuplicates(connection, rows) {
 async function findSupervisorId(connection, employeeNumber) {
   if (!employeeNumber) return null;
 
+  const supervisorCode = extractSupervisorCode(employeeNumber);
+
   const [rows] = await connection.execute(
     `
       SELECT utilisateur_id AS id
       FROM superviseurs
-      WHERE numero_employe = ?
+      WHERE UPPER(numero_employe) = UPPER(?)
       LIMIT 1
     `,
-    [employeeNumber]
+    [supervisorCode]
   );
 
   if (!rows[0]) {
     const error = new Error(
-      `Superviseur introuvable : ${employeeNumber}.`
+      `Encadreur introuvable pour le titulaire Clara : ${employeeNumber} (code ${supervisorCode}).`
     );
     error.status = 400;
     throw error;
   }
 
   return rows[0].id;
+}
+
+function extractSupervisorCode(value) {
+  const text = String(value || "").trim();
+  const parenthesizedCodes = [...text.matchAll(/\(([A-Za-z0-9_-]+)\)/g)];
+  return parenthesizedCodes.at(-1)?.[1] || text;
 }
 
 function normalizeCsv(file) {
@@ -271,6 +326,12 @@ function normalizeCsv(file) {
         row[name] = String(value || "").trim();
       }
     });
+
+    if (row.nom_prenom && (!row.nom || !row.prenom)) {
+      const [nom, ...prenoms] = row.nom_prenom.split(",");
+      row.nom ||= nom.trim();
+      row.prenom ||= prenoms.join(",").trim();
+    }
 
     row.mot_de_passe_temporaire = DEFAULT_INITIAL_PASSWORD;
 
@@ -381,7 +442,13 @@ function parseCsv(text, delimiter) {
 }
 
 function normalizeHeader(header) {
-  const key = String(header || "").trim().toLowerCase().replace(/\s+/g, "_");
+  const key = String(header || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
   return HEADER_ALIASES[key] || key;
 }
 

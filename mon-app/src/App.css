@@ -251,6 +251,150 @@
   margin-top: 20px;
 }
 
+.managementModal {
+  width: min(940px, 100%);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #dce4ee;
+  border-radius: 20px;
+  background: #f7f9fc;
+}
+
+.managementModalHeader {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 0;
+  padding: 24px 28px;
+  color: #fff;
+  background: linear-gradient(135deg, #173f73 0%, #245b9e 72%, #3270ba 100%);
+}
+
+.managementModalHeader h2 {
+  margin: 4px 0 5px;
+  color: #fff;
+  font-size: 1.45rem;
+}
+
+.managementModalHeader .panelSubtle {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.managementModalHeader .modalCloseButton {
+  flex: 0 0 auto;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.managementModalHeader .modalCloseButton:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.managementModalEyebrow {
+  color: #ffb36b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.managementForm {
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+  padding: 24px 28px 0;
+}
+
+.managementFormIntro {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #dfe6ef;
+}
+
+.managementFormIntro strong {
+  color: #183b66;
+  font-size: 1rem;
+}
+
+.managementFormIntro span {
+  color: #66758a;
+  font-size: 0.82rem;
+}
+
+.managementForm .formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 18px;
+}
+
+.managementField,
+.managementForm .formGrid > label {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  margin: 0;
+  color: #34445a;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.managementField input,
+.managementForm .formGrid > label select {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #cbd6e3;
+  border-radius: 10px;
+  background: #fff;
+  color: #1e293b;
+  font: inherit;
+  font-weight: 500;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.managementField input:hover,
+.managementForm .formGrid > label select:hover {
+  border-color: #8da2ba;
+}
+
+.managementField input:focus,
+.managementForm .formGrid > label select:focus {
+  border-color: #2d69ad;
+  outline: 0;
+  box-shadow: 0 0 0 3px rgba(45, 105, 173, 0.14);
+}
+
+.managementField-adresse,
+.managementField-horaire,
+.managementField-titre_cours {
+  grid-column: 1 / -1;
+}
+
+.managementModalActions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  justify-content: center;
+  margin: 24px -28px 0;
+  padding: 16px 28px;
+  border-top: 1px solid #dfe6ef;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -8px 24px rgba(30, 56, 88, 0.07);
+  backdrop-filter: blur(8px);
+}
+
+.managementModalActions button {
+  flex: 1 1 0;
+  max-width: 260px;
+  min-height: 44px;
+  padding-inline: 20px;
+  border-radius: 10px;
+}
+
 .characterCounter {
   margin-top: 6px;
   text-align: right;
@@ -259,6 +403,37 @@
 }
 
 @media (max-width: 720px) {
+  .managementModal {
+    max-height: calc(100vh - 16px);
+    border-radius: 15px;
+  }
+
+  .managementModalHeader,
+  .managementForm {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .managementForm .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .managementFormIntro {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .managementModalActions {
+    margin-right: -18px;
+    margin-left: -18px;
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .managementModalActions button {
+    max-width: none;
+  }
   .supervisorStageFilters {
     flex-direction: column;
   }
