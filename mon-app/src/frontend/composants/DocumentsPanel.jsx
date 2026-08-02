@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
 const DOCUMENT_TYPES = [
-  { value: "CV", label: "CV" },
   { value: "ATTESTATION", label: "Attestation" },
   { value: "ASSURANCE", label: "Assurance" },
   { value: "CAQ", label: "CAQ" },
@@ -345,7 +344,7 @@ function DossierDiscussion({ stageFileId, user, onError }) {
 }
 
 function UploadForm({ stageFileId, onUploaded, onError }) {
-  const [type, setType] = useState("CV");
+  const [type, setType] = useState("ATTESTATION");
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
