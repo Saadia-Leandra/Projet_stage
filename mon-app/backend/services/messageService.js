@@ -197,6 +197,38 @@ export async function listContacts(user) {
   return rows.map((r) => ({ ...r, unread: Number(r.unread) }));
 }
 
+export function buildConversationReadQuery(user, otherUserId) {
+  const directionRestriction = user.role === "DIRECTION"
+    ? `AND EXISTS (
+         SELECT 1
+           FROM utilisateurs contact
+          WHERE contact.id = ?
+            AND contact.role IN ('CONSEILLERE', 'COMPTABILITE')
+            AND contact.statut = 'ACTIF'
+       )`
+    : "";
+
+  return {
+    sql: `
+      SELECT id, expediteur_id AS senderId, contenu AS content,
+             fichier_nom AS attachmentName, fichier_taille AS attachmentSize,
+             lu_le AS readAt, cree_le AS createdAt
+        FROM messages
+       WHERE ((expediteur_id = ? AND destinataire_id = ?)
+          OR (expediteur_id = ? AND destinataire_id = ?))
+         ${directionRestriction}
+       ORDER BY cree_le ASC, id ASC
+    `,
+    params: [
+      user.id,
+      otherUserId,
+      otherUserId,
+      user.id,
+      ...(user.role === "DIRECTION" ? [otherUserId] : [])
+    ]
+  };
+}
+
 export async function getConversation({ user, otherUserId }) {
   await assertContact(user, otherUserId);
 
@@ -204,18 +236,8 @@ export async function getConversation({ user, otherUserId }) {
     return [];
   }
 
-  const [messages] = await db.query(
-    `
-      SELECT id, expediteur_id AS senderId, contenu AS content,
-             fichier_nom AS attachmentName, fichier_taille AS attachmentSize,
-             lu_le AS readAt, cree_le AS createdAt
-        FROM messages
-       WHERE (expediteur_id = ? AND destinataire_id = ?)
-          OR (expediteur_id = ? AND destinataire_id = ?)
-       ORDER BY cree_le ASC, id ASC
-    `,
-    [user.id, otherUserId, otherUserId, user.id]
-  );
+  const query = buildConversationReadQuery(user, otherUserId);
+  const [messages] = await db.query(query.sql, query.params);
 
   await db.query(
     `UPDATE messages SET lu_le = NOW()

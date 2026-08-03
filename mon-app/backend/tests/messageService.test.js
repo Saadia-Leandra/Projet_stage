@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { calculateContactIds } from "../services/messageService.js";
+import {
+  buildConversationReadQuery,
+  calculateContactIds
+} from "../services/messageService.js";
 
 const users = [
   { id: 1, role: "CONSEILLERE", statut: "ACTIF" },
@@ -115,4 +118,26 @@ test("le résultat reste itérable et compatible avec le panneau de messagerie",
   const contactIds = [...contacts];
   assert.deepEqual(contactIds, [1, 3]);
   assert.ok(contactIds.every(Number.isFinite));
+});
+
+test("la lecture DIRECTION est limitée au correspondant autorisé sélectionné", () => {
+  const query = buildConversationReadQuery(
+    { id: 9, role: "DIRECTION" },
+    3
+  );
+
+  assert.match(query.sql, /contact\.role IN \('CONSEILLERE', 'COMPTABILITE'\)/);
+  assert.match(query.sql, /contact\.statut = 'ACTIF'/);
+  assert.match(query.sql, /WHERE \(\(expediteur_id = \? AND destinataire_id = \?\)/);
+  assert.deepEqual(query.params, [9, 3, 3, 9, 3]);
+});
+
+test("la lecture des autres rôles conserve la requête et les paramètres existants", () => {
+  const query = buildConversationReadQuery(
+    { id: 5, role: "ETUDIANT" },
+    1
+  );
+
+  assert.doesNotMatch(query.sql, /contact\.role/);
+  assert.deepEqual(query.params, [5, 1, 1, 5]);
 });
