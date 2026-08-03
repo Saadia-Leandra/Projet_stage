@@ -192,27 +192,29 @@ function MileageView({ error, students, user, onCreated }) {
   );
 }
 
-function MileageForm({ user, students, onCreated }) {
+export function MileageForm({ user, students, onCreated, initialTrip = null, onCancel = null }) {
+  const initialDestination = initialTrip?.destinations?.[0] || {};
+  const initialStudent = students.find((item) => String(item.id) === String(initialDestination.studentId));
   const [form, setForm] = useState({
-    studentId: "",
-    campus: DEFAULT_CAMPUS.code,
-    origin: DEFAULT_CAMPUS.address,
-    program: "",
-    group: "",
-    tripDate: new Date().toISOString().slice(0, 10),
-    studentName: "",
-    companyName: "",
-    destinationAddress: "",
-    tripType: "ALLER_RETOUR",
-    ratePerKm: user.mileageRate ? String(user.mileageRate) : "",
-    parkingAmount: "",
+    studentId: String(initialDestination.studentId || ""),
+    campus: initialTrip?.campusCode || DEFAULT_CAMPUS.code,
+    origin: (CAMPUS_OPTIONS[initialTrip?.campusCode] || DEFAULT_CAMPUS).address,
+    program: initialTrip?.program || "",
+    group: initialTrip?.groupe || "",
+    tripDate: initialTrip?.tripDate ? String(initialTrip.tripDate).slice(0, 10) : new Date().toISOString().slice(0, 10),
+    studentName: initialStudent?.studentName || "",
+    companyName: initialDestination.label || initialStudent?.companyName || "",
+    destinationAddress: initialDestination.address || "",
+    tripType: initialTrip?.tripType || "ALLER_RETOUR",
+    ratePerKm: String(initialTrip?.ratePerKm || user.mileageRate || ""),
+    parkingAmount: initialTrip?.parkingAmount ? String(initialTrip.parkingAmount) : "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [calculation, setCalculation] = useState(null);
   const [showRouteProof, setShowRouteProof] = useState(false);
-  const [additionalStops, setAdditionalStops] = useState([]);
+  const [additionalStops, setAdditionalStops] = useState((initialTrip?.destinations || []).slice(1).map((destination) => ({ studentId: String(destination.studentId || ""), label: destination.label || "", address: destination.address || "" })));
   const [parkingReceipt, setParkingReceipt] = useState(null);
 
   const selectedCampus = CAMPUS_OPTIONS[form.campus] || DEFAULT_CAMPUS;
@@ -304,7 +306,7 @@ function MileageForm({ user, students, onCreated }) {
     setCalculation(null);
     setShowRouteProof(false);
 
-    if (Number(form.parkingAmount || 0) > 0 && !parkingReceipt) {
+    if (Number(form.parkingAmount || 0) > 0 && !parkingReceipt && !initialTrip?.hasParkingReceipt) {
       setError("Le ticket de stationnement est obligatoire lorsqu’un montant de stationnement est indiqué.");
       setSubmitting(false);
       return;
@@ -319,8 +321,8 @@ function MileageForm({ user, students, onCreated }) {
     }
 
     try {
-      const response = await fetch("/api/mileage/calculate", {
-        method: "POST",
+      const response = await fetch(initialTrip ? `/api/mileage/trips/${initialTrip.id}/resubmit` : "/api/mileage/calculate", {
+        method: initialTrip ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
@@ -357,7 +359,7 @@ function MileageForm({ user, students, onCreated }) {
         ratePerKm: String(data.ratePerKm ?? current.ratePerKm)
       }));
       setCalculation(data);
-      setMessage("Deplacement calcule et enregistre.");
+      setMessage(initialTrip ? "Déplacement corrigé et resoumis à la comptabilité." : "Deplacement calcule et enregistre.");
       await onCreated();
     } catch {
       setError("Erreur de connexion au serveur.");
@@ -369,7 +371,7 @@ function MileageForm({ user, students, onCreated }) {
   return (
     <section className="studentPanel">
       <div className="panelHeader">
-        <h2>Remboursement des deplacements</h2>
+        <h2>{initialTrip ? "Modifier le déplacement refusé" : "Remboursement des deplacements"}</h2>
         <span className="statusPill">{selectedCampus.label}</span>
       </div>
 
@@ -539,8 +541,9 @@ function MileageForm({ user, students, onCreated }) {
         )}
 
         <button className="primaryButton fitButton" type="submit" disabled={submitting || !form.ratePerKm}>
-          {submitting ? "Calcul en cours..." : "Calculer et enregistrer"}
+          {submitting ? "Calcul en cours..." : initialTrip ? "Recalculer et resoumettre" : "Calculer et enregistrer"}
         </button>
+        {onCancel && <button className="secondaryButton fitButton" type="button" onClick={onCancel} disabled={submitting}>Annuler</button>}
       </form>
     </section>
   );

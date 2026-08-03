@@ -290,11 +290,73 @@
         params
       );
 
-      return rows.map((row) => ({
-        ...row,
-        routeSnapshot: parseJson(row.routeSnapshot),
-        gpsTrace: typeof row.gpsTrace === "string" ? JSON.parse(row.gpsTrace) : row.gpsTrace
-      }));
+      const enrichedRows = [];
+      for (const row of rows) {
+        const [destinations] = await db.execute(
+          `SELECT entreprise_id AS companyId, libelle_destination AS label, adresse_destination AS address
+             FROM destinations_deplacement WHERE deplacement_kilometrage_id = ? ORDER BY ordre_destination`, [row.id]
+        );
+        const [students] = await db.execute(
+          `SELECT etudiant_id AS studentId FROM etudiants_deplacement_kilometrage
+            WHERE deplacement_kilometrage_id = ? ORDER BY id`, [row.id]
+        );
+        enrichedRows.push({
+          ...row,
+          destinations: destinations.map((destination, index) => ({ ...destination, studentId: students[index]?.studentId || null })),
+          routeSnapshot: parseJson(row.routeSnapshot),
+          gpsTrace: typeof row.gpsTrace === "string" ? JSON.parse(row.gpsTrace) : row.gpsTrace
+        });
+      }
+      return enrichedRows;
+    },
+
+    async updateRejected(data) {
+      const connection = await db.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [owned] = await connection.execute(
+          `SELECT id, preuve_stationnement_fichier AS existingReceipt FROM deplacements_kilometrage
+            WHERE id = ? AND superviseur_id = ? AND statut = 'REJETE' LIMIT 1 FOR UPDATE`,
+          [data.id, data.supervisorUserId]
+        );
+        if (!owned.length) throw createError("Déplacement refusé introuvable ou déjà resoumis.", 409);
+        if (Number(data.parkingAmount) > 0 && !data.parkingReceipt && !owned[0].existingReceipt) {
+          throw createError("Le ticket de stationnement est obligatoire lorsqu’un montant est indiqué.", 400);
+        }
+        const studentIds = [...new Set(data.destinations.map((item) => Number(item.studentId)).filter(Number.isInteger))];
+        if (!studentIds.length || studentIds.length !== data.destinations.length) throw createError("Chaque destination doit correspondre à un étudiant différent.", 400);
+        await connection.execute(`DELETE FROM etudiants_deplacement_kilometrage WHERE deplacement_kilometrage_id = ?`, [data.id]);
+        const marks = studentIds.map(() => "?").join(", ");
+        const [duplicates] = await connection.execute(
+          `SELECT 1 FROM etudiants_deplacement_kilometrage WHERE superviseur_id = ? AND date_deplacement = ? AND etudiant_id IN (${marks}) LIMIT 1 FOR UPDATE`,
+          [data.supervisorUserId, data.tripDate, ...studentIds]
+        );
+        if (duplicates.length) throw createError("Une charge de kilométrage existe déjà pour cet étudiant à cette date.", 409);
+        const campusId = await findCampusId(connection, data.campus);
+        await connection.execute(
+          `UPDATE deplacements_kilometrage SET campus_id=?, programme=?, groupe=?, date_deplacement=?, type_trajet=?,
+             fournisseur_calcul=?, distance_km=?, duree_minutes=?, taux_kilometrique=?, montant_stationnement=?,
+             url_carte=?, instantane_itineraire=?, trace_gps=?, depart_reel_le=?, arrivee_reelle_le=?,
+             preuve_stationnement_nom=COALESCE(?, preuve_stationnement_nom), preuve_stationnement_type=COALESCE(?, preuve_stationnement_type),
+             preuve_stationnement_fichier=COALESCE(?, preuve_stationnement_fichier), statut='CALCULE', motif_refus=NULL, calcule_le=CURRENT_TIMESTAMP
+           WHERE id=?`,
+          [campusId, nullable(data.program), nullable(data.group), data.tripDate, data.tripType, data.provider,
+            data.distanceKm, data.durationMinutes, data.ratePerKm, data.parkingAmount, nullable(data.mapUrl),
+            JSON.stringify(data.routeSnapshot), data.gpsTrace?.length ? JSON.stringify(data.gpsTrace) : null,
+            toSqlDateTime(data.startedAt, "heure de départ"), toSqlDateTime(data.endedAt, "heure d’arrivée"),
+            nullable(data.parkingReceipt?.name), nullable(data.parkingReceipt?.type), nullable(data.parkingReceipt?.storedName), data.id]
+        );
+        await connection.execute(`DELETE FROM destinations_deplacement WHERE deplacement_kilometrage_id = ?`, [data.id]);
+        for (const [index, destination] of data.destinations.entries()) {
+          await connection.execute(`INSERT INTO etudiants_deplacement_kilometrage (deplacement_kilometrage_id, superviseur_id, etudiant_id, date_deplacement) VALUES (?, ?, ?, ?)`, [data.id, data.supervisorUserId, destination.studentId, data.tripDate]);
+          await connection.execute(`INSERT INTO destinations_deplacement (deplacement_kilometrage_id, entreprise_id, ordre_destination, libelle_destination, adresse_destination) VALUES (?, ?, ?, ?, ?)`, [data.id, destination.companyId || null, index + 1, destination.label, destination.address]);
+        }
+        await connection.commit();
+        return { id: data.id };
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally { connection.release(); }
     },
 
     async findReceipt(id, user) {
@@ -350,6 +412,12 @@ async function findCampusId(connection, campus) {
 function nullable(value) {
   const cleaned = String(value || "").trim();
   return cleaned || null;
+}
+
+function createError(message, status) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
 }
 
 function toSqlDateTime(value, label) {

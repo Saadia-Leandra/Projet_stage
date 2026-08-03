@@ -399,6 +399,7 @@ CREATE TABLE charges_paie_supervision (
   verrouille BOOLEAN NOT NULL DEFAULT TRUE,
   statut ENUM('CALCULE', 'VALIDE', 'REJETE', 'EXPORTE') NOT NULL DEFAULT 'CALCULE',
   motif_refus TEXT,
+  resoumis_le DATETIME,
   exporte_le DATETIME,
   lot_export_id VARCHAR(80),
   cree_le DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

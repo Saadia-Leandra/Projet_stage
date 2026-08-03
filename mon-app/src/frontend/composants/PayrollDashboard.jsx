@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import FrozenRouteSnapshot from "./FrozenRouteSnapshot.jsx";
+import { MileageForm } from "./SupervisorDashboard.jsx";
 
 const FIXED_SUPERVISION_HOURS = 4;
 
@@ -15,6 +16,9 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
   const [message, setMessage] = useState("");
   const [routeProofTrip, setRouteProofTrip] = useState(null);
   const [refusalTarget, setRefusalTarget] = useState(null);
+  const [correctionTarget, setCorrectionTarget] = useState(null);
+  const [mileageCorrectionTarget, setMileageCorrectionTarget] = useState(null);
+  const [mileageStudents, setMileageStudents] = useState([]);
 
   const totals = useMemo(() => {
     return supervisors.reduce(
@@ -144,6 +148,13 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
     if (!response.ok) return setError("Impossible d'ouvrir la preuve de stationnement.");
     window.open(URL.createObjectURL(await response.blob()), "_blank", "noopener,noreferrer");
   }
+  async function editRejectedTrip(trip) {
+    const response = await fetch("/api/mileage/students", { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) return setError(data.error || "Impossible de charger les étudiants du trajet.");
+    setMileageStudents(data.students || []);
+    setMileageCorrectionTarget(trip);
+  }
   async function updateTripStatus(tripId, status, refusalReason = null) {
     const token = localStorage.getItem("token");
     setActionLoadingId(`trip-${tripId}`);
@@ -186,6 +197,9 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
 
   const canValidate = user.role === "COMPTABILITE";
   const isHistory = mode === "history";
+  const canCorrectRejected = user.role === "SUPERVISEUR" && isHistory;
+  const showChargeActions = (canValidate && !isHistory) || canCorrectRejected;
+  const showTripActions = (canValidate && !isHistory) || canCorrectRejected;
   const displayedTrips = isHistory
     ? trips.filter((trip) => trip.status !== "CALCULE")
     : trips.filter((trip) => trip.status === "CALCULE");
@@ -292,7 +306,7 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
           <span className="statusPill">{displayedTrips.length} trajet(s)</span>
         </div>
         <div className="studentTableWrap"><table>
-          <thead><tr><th>Enseignant</th><th>Date et heure</th><th>Distance</th><th>Frais de stationnement</th><th>Preuves</th><th>Statut</th>{canValidate && !isHistory && <th>Actions</th>}</tr></thead>
+          <thead><tr><th>Enseignant</th><th>Date et heure</th><th>Distance</th><th>Frais de stationnement</th><th>Preuves</th><th>Statut</th>{showTripActions && <th>Actions</th>}</tr></thead>
           <tbody>{displayedTrips.map((trip) => {
             const proofIsOpen = routeProofTrip?.id === trip.id;
             return <Fragment key={trip.id}>
@@ -301,13 +315,14 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
                 <td><div className="proofActions"><button className="proofLinkButton" type="button" onClick={() => setRouteProofTrip(proofIsOpen ? null : trip)}>{proofIsOpen ? "Masquer l’itinéraire enregistré" : "Voir l’itinéraire enregistré"}</button>{trip.hasParkingReceipt && <button className="proofLinkButton" type="button" onClick={() => openParkingReceipt(trip.id)}>Voir le ticket de stationnement</button>}</div></td>
                 <td><span className={`statusPill ${statusClass(trip.status)}`}>{statusLabel(trip.status)}</span>{trip.refusalReason && <span className="refusalReason"><strong>Motif :</strong> {trip.refusalReason}</span>}</td>
                 {canValidate && !isHistory && <td><div className="tableActions"><button className="secondaryButton fitButton" type="button" onClick={() => updateTripStatus(trip.id, "VALIDE")}>Valider</button><button className="dangerButton fitButton" type="button" onClick={() => setRefusalTarget({ type: "trip", item: trip })}>Rejeter</button></div></td>}
+                {canCorrectRejected && <td>{trip.status === "REJETE" && <button className="primaryButton fitButton" type="button" onClick={() => editRejectedTrip(trip)}>Modifier</button>}</td>}
               </tr>
-              {proofIsOpen && <tr className="tripDetailsRow"><td colSpan={canValidate && !isHistory ? 7 : 6}>
+              {proofIsOpen && <tr className="tripDetailsRow"><td colSpan={showTripActions ? 7 : 6}>
                 <FrozenRouteSnapshot snapshot={trip.routeSnapshot} tripId={trip.id} currentMapUrl={trip.mapUrl} />
               </td></tr>}
             </Fragment>;
           })}
-          {!displayedTrips.length && <tr><td colSpan={canValidate && !isHistory ? 7 : 6}>Aucun déplacement à afficher.</td></tr>}
+          {!displayedTrips.length && <tr><td colSpan={showTripActions ? 7 : 6}>Aucun déplacement à afficher.</td></tr>}
           </tbody>
         </table></div>
       </section>}
@@ -328,7 +343,7 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
                 <th>Taux</th>
                 <th>Total</th>
                 <th>Statut</th>
-                {canValidate && !isHistory && <th>Actions</th>}
+                {showChargeActions && <th>Actions</th>}
               </tr>
             </thead>
             <tbody>
@@ -366,12 +381,15 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
                       </div>
                     </td>
                   )}
+                  {canCorrectRejected && (
+                    <td>{charge.status === "REJETE" && <button className="primaryButton fitButton" type="button" onClick={() => setCorrectionTarget(charge)}>Modifier</button>}</td>
+                  )}
                 </tr>
               ))}
 
               {!displayedCharges.length && (
                 <tr>
-                  <td colSpan={canValidate && !isHistory ? "8" : "7"}>Aucune charge à afficher.</td>
+                  <td colSpan={showChargeActions ? "8" : "7"}>Aucune charge à afficher.</td>
                 </tr>
               )}
             </tbody>
@@ -388,8 +406,100 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
           setRefusalTarget(null);
         }}
       />}
+      {correctionTarget && <PayrollCorrectionModal
+        charge={correctionTarget}
+        settings={settings}
+        onCancel={() => setCorrectionTarget(null)}
+        onSuccess={async () => {
+          setCorrectionTarget(null);
+          setMessage("Charge corrigée et resoumise à la comptabilité.");
+          await loadPayroll();
+        }}
+        onError={setError}
+      />}
+      {mileageCorrectionTarget && <div className="modalOverlay"><div className="modalCard mileageCorrectionModal" role="dialog" aria-modal="true">
+        <MileageForm
+          user={user}
+          students={mileageStudents}
+          initialTrip={mileageCorrectionTarget}
+          onCancel={() => setMileageCorrectionTarget(null)}
+          onCreated={async () => {
+            setMileageCorrectionTarget(null);
+            setMessage("Déplacement corrigé et resoumis à la comptabilité.");
+            await loadPayroll();
+          }}
+        />
+      </div></div>}
     </>
   );
+}
+
+function PayrollCorrectionModal({ charge, settings, onCancel, onSuccess, onError }) {
+  const [form, setForm] = useState({
+    studentCode: charge.studentCode || "",
+    courseTitle: charge.courseTitle || "",
+    courseCodeGroup: charge.courseCodeGroup || "",
+    session: charge.session || "",
+    comment: charge.userComment || ""
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const students = settings?.students || [];
+  const courseTitles = [...new Set(students.map((student) => student.program).filter(Boolean))];
+  const availableGroups = [...new Set(students.filter((student) => student.program === form.courseTitle).map((student) => student.groupName).filter(Boolean))];
+
+  function updateField(event) {
+    const { name, value } = event.target;
+    const student = name === "studentCode" ? students.find((item) => item.studentCode === value) : null;
+    setForm((current) => ({
+      ...current, [name]: value,
+      ...(name === "courseTitle" ? { courseCodeGroup: "", studentCode: "" } : {}),
+      ...(name === "courseCodeGroup" ? { studentCode: "" } : {}),
+      ...(student ? { courseTitle: student.program || "", courseCodeGroup: student.groupName || "" } : {})
+    }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setSubmitting(true);
+    onError("");
+    try {
+      const response = await fetch(`/api/payroll/supervision-charges/${charge.id}/resubmit`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token")}`
+        },
+        body: JSON.stringify(form)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return onError(data.error || "Impossible de resoumettre la charge.");
+      await onSuccess();
+    } catch {
+      onError("Erreur de connexion au serveur.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return <div className="modalOverlay">
+    <div className="modalCard refusalModal" role="dialog" aria-modal="true" aria-labelledby="payroll-correction-title">
+      <div className="panelHeader">
+        <div><h2 id="payroll-correction-title">Corriger la charge refusée</h2><p>{charge.studentName}</p></div>
+        <button className="modalCloseButton" type="button" onClick={onCancel} disabled={submitting} aria-label="Fermer">×</button>
+      </div>
+      <div className="refusalReason"><strong>Correction demandée par la comptabilité :</strong> {charge.refusalReason}</div>
+      <form className="studentForm" onSubmit={submit}>
+        <div className="studentFormGrid">
+          <label className="field">Cours<select name="courseTitle" value={form.courseTitle} onChange={updateField} required><option value="">Sélectionner</option>{courseTitles.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label className="field">Groupe<select name="courseCodeGroup" value={form.courseCodeGroup} onChange={updateField} required><option value="">Sélectionner</option>{availableGroups.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+          <label className="field wide">Étudiant<select name="studentCode" value={form.studentCode} onChange={updateField} required><option value="">Sélectionner</option>{students.filter((student) => student.program === form.courseTitle && student.groupName === form.courseCodeGroup).map((student) => <option key={student.studentCode} value={student.studentCode}>{student.studentName} — {student.studentCode}</option>)}</select></label>
+          <label className="field">Session<input name="session" value={form.session} onChange={updateField} /></label>
+          <label className="field wide">Commentaire<textarea rows="4" maxLength="2000" name="comment" value={form.comment} onChange={updateField} /></label>
+        </div>
+        <div className="modalActions"><button className="secondaryButton" type="button" onClick={onCancel} disabled={submitting}>Annuler</button><button className="primaryButton" type="submit" disabled={submitting}>{submitting ? "Resoumission..." : "Resoumettre à la comptabilité"}</button></div>
+      </form>
+    </div>
+  </div>;
 }
 
 function PayrollRefusalModal({ target, loading, onCancel, onConfirm }) {
