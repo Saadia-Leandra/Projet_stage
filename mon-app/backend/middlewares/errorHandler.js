@@ -1,7 +1,9 @@
 export function errorHandler(error, _req, res, _next) {
-  console.error(error);
-
   const status = error.status || 500;
+  if (status >= 500) {
+    console.error(error);
+  }
+
   const isProd = process.env.NODE_ENV === "production";
   const message =
     isProd && status === 500
