@@ -1,17 +1,22 @@
 import base64
 import importlib.util
+import sys
 import unittest
 from pathlib import Path
 
 
 APP_PATH = Path(__file__).resolve().parents[1] / "app.py"
+sys.path.insert(0, str(APP_PATH.parent))
 SPEC = importlib.util.spec_from_file_location("csv_import_app", APP_PATH)
 APP = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(APP)
 
 
-def encoded(text):
-    return base64.b64encode(text.encode("utf-8")).decode("ascii")
+def payload(text):
+    return {
+        "nomFichier": "etudiants.csv",
+        "contenuBase64": base64.b64encode(text.encode("utf-8")).decode("ascii"),
+    }
 
 
 class NormalizeCsvTests(unittest.TestCase):
@@ -22,7 +27,7 @@ class NormalizeCsvTests(unittest.TestCase):
             "Marie@Example.com;Marie;Tremblay;ChangerMoi123!;"
             "2600100;Web;2027-08-31\n"
         )
-        result = APP.normalize_csv(encoded(content))
+        result = APP.normalize_student_csv(payload(content))
 
         self.assertTrue(result["valide"])
         self.assertEqual(result["nombreValides"], 1)
@@ -34,15 +39,15 @@ class NormalizeCsvTests(unittest.TestCase):
             "code_etudiant,programme,expiration_caq\n"
             "invalide,Marie,Tremblay,123,2600100,Web,31-08-2027\n"
         )
-        result = APP.normalize_csv(encoded(content))
+        result = APP.normalize_student_csv(payload(content))
 
         self.assertFalse(result["valide"])
         self.assertEqual(result["nombreErreurs"], 1)
         self.assertGreaterEqual(len(result["erreurs"][0]["erreurs"]), 3)
 
     def test_rejects_missing_columns(self):
-        with self.assertRaisesRegex(ValueError, "Colonnes obligatoires"):
-            APP.normalize_csv(encoded("courriel,prenom\nx@example.com,X\n"))
+        with self.assertRaisesRegex(APP.CsvValidationError, "Colonnes obligatoires"):
+            APP.normalize_student_csv(payload("courriel,prenom\nx@example.com,X\n"))
 
 
 if __name__ == "__main__":

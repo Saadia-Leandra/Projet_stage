@@ -387,7 +387,10 @@ export default function StudentRequestEditForm({
       >
         <p className="requiredHint">* Champ obligatoire</p>
 
-        <FormSection title="Informations de l'etudiant">
+        <FormSection
+          title="Informations de l'etudiant"
+          description="Mettez a jour vos coordonnees personnelles avant la resoumission."
+        >
           <label className="field">
             Telephone *
 
@@ -513,7 +516,10 @@ export default function StudentRequestEditForm({
           </label>
         </FormSection>
 
-        <FormSection title="1. Identification du stage">
+        <FormSection
+          title="1. Identification du stage"
+          description="Revisez les taches, la periode et les informations de base du stage."
+        >
           <label className="field wide">
             Résumé des tâches *
 
@@ -554,7 +560,10 @@ export default function StudentRequestEditForm({
           </label>
         </FormSection>
 
-        <FormSection title="2. Entreprise">
+        <FormSection
+          title="2. Entreprise"
+          description="Confirmez les coordonnees du milieu de stage et son secteur d'activite."
+        >
           <label className="field">
             Nom *
 
@@ -732,7 +741,10 @@ export default function StudentRequestEditForm({
           </label>
         </FormSection>
 
-        <FormSection title="3. Responsable RH">
+        <FormSection
+          title="3. Responsable RH"
+          description="Completez cette section seulement si un contact RH est implique."
+        >
           <label className="field">
             Nom
 
@@ -776,7 +788,10 @@ export default function StudentRequestEditForm({
           </label>
         </FormSection>
 
-        <FormSection title="4. Superviseur en entreprise">
+        <FormSection
+          title="4. Superviseur en entreprise"
+          description="Indiquez la personne qui encadrera le stage dans l'entreprise."
+        >
           <label className="field">
             Nom *
 
@@ -824,7 +839,10 @@ export default function StudentRequestEditForm({
           </label>
         </FormSection>
 
-        <FormSection title="5. Conditions du stage">
+        <FormSection
+          title="5. Conditions du stage"
+          description="Verifiez l'horaire, la duree, la langue de travail et la remuneration."
+        >
           <label className="field wide">
             Horaire *
 
@@ -986,11 +1004,18 @@ export default function StudentRequestEditForm({
 
 function FormSection({
   title,
+  description,
   children
 }) {
   return (
     <fieldset className="stageFormSection">
       <legend>{title}</legend>
+
+      {description && (
+        <p className="stageFormDescription">
+          {description}
+        </p>
+      )}
 
       <div className="studentFormGrid">
         {children}

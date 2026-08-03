@@ -216,38 +216,38 @@ function signatureFieldPositionByRole(role) {
   const positions = {
     ETUDIANT: {
       page: 3,
-      positionX: 4,
-      positionY: 1.2,
-      width: 31,
-      height: 4.6
+      positionX: 3.6,
+      positionY: 0.7,
+      width: 28,
+      height: 3.2
     },
     ENTREPRISE: {
       page: 3,
-      positionX: 4,
-      positionY: 7.7,
-      width: 31,
-      height: 4.6
+      positionX: 3.6,
+      positionY: 6.8,
+      width: 28,
+      height: 3.2
     },
     SUPERVISEUR: {
       page: 3,
       positionX: 52,
-      positionY: 1.2,
-      width: 31,
-      height: 4.6
+      positionY: 0.7,
+      width: 28,
+      height: 3.2
     },
     CONSEILLERE: {
-      page: 3,
-      positionX: 52,
-      positionY: 13.2,
-      width: 31,
-      height: 4.2
+      page: 2,
+      positionX: 86,
+      positionY: 9.5,
+      width: 10,
+      height: 3.4
     },
     DIRECTION: {
       page: 3,
       positionX: 52,
-      positionY: 7.7,
-      width: 31,
-      height: 4.6
+      positionY: 6.8,
+      width: 28,
+      height: 3.2
     }
   };
 
@@ -427,7 +427,7 @@ async function createDocumensoError(response) {
       data.errors?.[0]?.message ||
       text;
   } catch {
-    // Keep the text body when Documenso does not return JSON.
+    message = text;
   }
 
   return formatDocumensoError(

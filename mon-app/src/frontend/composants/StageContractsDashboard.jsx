@@ -423,7 +423,7 @@ export default function StageContractsDashboard({ user }) {
                 Signature etudiante
               </option>
               <option value="SIGNATURE_ENTREPRISE">
-                Depot milieu
+                Signature milieu
               </option>
               <option value="SIGNATURE">
                 En signature
@@ -794,7 +794,10 @@ function contractNextAction(contract) {
   ) {
     return {
       title: "Milieu de stage",
-      detail: "Attendre le PDF signe par le milieu."
+      detail:
+        contract.status === "SIGNATURE_ENTREPRISE"
+          ? "Attendre la signature Documenso du milieu."
+          : "Attendre le PDF signe par le milieu."
     };
   }
 
@@ -914,7 +917,7 @@ function statusLabel(status) {
     CONTRAT_MILIEU_A_DEPOSER:
       "Contrat du milieu a recevoir",
     SIGNATURE_ENTREPRISE:
-      "Contrat du milieu a recevoir",
+      "Signature Documenso du milieu",
     SIGNATURE_SUPERVISEUR:
       "En attente de l'enseignant",
     SIGNATURE_CONSEILLERE:

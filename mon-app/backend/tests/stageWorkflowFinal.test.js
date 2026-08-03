@@ -9,18 +9,24 @@ import {
 import {
   getStudentStageDisplayState,
   isActiveStudentStageRequest,
+  isStudentStageLockedByRefusal,
   studentCanEditRequest,
   studentCanWithdrawRequest
 } from "../../src/frontend/utils/studentStageDisplayState.js";
 import {
   generateConfirmationCodeValue,
+  isFictitiousEmail,
   MAX_MILIEU_SIGNED_PDF_SIZE_BYTES,
+  resolveDocumensoRecipientsForSigners,
   validateContractData,
+  validateSigners,
   validateMilieuSignedContractFile
 } from "../services/contractService.js";
 import {
+  ensureStudentHasNoRefusedStageRequest,
   isActiveStageFolderStatus,
-  isActiveStageRequestStatus
+  isActiveStageRequestStatus,
+  refusedStageLockMessage
 } from "../services/studentService.js";
 import {
   STUDENT_WITHDRAWABLE_REQUEST_STATUSES
@@ -81,6 +87,139 @@ test("signature etudiante obligatoire avant la suite", () => {
   });
 
   assert.equal(contract.totalHours, 280);
+});
+
+test("signature Documenso bloquee si le courriel ne correspond pas a un compte actif", () => {
+  assert.throws(
+    () =>
+      validateSigners([
+        {
+          role: "ETUDIANT",
+          name: "Prisca Dessources",
+          email: "prisca@teccart.ca",
+          userId: 16,
+          accountEmail: "autre@teccart.ca",
+          accountStatus: "ACTIF"
+        }
+      ]),
+    /pas envoyee automatiquement/
+  );
+
+  assert.throws(
+    () =>
+      validateSigners([
+        {
+          role: "SUPERVISEUR",
+          name: "Saadia Leandra",
+          email: "saadia@teccart.ca",
+          userId: 14,
+          accountEmail: "saadia@teccart.ca",
+          accountStatus: "INACTIF"
+        }
+      ]),
+    /compte.*pas actif/
+  );
+
+  assert.doesNotThrow(() =>
+    validateSigners([
+      {
+        role: "ETUDIANT",
+        name: "Prisca Dessources",
+        email: "prisca@teccart.ca",
+        userId: 16,
+        accountEmail: "prisca@teccart.ca",
+        accountStatus: "ACTIF"
+      }
+    ])
+  );
+});
+
+test("signature Documenso bloquee si le courriel est fictif", () => {
+  assert.equal(isFictitiousEmail("stage@example.com"), true);
+  assert.equal(isFictitiousEmail("fake.signer@teccart.ca"), true);
+  assert.equal(isFictitiousEmail("signature@teccart.ca"), false);
+
+  assert.throws(
+    () =>
+      validateSigners([
+        {
+          role: "ETUDIANT",
+          name: "Prisca Dessources",
+          email: "stage@example.com",
+          userId: 16,
+          accountEmail: "stage@example.com",
+          accountStatus: "ACTIF"
+        }
+      ]),
+    /semble fictif/
+  );
+
+  assert.throws(
+    () =>
+      validateSigners([
+        {
+          role: "ENTREPRISE",
+          name: "Milieu Exemple",
+          email: "milieu@example.com"
+        }
+      ]),
+    /semble fictif/
+  );
+
+  assert.doesNotThrow(() =>
+    validateSigners([
+      {
+        role: "ENTREPRISE",
+        name: "Milieu Exemple",
+        email: "responsable@entreprise.ca"
+      }
+    ])
+  );
+});
+
+test("signature Documenso bloquee si Documenso refuse le courriel", () => {
+  const signers = [
+    {
+      id: 1,
+      role: "ETUDIANT",
+      signingOrder: 1,
+      name: "Prisca Dessources",
+      email: "prisca@teccart.ca"
+    }
+  ];
+
+  assert.throws(
+    () =>
+      resolveDocumensoRecipientsForSigners(
+        signers,
+        {
+          recipients: [
+            {
+              email: "prisca@teccart.ca",
+              signingOrder: 1,
+              sendStatus: "BOUNCED"
+            }
+          ]
+        }
+      ),
+    /pas envoyee automatiquement/
+  );
+
+  assert.doesNotThrow(() =>
+    resolveDocumensoRecipientsForSigners(
+      signers,
+      {
+        recipients: [
+          {
+            email: "prisca@teccart.ca",
+            signingOrder: 1,
+            sendStatus: "SENT",
+            documensoRecipientId: "recipient_1"
+          }
+        ]
+      }
+    )
+  );
 });
 
 test("depot du PDF signe par le milieu valide le type et la taille", () => {
@@ -166,6 +305,29 @@ test("carte etudiante rouge pour correction et documents", () => {
   assert.equal(documentsState.canUpload, true);
 });
 
+test("refus definitif bloque les actions et oriente vers la messagerie", () => {
+  const state = getStudentStageDisplayState({
+    request: {
+      id: 1,
+      status: "REFUSEE",
+      refusalReason: "Milieu non admissible."
+    }
+  });
+
+  assert.equal(state.color, "red");
+  assert.equal(state.targetView, "messages");
+  assert.equal(state.actionLabel, "Ouvrir la messagerie");
+  assert.equal(state.canEdit, false);
+  assert.equal(state.canWithdraw, false);
+  assert.equal(state.canUpload, false);
+  assert.equal(
+    isStudentStageLockedByRefusal([
+      { id: 1, status: "REFUSEE" }
+    ]),
+    true
+  );
+});
+
 test("carte etudiante verte pour dossier complet", () => {
   const state = getStudentStageDisplayState({
     request: { id: 1, status: "APPROUVEE" },
@@ -178,6 +340,34 @@ test("carte etudiante verte pour dossier complet", () => {
   assert.equal(state.color, "green");
   assert.equal(state.canDownload, true);
   assert.equal(state.progressStep, 9);
+});
+
+test("refus definitif bloque toute nouvelle demande cote serveur", async () => {
+  await assert.rejects(
+    () =>
+      ensureStudentHasNoRefusedStageRequest(
+        {
+          execute: async () => [
+            [{ requestId: 10 }]
+          ]
+        },
+        16
+      ),
+    (error) => {
+      assert.equal(error.status, 409);
+      assert.equal(error.message, refusedStageLockMessage);
+      return true;
+    }
+  );
+
+  await assert.doesNotReject(() =>
+    ensureStudentHasNoRefusedStageRequest(
+      {
+        execute: async () => [[]]
+      },
+      16
+    )
+  );
 });
 
 test("aucune liste de statut etudiant dans la vue demandes", async () => {

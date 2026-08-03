@@ -5,7 +5,6 @@ import ProvinceInput from "./ProvinceInput.jsx";
 import { calculateStageWeeks } from "../utils/stageDuration.js";
 
 const initialForm = {
-  // Informations de l'etudiant
   studentPhone: "",
   studentAddress: "",
   studentCity: "",
@@ -15,12 +14,10 @@ const initialForm = {
   expirationStudyPermit: "",
   expirationInsurance: "",
 
-  // Identification du stage
   taskSummary: "",
   startDate: "",
   endDate: "",
 
-  // Entreprise
   companyName: "",
   companyNeq: "",
   companyAddress: "",
@@ -34,19 +31,16 @@ const initialForm = {
   organizationType: "PRIVE",
   businessSector: "",
 
-  // Responsable des ressources humaines
   hrName: "",
   hrEmail: "",
   hrPhone: "",
   hrExtension: "",
 
-  // Superviseur en entreprise
   supervisorName: "",
   supervisorTitle: "",
   supervisorEmail: "",
   supervisorPhone: "",
 
-  // Conditions du stage
   workSchedule: "",
   hoursPerWeek: "",
   workLanguage: "",
@@ -273,7 +267,7 @@ export default function StudentRequestForm({ student, onCreated }) {
 
      <FormSection
     title="Informations de l'étudiant"
-    description="Completez les coordonnees qui seront reprises dans la demande officielle."
+    description="Completez les coordonnees de votre demande de stage."
   >
     <label className="field">
       Nom complet
@@ -435,7 +429,6 @@ export default function StudentRequestForm({ student, onCreated }) {
       />
     </label>
     </FormSection>
-        {/* SECTION 1 */}
         <FormSection
           title="1. Identification du stage"
           description="Décrivez les tâches et la période prévue du stage."
@@ -499,7 +492,6 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
         </FormSection>
 
-        {/* SECTION 2 */}
         <FormSection
           title="2. Identification du milieu de stage"
           description="Inscrivez les coordonnées de l’entreprise ou de l’organisme."
@@ -719,7 +711,6 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
         </FormSection>
 
-        {/* SECTION 3 */}
         <FormSection
           title="3. Responsable des ressources humaines"
           description="Cette section peut être laissée vide si elle ne s’applique pas."
@@ -773,7 +764,6 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
         </FormSection>
 
-        {/* SECTION 4 */}
         <FormSection
           title="4. Superviseur associé en entreprise"
           description="Indiquez la personne qui supervisera l’étudiant dans l’entreprise."
@@ -856,7 +846,6 @@ export default function StudentRequestForm({ student, onCreated }) {
           </label>
         </FormSection>
 
-        {/* SECTION 5 */}
         <FormSection
           title="5. Horaire et conditions du stage"
           description="Précisez l’horaire, la durée et les conditions financières."

@@ -41,13 +41,12 @@ L'objectif est d'eviter les suivis disperses et de conserver un historique admin
 5. En cas de correction, l'etudiant modifie et resoumet la meme demande.
 6. Aucun contrat n'est genere avant une approbation.
 7. Aucun PDF ni document Documenso n'est genere apres un refus.
-8. Apres approbation, StageTec genere une copie du contrat officiel.
-9. L'etudiant complete le contrat et signe sa partie si elle est requise.
-10. Le milieu de stage signe le contrat, puis l'etudiant depose le PDF signe.
-11. StageTec genere un code de confirmation.
-12. L'enseignant, la conseillere et la direction signent avec Documenso dans cet ordre.
-13. Le PDF final est recupere et conserve.
-14. Le dossier devient complet seulement apres la signature finale.
+8. L'etudiant complete le contrat, genere le PDF, puis signe sa partie avec Documenso si elle est requise.
+9. Le milieu de stage signe avec Documenso lorsque l'envoi automatique est disponible; sinon l'etudiant depose le PDF signe manuellement.
+10. StageTec genere un code de confirmation a la reception de la signature du milieu.
+11. L'enseignant, la conseillere et la direction signent avec Documenso dans cet ordre.
+12. Le PDF final est recupere et conserve.
+13. Le dossier devient complet seulement apres la signature finale.
 
 ## Technologies
 
@@ -65,7 +64,7 @@ L'objectif est d'eviter les suivis disperses et de conserver un historique admin
 
 - `mon-app/backend/` : serveur Express, routes, services, configuration MySQL et tests backend.
 - `mon-app/backend/config/` : schema SQL, migrations et seed.
-- `mon-app/backend/templates/stage/` : copies de reference des modeles officiels.
+- `mon-app/backend/templates/stage/` : fichiers PDF utilises par la generation des documents.
 - `mon-app/backend/storage/` : fichiers generes ou televerses, ignore par Git.
 - `mon-app/src/frontend/` : composants React, constantes, styles et services frontend.
 - `mon-app/docs/` : procedures de validation manuelle.

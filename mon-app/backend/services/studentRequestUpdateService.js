@@ -8,7 +8,10 @@ import {
   listActiveUploadedDocumentTypes,
   notifySupervisorOfResubmission
 } from "./stageRequestCorrectionService.js";
-import { updateStudentProfileForStage } from "./studentService.js";
+import {
+  ensureStudentHasNoRefusedStageRequest,
+  updateStudentProfileForStage
+} from "./studentService.js";
 import { createNotificationForUsers } from "./notificationService.js";
 
 const db = createDbPool();
@@ -31,6 +34,11 @@ export async function updateInternshipRequest(
 
   try {
     await connection.beginTransaction();
+
+    await ensureStudentHasNoRefusedStageRequest(
+      connection,
+      studentId
+    );
 
     const [rows] = await connection.execute(
       `
@@ -345,6 +353,11 @@ export async function withdrawInternshipRequest(
 
   try {
     await connection.beginTransaction();
+
+    await ensureStudentHasNoRefusedStageRequest(
+      connection,
+      studentId
+    );
 
     const [rows] = await connection.execute(
       `

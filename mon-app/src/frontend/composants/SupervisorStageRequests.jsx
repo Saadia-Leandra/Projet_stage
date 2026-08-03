@@ -2,6 +2,7 @@
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState
 } from "react";
 
@@ -13,6 +14,7 @@ export default function SupervisorStageRequests() {
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] =
     useState(null);
+  const latestDetailsRequestId = useRef(null);
 
   const [requestToRefuse, setRequestToRefuse] =
     useState(null);
@@ -26,6 +28,10 @@ export default function SupervisorStageRequests() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] =
     useState(false);
+  const [detailsLoadingId, setDetailsLoadingId] =
+    useState(null);
+  const [pendingDetailsRequest, setPendingDetailsRequest] =
+    useState(null);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -345,11 +351,21 @@ export default function SupervisorStageRequests() {
   async function openDetails(request) {
     const token = localStorage.getItem("token");
 
-    setSelectedRequest(request);
+    latestDetailsRequestId.current = request.id;
+    setPendingDetailsRequest(request);
+    setDetailsLoadingId(request.id);
+    setSelectedRequest((currentRequest) =>
+      currentRequest?.id === request.id
+        ? currentRequest
+        : null
+    );
     setError("");
     setSuccess("");
 
     if (!token) {
+      setSelectedRequest(request);
+      setPendingDetailsRequest(null);
+      setDetailsLoadingId(null);
       return;
     }
 
@@ -368,10 +384,34 @@ export default function SupervisorStageRequests() {
         .catch(() => ({}));
 
       if (response.ok && data.request) {
-        setSelectedRequest(data.request);
+        if (
+          latestDetailsRequestId.current === request.id
+        ) {
+          setSelectedRequest(data.request);
+        }
+      } else if (
+        latestDetailsRequestId.current === request.id
+      ) {
+        setSelectedRequest((currentRequest) =>
+          currentRequest || request
+        );
       }
     } catch (requestError) {
       console.error(requestError);
+      if (
+        latestDetailsRequestId.current === request.id
+      ) {
+        setSelectedRequest((currentRequest) =>
+          currentRequest || request
+        );
+      }
+    } finally {
+      if (
+        latestDetailsRequestId.current === request.id
+      ) {
+        setPendingDetailsRequest(null);
+        setDetailsLoadingId(null);
+      }
     }
   }
 
@@ -386,6 +426,13 @@ export default function SupervisorStageRequests() {
     setCorrectionStatus(status);
     setError("");
     setSuccess("");
+  }
+
+  function closeDetails() {
+    latestDetailsRequestId.current = null;
+    setSelectedRequest(null);
+    setPendingDetailsRequest(null);
+    setDetailsLoadingId(null);
   }
 
   return (
@@ -507,11 +554,18 @@ export default function SupervisorStageRequests() {
         <RequestsTable
           requests={filteredRequests}
           selectedRequest={selectedRequest}
+          detailsLoadingId={detailsLoadingId}
           actionLoading={actionLoading}
           onView={openDetails}
           onApprove={approveRequest}
           onRequestCorrections={openCorrectionModal}
           onRefuse={openRefusalModal}
+        />
+      )}
+
+      {detailsLoadingId && !selectedRequest && (
+        <SupervisorRequestLoadingPanel
+          request={pendingDetailsRequest}
         />
       )}
 
@@ -522,9 +576,7 @@ export default function SupervisorStageRequests() {
           onApprove={approveRequest}
           onRequestCorrections={openCorrectionModal}
           onRefuse={openRefusalModal}
-          onClose={() =>
-            setSelectedRequest(null)
-          }
+          onClose={closeDetails}
         />
       )}
 
@@ -557,6 +609,7 @@ export default function SupervisorStageRequests() {
 function RequestsTable({
   requests,
   selectedRequest,
+  detailsLoadingId,
   actionLoading,
   onView,
   onApprove,
@@ -583,6 +636,10 @@ function RequestsTable({
               request.status === "SOUMISE";
             const nextAction =
               nextActionLabel(request);
+            const isSelected =
+              selectedRequest?.id === request.id;
+            const isLoadingDetails =
+              detailsLoadingId === request.id;
 
             return (
               <tr key={request.id}>
@@ -660,16 +717,22 @@ function RequestsTable({
                 <td>
                   <div className="requestActions">
                     <button
-                      className="secondaryButton"
+                      className="secondaryButton requestViewButton"
                       type="button"
                       onClick={() =>
                         onView(request)
                       }
+                      aria-busy={
+                        isLoadingDetails
+                          ? "true"
+                          : undefined
+                      }
                     >
-                      {selectedRequest?.id ===
-                      request.id
-                        ? "Ouverte"
-                        : "Voir"}
+                      {isLoadingDetails
+                        ? "Chargement"
+                        : isSelected
+                          ? "Ouverte"
+                          : "Voir"}
                     </button>
 
                     {canDecide && (
@@ -746,6 +809,44 @@ function RequestsTable({
         </tbody>
       </table>
     </div>
+  );
+}
+
+function SupervisorRequestLoadingPanel({ request }) {
+  return (
+    <section
+      className="studentPanel requestDetailsPanel requestDetailsLoadingPanel"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="panelHeader">
+        <div>
+          <h2>Chargement de la demande</h2>
+
+          <p>
+            {request?.studentFullName
+              ? `Préparation du dossier de ${request.studentFullName}.`
+              : "Préparation du dossier sélectionné."}
+          </p>
+        </div>
+
+        <span className="statusPill statusBlue">
+          Ouverture
+        </span>
+      </div>
+
+      <div
+        className="requestDetailsLoadingGrid"
+        aria-hidden="true"
+      >
+        <span className="requestDetailsLoadingLine requestDetailsLoadingWide" />
+        <span className="requestDetailsLoadingLine" />
+        <span className="requestDetailsLoadingLine" />
+        <span className="requestDetailsLoadingLine requestDetailsLoadingShort" />
+        <span className="requestDetailsLoadingLine requestDetailsLoadingWide" />
+        <span className="requestDetailsLoadingLine" />
+      </div>
+    </section>
   );
 }
 

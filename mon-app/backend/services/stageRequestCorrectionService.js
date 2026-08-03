@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createDbPool } from "../config/db.js";
+import { cancelContractsForRequest } from "./contractService.js";
 import { createNotificationForUsers } from "./notificationService.js";
 
 const db = createDbPool();
@@ -45,6 +46,9 @@ const ALLOWED_DOCUMENT_MIME_TYPES = new Map([
   ["image/jpeg", "jpg"],
   ["image/png", "png"]
 ]);
+
+const refusedStageLockMessage =
+  "Votre demande de stage a ete refusee definitivement. Les actions de stage sont bloquees. Utilisez la messagerie pour contacter votre superviseur ou la conseillere.";
 
 const TRACKED_REQUEST_FIELDS = [
   ["studentPhone", "telephone etudiant"],
@@ -153,6 +157,19 @@ export async function requestStageRequestCorrections(
       [request.folderId]
     );
 
+    await cancelContractsForRequest(connection, {
+      requestId: request.id,
+      actorId: supervisorId,
+      eventType:
+        correction.status === "DOCUMENTS_MANQUANTS"
+          ? "CONTRAT_ANNULE_DOCUMENTS_MANQUANTS"
+          : "CONTRAT_ANNULE_CORRECTIONS",
+      comment:
+        correction.status === "DOCUMENTS_MANQUANTS"
+          ? "Le contrat a ete annule parce que des documents ont ete demandes a l'etudiant."
+          : "Le contrat a ete annule parce que des corrections ont ete demandees a l'etudiant."
+    });
+
     await createWorkflowEvent(connection, {
       folderId: request.folderId,
       actorId: supervisorId,
@@ -229,6 +246,11 @@ export async function addStudentRequestDocument(
 
   try {
     await connection.beginTransaction();
+
+    await ensureStudentHasNoRefusedStageRequest(
+      connection,
+      studentId
+    );
 
     const request = await findStudentRequest(
       connection,
@@ -367,6 +389,11 @@ export async function deleteStudentRequestDocument(
 
   try {
     await connection.beginTransaction();
+
+    await ensureStudentHasNoRefusedStageRequest(
+      connection,
+      studentId
+    );
 
     const request = await findStudentRequest(
       connection,
@@ -1132,6 +1159,28 @@ function normalizeComparableValue(value) {
 
 function clean(value) {
   return String(value ?? "").trim();
+}
+
+async function ensureStudentHasNoRefusedStageRequest(
+  connection,
+  studentId
+) {
+  const [rows] = await connection.execute(
+    `
+      SELECT d.id AS requestId
+      FROM demandes_stage d
+      INNER JOIN dossiers_stage ds
+        ON ds.id = d.dossier_stage_id
+      WHERE ds.etudiant_id = ?
+        AND d.statut = 'REFUSEE'
+      LIMIT 1
+    `,
+    [studentId]
+  );
+
+  if (rows[0]) {
+    throw createError(refusedStageLockMessage, 409);
+  }
 }
 
 function createError(message, status) {

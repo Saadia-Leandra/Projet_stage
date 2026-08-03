@@ -1,5 +1,8 @@
 import { createDbPool } from "../config/db.js";
-import { syncContractSignersForContract } from "./contractService.js";
+import {
+  cancelContractsForRequest,
+  syncContractSignersForContract
+} from "./contractService.js";
 import { createNotificationForUsers } from "./notificationService.js";
 import {
   getActiveRequestDocuments,
@@ -434,10 +437,13 @@ export async function refuseStageRequest(
       [request.folderId]
     );
 
-    await invalidateContractsForRefusedRequest(
-      connection,
-      request.id
-    );
+    await cancelContractsForRequest(connection, {
+      requestId: request.id,
+      actorId: supervisorId,
+      eventType: "CONTRAT_ANNULE_APRES_REFUS",
+      comment:
+        "Le contrat a ete annule parce que la demande a ete refusee."
+    });
 
     await createWorkflowEvent(connection, {
       folderId: request.folderId,
@@ -547,52 +553,6 @@ async function findContractIdForRequest(
   );
 
   return rows[0]?.id || null;
-}
-
-async function invalidateContractsForRefusedRequest(
-  connection,
-  requestId
-) {
-  const [contracts] = await connection.execute(
-    `
-      SELECT
-        id,
-        dossier_stage_id AS folderId,
-        statut AS status
-      FROM contrats
-      WHERE demande_stage_id = ?
-      FOR UPDATE
-    `,
-    [requestId]
-  );
-
-  for (const contract of contracts) {
-    if (contract.status === "REJETE") {
-      continue;
-    }
-
-    await connection.execute(
-      `
-        UPDATE contrats
-        SET
-          statut = 'REJETE',
-          documenso_status = COALESCE(documenso_status, 'CANCELLED'),
-          rejected_at = NOW()
-        WHERE id = ?
-      `,
-      [contract.id]
-    );
-
-    await createWorkflowEvent(connection, {
-      folderId: contract.folderId,
-      actorId: null,
-      eventType: "CONTRAT_ANNULE_APRES_REFUS",
-      oldStatus: contract.status,
-      newStatus: "REJETE",
-      comment:
-        "Le contrat existant a ete invalide parce que la demande a ete refusee."
-    });
-  }
 }
 
 async function createContractIfMissing(

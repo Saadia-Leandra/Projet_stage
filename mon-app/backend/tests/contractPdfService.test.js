@@ -81,7 +81,7 @@ test("genere un PDF de contrat valide", async () => {
   await fs.rm(file.absolutePath, { force: true });
 });
 
-test("genere une demande de stage officielle valide", async () => {
+test("genere une demande de stage PDF valide", async () => {
   const request = {
     id: 456,
     taskSummary:
