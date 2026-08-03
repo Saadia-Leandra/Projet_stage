@@ -2035,32 +2035,32 @@ async function getContractSigners(
   const [rows] = await connection.execute(
     `
       SELECT
-        id,
-        ordre_signature AS signingOrder,
-        role_signataire AS role,
-        utilisateur_signataire_id AS userId,
-        nom_signataire AS name,
-        courriel_signataire AS email,
+        signatures_contrat.id,
+        signatures_contrat.ordre_signature AS signingOrder,
+        signatures_contrat.role_signataire AS role,
+        signatures_contrat.utilisateur_signataire_id AS userId,
+        signatures_contrat.nom_signataire AS name,
+        signatures_contrat.courriel_signataire AS email,
         signer_user.courriel AS accountEmail,
         signer_user.statut AS accountStatus,
-        statut AS status,
-        fournisseur_signature AS signatureProvider,
-        signature_externe_id AS documensoRecipientId,
-        url_signature AS signingUrl,
-        signe_le AS signedAt
+        signatures_contrat.statut AS status,
+        signatures_contrat.fournisseur_signature AS signatureProvider,
+        signatures_contrat.signature_externe_id AS documensoRecipientId,
+        signatures_contrat.url_signature AS signingUrl,
+        signatures_contrat.signe_le AS signedAt
       FROM signatures_contrat
       LEFT JOIN utilisateurs signer_user
         ON signer_user.id =
           signatures_contrat.utilisateur_signataire_id
-      WHERE contrat_id = ?
-        AND role_signataire IN (
+      WHERE signatures_contrat.contrat_id = ?
+        AND signatures_contrat.role_signataire IN (
           'ETUDIANT',
           'ENTREPRISE',
           'SUPERVISEUR',
           'CONSEILLERE',
           'DIRECTION'
         )
-      ORDER BY ordre_signature ASC
+      ORDER BY signatures_contrat.ordre_signature ASC
     `,
     [contractId]
   );

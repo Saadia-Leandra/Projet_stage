@@ -5,6 +5,9 @@ import { fileURLToPath } from "node:url";
 
 import { createDbPool } from "../config/db.js";
 import { createNotificationForUsers } from "./notificationService.js";
+import {
+  ensureStudentHasNoRefusedStageRequest
+} from "./studentService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -64,6 +67,19 @@ async function assertStageFileAccess(stageFileId, user) {
   }
 
   return stageFile;
+}
+
+async function assertStudentStageMutationAllowed(
+  user
+) {
+  if (user.role !== "ETUDIANT") {
+    return;
+  }
+
+  await ensureStudentHasNoRefusedStageRequest(
+    db,
+    user.id
+  );
 }
 
 async function loadDocumentWithAccess(documentId, user) {
@@ -137,6 +153,7 @@ export async function getChecklist({ user, stageFileId }) {
 
 export async function setChecklistItem({ user, stageFileId, type, done }) {
   await assertStageFileAccess(stageFileId, user);
+  await assertStudentStageMutationAllowed(user);
 
   if (!CHECKLIST_TYPE_SET.has(type)) {
     throw createError("Type de document invalide pour la checklist.", 400);
@@ -172,7 +189,22 @@ export async function listAccessibleStageFiles(user) {
         ds.id AS stageFileId,
         ds.statut AS status,
         etu.code_etudiant AS studentCode,
-        CONCAT(u.prenom, ' ', u.nom) AS studentName
+        CONCAT(u.prenom, ' ', u.nom) AS studentName,
+        EXISTS (
+          SELECT 1
+          FROM demandes_stage refused_request
+          WHERE refused_request.dossier_stage_id = ds.id
+            AND refused_request.statut = 'REFUSEE'
+        ) AS blockedByRefusal,
+        (
+          SELECT refused_request.motif_refus
+          FROM demandes_stage refused_request
+          WHERE refused_request.dossier_stage_id = ds.id
+            AND refused_request.statut = 'REFUSEE'
+          ORDER BY refused_request.decide_le DESC,
+            refused_request.id DESC
+          LIMIT 1
+        ) AS refusalReason
       FROM dossiers_stage ds
       JOIN etudiants etu ON etu.utilisateur_id = ds.etudiant_id
       JOIN utilisateurs u ON u.id = ds.etudiant_id
@@ -182,7 +214,10 @@ export async function listAccessibleStageFiles(user) {
     params
   );
 
-  return rows;
+  return rows.map((row) => ({
+    ...row,
+    blockedByRefusal: Boolean(row.blockedByRefusal)
+  }));
 }
 
 export async function listDocuments({ user, stageFileId, type }) {
@@ -234,6 +269,7 @@ export async function getDocument({ user, documentId }) {
 
 export async function createDocument({ user, stageFileId, type, file }) {
   await assertStageFileAccess(stageFileId, user);
+  await assertStudentStageMutationAllowed(user);
 
   const documentType = ALLOWED_DOCUMENT_TYPES.has(type) ? type : "AUTRE";
   const { storagePath, sizeBytes } = await persistFile(stageFileId, file);
@@ -300,6 +336,7 @@ export async function createDocument({ user, stageFileId, type, file }) {
 
 export async function addDocumentVersion({ user, documentId, file }) {
   const document = await loadDocumentWithAccess(documentId, user);
+  await assertStudentStageMutationAllowed(user);
   const { storagePath, sizeBytes } = await persistFile(document.stageFileId, file);
   const nextVersion = document.version + 1;
 
@@ -380,6 +417,8 @@ export async function archiveDocument({ user, documentId }) {
       403
     );
   }
+
+  await assertStudentStageMutationAllowed(user);
 
   const connection = await db.getConnection();
 
@@ -478,6 +517,7 @@ export async function listDossierComments({ user, stageFileId }) {
 
 export async function addDossierComment({ user, stageFileId, content, parentId }) {
   await assertStageFileAccess(stageFileId, user);
+  await assertStudentStageMutationAllowed(user);
 
   const cleanContent = String(content ?? "").trim();
   if (!cleanContent) {
@@ -564,6 +604,7 @@ export async function updateDossierComment({ user, commentId, content }) {
   if (rows[0].auteur_utilisateur_id !== user.id) {
     throw createError("Vous ne pouvez modifier que vos propres commentaires.", 403);
   }
+  await assertStudentStageMutationAllowed(user);
 
   await db.execute(
     "UPDATE commentaires_dossier SET contenu = ? WHERE id = ?",
@@ -585,6 +626,7 @@ export async function deleteDossierComment({ user, commentId }) {
   if (!allowed) {
     throw createError("Suppression non autorisee.", 403);
   }
+  await assertStudentStageMutationAllowed(user);
 
   await db.execute(
     "UPDATE commentaires_dossier SET supprime_le = NOW() WHERE id = ?",

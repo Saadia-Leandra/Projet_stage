@@ -47,6 +47,24 @@ export function isActiveStudentStageRequest(request) {
   return activeRequestStatuses.has(request.status);
 }
 
+export function getStudentRefusedStageRequest(
+  requests = []
+) {
+  return (
+    requests.find(
+      (request) => request?.status === "REFUSEE"
+    ) || null
+  );
+}
+
+export function isStudentStageLockedByRefusal(
+  requests = []
+) {
+  return Boolean(
+    getStudentRefusedStageRequest(requests)
+  );
+}
+
 export function getStudentStageDisplayState({
   request = null,
   requestStatus = request?.status,
@@ -119,10 +137,10 @@ export function getStudentStageDisplayState({
         request?.refusalReason ||
         "La demande est conservee dans votre historique administratif.",
       nextStep:
-        "Consulter le motif de refus dans l'historique.",
-      actionLabel: "Consulter mon dossier",
-      actionType: "view",
-      targetView: "requests",
+        "Utiliser la messagerie pour contacter votre superviseur ou la conseillere.",
+      actionLabel: "Ouvrir la messagerie",
+      actionType: "message",
+      targetView: "messages",
       progressStep: 2,
       canEdit: false,
       canWithdraw: false,

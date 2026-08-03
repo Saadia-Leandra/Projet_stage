@@ -47,6 +47,9 @@ const ALLOWED_DOCUMENT_MIME_TYPES = new Map([
   ["image/png", "png"]
 ]);
 
+const refusedStageLockMessage =
+  "Votre demande de stage a ete refusee definitivement. Les actions de stage sont bloquees. Utilisez la messagerie pour contacter votre superviseur ou la conseillere.";
+
 const TRACKED_REQUEST_FIELDS = [
   ["studentPhone", "telephone etudiant"],
   ["studentAddress", "adresse etudiant"],
@@ -244,6 +247,11 @@ export async function addStudentRequestDocument(
   try {
     await connection.beginTransaction();
 
+    await ensureStudentHasNoRefusedStageRequest(
+      connection,
+      studentId
+    );
+
     const request = await findStudentRequest(
       connection,
       studentId,
@@ -381,6 +389,11 @@ export async function deleteStudentRequestDocument(
 
   try {
     await connection.beginTransaction();
+
+    await ensureStudentHasNoRefusedStageRequest(
+      connection,
+      studentId
+    );
 
     const request = await findStudentRequest(
       connection,
@@ -1146,6 +1159,28 @@ function normalizeComparableValue(value) {
 
 function clean(value) {
   return String(value ?? "").trim();
+}
+
+async function ensureStudentHasNoRefusedStageRequest(
+  connection,
+  studentId
+) {
+  const [rows] = await connection.execute(
+    `
+      SELECT d.id AS requestId
+      FROM demandes_stage d
+      INNER JOIN dossiers_stage ds
+        ON ds.id = d.dossier_stage_id
+      WHERE ds.etudiant_id = ?
+        AND d.statut = 'REFUSEE'
+      LIMIT 1
+    `,
+    [studentId]
+  );
+
+  if (rows[0]) {
+    throw createError(refusedStageLockMessage, 409);
+  }
 }
 
 function createError(message, status) {

@@ -61,7 +61,10 @@ function formatDate(value) {
   });
 }
 
-export default function DocumentsPanel({ user }) {
+export default function DocumentsPanel({
+  user,
+  onNavigate
+}) {
   const [stageFiles, setStageFiles] = useState([]);
   const [selectedStageFileId, setSelectedStageFileId] = useState("");
   const [documents, setDocuments] = useState([]);
@@ -195,6 +198,51 @@ export default function DocumentsPanel({ user }) {
     );
   }
 
+  const lockedStageFile =
+    user.role === "ETUDIANT"
+      ? stageFiles.find(
+          (stageFile) =>
+            stageFile.blockedByRefusal
+        )
+      : null;
+
+  if (lockedStageFile) {
+    return (
+      <section className="panel documentPanel stageLockPanel">
+        <div className="panelHeader">
+          <div>
+            <h2>Documents bloques</h2>
+            <p>
+              Un refus definitif bloque les depots,
+              remplacements, suppressions, checklist et
+              commentaires de dossier.
+            </p>
+          </div>
+
+          <span className="statusPill statusRed">
+            Demande refusee
+          </span>
+        </div>
+
+        <div className="studentError">
+          <strong>Motif du refus definitif :</strong>{" "}
+          {lockedStageFile.refusalReason ||
+            "Aucun motif detaille n'est disponible."}
+        </div>
+
+        <div className="stageLockActions">
+          <button
+            className="primaryButton fitButton"
+            type="button"
+            onClick={() => onNavigate?.("messages")}
+          >
+            Ouvrir la messagerie
+          </button>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="panel documentPanel">
       <div className="panelHeader">
@@ -307,16 +355,15 @@ function DossierDiscussion({ stageFileId, user, onError }) {
   }
 
   return (
-    <section style={{ marginTop: 20, borderTop: "1px solid #e2e8f0", paddingTop: 16 }}>
+    <section className="dossierDiscussion">
       <button
         type="button"
-        className="linkButton"
+        className="linkButton dossierDiscussionToggle"
         onClick={() => setOpen((o) => !o)}
-        style={{ fontSize: "1rem", fontWeight: 600 }}
       >
         {open ? "▼" : "▶"} Commentaires ({comments.length})
       </button>
-      <p style={{ fontSize: "0.8rem", color: "#64748b", margin: "2px 0 10px" }}>
+      <p className="dossierDiscussionIntro">
         Échanges entre l'étudiant et la conseillère sur le dossier.
       </p>
 
@@ -395,9 +442,9 @@ function UploadForm({ stageFileId, onUploaded, onError }) {
   return (
     <form
       onSubmit={handleSubmit}
-      style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 16 }}
+      className="documentUploadForm"
     >
-      <select value={type} onChange={(event) => setType(event.target.value)} style={{ width: "auto" }}>
+      <select value={type} onChange={(event) => setType(event.target.value)}>
         {DOCUMENT_TYPES.map((documentType) => (
           <option key={documentType.value} value={documentType.value}>
             {documentType.label}
@@ -409,10 +456,9 @@ function UploadForm({ stageFileId, onUploaded, onError }) {
         type="file"
         accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
         onChange={(event) => setFile(event.target.files[0] ?? null)}
-        style={{ maxWidth: 260 }}
       />
 
-      <button className="fitButton" type="submit" disabled={uploading}>
+      <button className="primaryButton fitButton" type="submit" disabled={uploading}>
         {uploading ? "Dépôt..." : "Déposer"}
       </button>
     </form>
@@ -453,63 +499,44 @@ function ChecklistSection({ stageFileId, user }) {
   }
 
   const doneCount = items.filter((i) => i.done).length;
+  const isComplete = items.length > 0 && doneCount === items.length;
 
   return (
-    <div
-      style={{
-        border: "1px solid #e2e8f0",
-        borderRadius: 8,
-        padding: "10px 14px",
-        marginBottom: 14,
-        background: "#f8fafc"
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-        <strong style={{ fontSize: "0.9rem" }}>
-          Documents à jour{!canEdit && <span style={{ fontWeight: 400, color: "#64748b" }}> (déclarés par l'étudiant)</span>}
+    <div className="documentChecklist">
+      <div className="documentChecklistHeader">
+        <strong>
+          Documents à jour{!canEdit && <span> (déclarés par l'étudiant)</span>}
         </strong>
-        <span style={{ fontSize: "0.82rem", color: doneCount === items.length && items.length ? "#16a34a" : "#64748b" }}>
+        <span
+          className={`checklistCount ${
+            isComplete ? "checklistCountDone" : ""
+          }`}
+        >
           {doneCount}/{items.length}
         </span>
       </div>
 
       {error && <div className="error-message">{error}</div>}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px 22px", marginTop: 10 }}>
+      <div className="documentChecklistItems">
         {items.map((item) => (
           <label
             key={item.type}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontSize: "0.95rem",
-              fontWeight: 500,
-              cursor: canEdit ? "pointer" : "default",
-              color: item.done ? "#15803d" : "#1e293b"
-            }}
+            className={`documentChecklistItem ${
+              item.done ? "documentChecklistDone" : ""
+            } ${canEdit ? "documentChecklistEditable" : ""}`}
           >
             {canEdit ? (
               <input
                 type="checkbox"
                 checked={item.done}
                 onChange={(e) => toggle(item.type, e.target.checked)}
-                style={{ width: 16, height: 16, accentColor: "#15803d" }}
               />
             ) : (
               <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 18,
-                  height: 18,
-                  borderRadius: 4,
-                  fontSize: "0.8rem",
-                  fontWeight: 700,
-                  color: "#fff",
-                  background: item.done ? "#16a34a" : "#cbd5e1"
-                }}
+                className={`documentChecklistMarker ${
+                  item.done ? "documentChecklistMarkerDone" : ""
+                }`}
               >
                 {item.done ? "✓" : "–"}
               </span>
@@ -527,10 +554,8 @@ function DocumentList({ documents, openId, onOpen, onDownload, onDelete, onNewVe
     return <p className="emptyState">Aucun document dans ce dossier.</p>;
   }
 
-  const linkStyle = { padding: 0, fontSize: "0.82rem" };
-
   return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
+    <div className="documentList">
       {documents.map((document) => {
         const isOpen = openId === document.id;
         const day = new Date(document.createdAt).toLocaleDateString("fr-CA", { dateStyle: "medium" });
@@ -538,37 +563,29 @@ function DocumentList({ documents, openId, onOpen, onDownload, onDelete, onNewVe
         return (
           <div
             key={document.id}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              flexWrap: "wrap",
-              gap: "4px 12px",
-              padding: "9px 2px",
-              borderBottom: "1px solid #eef2f7"
-            }}
+            className="documentListItem"
           >
-            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-              <strong style={{ fontSize: "0.92rem" }}>{document.fileName}</strong>
+            <div className="documentListMeta">
+              <strong>{document.fileName}</strong>
               <span className="statusPill">{typeLabel(document.type)}</span>
-              <span style={{ fontSize: "0.78rem", color: "#94a3b8" }}>
+              <span className="documentListSubtext">
                 v{document.version} · {formatSize(document.sizeBytes)} · {day}
               </span>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-              <button className="linkButton" style={linkStyle} type="button" onClick={() => onOpen(document)}>
+            <div className="documentListActions">
+              <button className="linkButton documentActionLink" type="button" onClick={() => onOpen(document)}>
                 {isOpen ? "Fermer" : "Détails"}
               </button>
-              <button className="linkButton" style={linkStyle} type="button" onClick={() => onDownload(document)}>
+              <button className="linkButton documentActionLink" type="button" onClick={() => onDownload(document)}>
                 Télécharger
               </button>
-              <label className="linkButton" style={{ ...linkStyle, cursor: "pointer" }}>
+              <label className="linkButton documentActionLink documentUploadLabel">
                 Nouvelle version
                 <input
                   type="file"
                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                  style={{ display: "none" }}
+                  className="documentHiddenInput"
                   onChange={(e) => {
                     onNewVersion(document, e.target.files[0]);
                     e.target.value = "";
@@ -576,8 +593,7 @@ function DocumentList({ documents, openId, onOpen, onDownload, onDelete, onNewVe
                 />
               </label>
               <button
-                className="linkButton"
-                style={{ ...linkStyle, color: "#b91c1c" }}
+                className="linkButton documentActionLink documentDangerLink"
                 type="button"
                 onClick={() => onDelete(document)}
               >
@@ -616,7 +632,7 @@ function DocumentDetail({ document, onClose, onError }) {
         </button>
       </div>
 
-      <h4 style={{ margin: "8px 0" }}>Historique du document ({history.length})</h4>
+      <h4 className="documentHistoryTitle">Historique du document ({history.length})</h4>
       <HistoryList history={history} />
     </div>
   );
@@ -632,16 +648,11 @@ function Comment({ comment, user, onReply, onUpdate, onDelete, isReply = false }
   if (comment.deleted) {
     return (
       <div
-        style={{
-          marginLeft: isReply ? 28 : 0,
-          marginBottom: 10,
-          padding: "10px 14px",
-          background: "#f8fafc",
-          border: "1px dashed #cbd5e1",
-          borderRadius: 6
-        }}
+        className={`commentItem commentDeleted ${
+          isReply ? "commentReply" : ""
+        }`}
       >
-        <p style={{ margin: "0 0 8px", fontStyle: "italic", color: "#94a3b8" }}>
+        <p className="commentDeletedText">
           Commentaire supprimé
         </p>
         {comment.replies?.map((reply) => (
@@ -661,20 +672,14 @@ function Comment({ comment, user, onReply, onUpdate, onDelete, isReply = false }
 
   return (
     <div
-      style={{
-        marginLeft: isReply ? 28 : 0,
-        marginBottom: 10,
-        padding: "10px 14px",
-        background: "#ffffff",
-        border: "1px solid #e2e8f0",
-        borderLeft: `3px solid ${isReply ? "#cbd5e1" : "#6c8ebf"}`,
-        borderRadius: 6
-      }}
+      className={`commentItem ${
+        isReply ? "commentReply" : ""
+      }`}
     >
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
+      <div className="commentHeader">
         <strong>{comment.authorName}</strong>
         <span className="statusPill">{comment.authorRole}</span>
-        <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+        <span className="commentDate">
           {formatDate(comment.createdAt)}{comment.updatedAt && " · modifié"}
         </span>
       </div>
@@ -690,13 +695,13 @@ function Comment({ comment, user, onReply, onUpdate, onDelete, isReply = false }
           onCancel={() => setEditing(false)}
         />
       ) : (
-        <p style={{ whiteSpace: "pre-wrap", margin: "4px 0 8px", lineHeight: 1.5, color: "#1e293b" }}>
+        <p className="commentBody">
           {comment.content}
         </p>
       )}
 
       {!editing && (
-        <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+        <div className="commentActions">
           <button className="linkButton" type="button" onClick={() => setReplying(!replying)}>
             Repondre
           </button>
@@ -750,17 +755,16 @@ function CommentInput({ label, initialValue = "", onSubmit, onCancel }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ marginTop: 8 }}>
+    <form onSubmit={handleSubmit} className="commentInputForm">
       <textarea
         rows={2}
         maxLength={5000}
         value={value}
         onChange={(event) => setValue(event.target.value)}
         placeholder="Votre commentaire..."
-        style={{ width: "100%" }}
       />
       <div className="contractActions">
-        <button className="fitButton" type="submit" disabled={!value.trim()}>
+        <button className="primaryButton fitButton" type="submit" disabled={!value.trim()}>
           {label}
         </button>
         {onCancel && (
@@ -779,28 +783,16 @@ function HistoryList({ history }) {
   }
 
   return (
-    <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+    <ul className="documentHistoryList">
       {history.map((entry) => (
         <li
           key={entry.id}
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 8,
-            padding: "10px 4px",
-            borderLeft: "3px solid #6c8ebf",
-            paddingLeft: 12,
-            marginBottom: 8,
-            background: "#f8fafc",
-            borderRadius: 4
-          }}
+          className="documentHistoryItem"
         >
-          <span style={{ fontWeight: 600 }}>
+          <span className="documentHistoryAction">
             {ACTION_LABELS[entry.action] || entry.action}
           </span>
-          <span style={{ fontSize: "0.85rem", color: "#64748b" }}>
+          <span className="documentHistoryMeta">
             {entry.userName} · {entry.userRole} · {formatDate(entry.createdAt)}
           </span>
         </li>

@@ -2,12 +2,26 @@
 import StudentRequestForm from "./StudentRequestForm.jsx";
 import StudentRequestEditForm from "./StudentRequestEditForm.jsx";
 import {
+  getStudentRefusedStageRequest,
   getStudentStageDisplayState,
   isActiveStudentStageRequest,
   isCorrectionRequestStatus,
+  isStudentStageLockedByRefusal,
   studentCanEditRequest,
   studentCanWithdrawRequest
 } from "../utils/studentStageDisplayState.js";
+
+const STAGE_PROGRESS_STEPS = [
+  "Demande creee",
+  "Demande soumise",
+  "Contrat a completer",
+  "Signature de l'etudiant",
+  "Signature du milieu",
+  "Signature de l'enseignant",
+  "Signature de la conseillere",
+  "Signature de la direction",
+  "Dossier complet"
+];
 
 export default function StudentDashboard({
   view,
@@ -28,10 +42,20 @@ export default function StudentDashboard({
       null,
     [requests]
   );
+  const refusedRequest = useMemo(
+    () => getStudentRefusedStageRequest(requests),
+    [requests]
+  );
+  const stageLockedByRefusal =
+    isStudentStageLockedByRefusal(requests);
 
   const latestRequest = useMemo(
-    () => activeRequest || requests[0] || null,
-    [activeRequest, requests]
+    () =>
+      refusedRequest ||
+      activeRequest ||
+      requests[0] ||
+      null,
+    [refusedRequest, activeRequest, requests]
   );
 
   const latestContract = useMemo(
@@ -164,6 +188,8 @@ export default function StudentDashboard({
           student={student}
           requests={requests}
           contracts={contracts}
+          stageLockedByRefusal={stageLockedByRefusal}
+          refusedRequest={refusedRequest}
           onCreated={loadDashboard}
           onNavigate={onNavigate}
         />
@@ -173,6 +199,8 @@ export default function StudentDashboard({
         <ContractsView
           contracts={contracts}
           requests={requests}
+          stageLockedByRefusal={stageLockedByRefusal}
+          refusedRequest={refusedRequest}
           onNavigate={onNavigate}
           onReload={loadDashboard}
         />
@@ -194,6 +222,7 @@ export default function StudentDashboard({
           requests={requests}
           contracts={contracts}
           notifications={notifications}
+          stageLockedByRefusal={stageLockedByRefusal}
           onNavigate={onNavigate}
         />
       )}
@@ -208,18 +237,50 @@ function OverviewView({
   requests,
   contracts,
   notifications,
+  stageLockedByRefusal,
   onNavigate
 }) {
   const [downloadError, setDownloadError] =
     useState("");
   const [downloadingFinal, setDownloadingFinal] =
     useState(false);
+  const [
+    finalContractDownloaded,
+    setFinalContractDownloaded
+  ] = useState(false);
 
-  const displayState =
+  useEffect(() => {
+    if (!latestContract?.id) {
+      setFinalContractDownloaded(false);
+      return;
+    }
+
+    setFinalContractDownloaded(
+      localStorage.getItem(
+        finalContractDownloadStorageKey(
+          latestContract.id
+        )
+      ) === "1"
+    );
+  }, [latestContract?.id]);
+
+  const baseDisplayState =
     getStudentStageDisplayState({
       request: latestRequest,
       contract: latestContract
     });
+  const displayState =
+    finalContractDownloaded &&
+    baseDisplayState.actionType === "downloadFinal"
+      ? {
+          ...baseDisplayState,
+          nextStep:
+            "Aucune action requise. Votre contrat final a ete telecharge.",
+          actionLabel: "Voir mes contrats",
+          actionType: "follow",
+          targetView: "contracts"
+        }
+      : baseDisplayState;
   const missingItems =
     missingContractItems(latestContract);
 
@@ -271,6 +332,14 @@ function OverviewView({
       link.click();
       link.remove();
       URL.revokeObjectURL(url);
+
+      localStorage.setItem(
+        finalContractDownloadStorageKey(
+          latestContract.id
+        ),
+        "1"
+      );
+      setFinalContractDownloaded(true);
     } catch (requestError) {
       console.error(requestError);
       setDownloadError("Erreur de connexion au serveur.");
@@ -298,26 +367,9 @@ function OverviewView({
           </span>
         </div>
 
-        <div className="studentProgressRow">
-          <span>Progression du dossier</span>
-
-          <strong>
-            Étape{" "}
-            {displayState.progressStep}
-            /9
-          </strong>
-        </div>
-
-        <div className="studentProgressTrack">
-          <span
-            style={{
-              width: `${Math.round(
-                (displayState.progressStep / 9) *
-                  100
-              )}%`
-            }}
-          />
-        </div>
+        <StageProgressCard
+          currentStep={displayState.progressStep}
+        />
 
         <div className="studentInfo twoColumns">
           <div>
@@ -391,6 +443,15 @@ function OverviewView({
           <div className="studentError">
             <strong>Refus definitif :</strong>{" "}
             {latestRequest.refusalReason}
+          </div>
+        )}
+
+        {stageLockedByRefusal && (
+          <div className="stageLockNotice">
+            Les actions de stage sont bloquees apres
+            un refus definitif. La messagerie reste
+            accessible pour contacter votre superviseur
+            ou la conseillere.
           </div>
         )}
 
@@ -472,6 +533,8 @@ function RequestsView({
   student,
   requests,
   contracts,
+  stageLockedByRefusal,
+  refusedRequest,
   onCreated,
   onNavigate
 }) {
@@ -506,6 +569,12 @@ function RequestsView({
       ) || null,
     [contracts, activeRequest]
   );
+
+  useEffect(() => {
+    if (stageLockedByRefusal) {
+      setEditingRequest(null);
+    }
+  }, [stageLockedByRefusal]);
 
   async function handleUpdated() {
     await onCreated();
@@ -587,7 +656,12 @@ function RequestsView({
         <StudentProfile student={student} />
       </section>
 
-      {editingRequest ? (
+      {stageLockedByRefusal ? (
+        <StageRefusalLockPanel
+          request={refusedRequest}
+          onNavigate={onNavigate}
+        />
+      ) : editingRequest ? (
         <StudentRequestEditForm
           request={editingRequest}
           onUpdated={handleUpdated}
@@ -731,9 +805,73 @@ function StudentHistoryView({
   );
 }
 
+function StageRefusalLockPanel({
+  request,
+  onNavigate,
+  title = "Dossier de stage bloque"
+}) {
+  return (
+    <section className="studentPanel stageLockPanel">
+      <div className="panelHeader">
+        <div>
+          <h2>{title}</h2>
+          <p>
+            Un refus definitif bloque les nouvelles
+            demandes, les modifications, les depots de
+            documents et les actions de contrat.
+          </p>
+        </div>
+
+        <span className="statusPill statusRed">
+          Demande refusee
+        </span>
+      </div>
+
+      <div className="stageLockMeta">
+        <div>
+          <strong>Demande concernee</strong>
+          <span>
+            {request?.companyName ||
+              `Demande #${request?.id || "-"}`}
+          </span>
+        </div>
+
+        <div>
+          <strong>Date du refus</strong>
+          <span>
+            {formatDateTime(
+              request?.decidedAt ||
+                request?.updatedAt ||
+                request?.createdAt
+            )}
+          </span>
+        </div>
+      </div>
+
+      <div className="studentError">
+        <strong>Motif du refus definitif :</strong>{" "}
+        {request?.refusalReason ||
+          "Aucun motif detaille n'est disponible."}
+      </div>
+
+      <div className="stageLockActions">
+        <button
+          className="primaryButton fitButton"
+          type="button"
+          onClick={() => onNavigate("messages")}
+        >
+          Ouvrir la messagerie
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function ContractsView({
   contracts,
   requests,
+  stageLockedByRefusal,
+  refusedRequest,
   onNavigate,
   onReload
 }) {
@@ -754,6 +892,16 @@ function ContractsView({
       ) || contracts[0],
     [contracts, selectedContractId]
   );
+
+  if (stageLockedByRefusal) {
+    return (
+      <StageRefusalLockPanel
+        request={refusedRequest}
+        onNavigate={onNavigate}
+        title="Contrats bloques"
+      />
+    );
+  }
 
   return (
     <>
@@ -2024,6 +2172,9 @@ function ActiveRequestCard({
       request,
       contract
     });
+  const primaryActionShowsRequest =
+    displayState.actionType === "view" &&
+    displayState.targetView === "requests";
 
   return (
     <section className="studentPanel">
@@ -2097,15 +2248,10 @@ function ActiveRequestCard({
         </div>
       )}
 
-      <div className="studentProgressTrack">
-        <span
-          style={{
-            width: `${Math.round(
-              (displayState.progressStep / 9) * 100
-            )}%`
-          }}
-        />
-      </div>
+      <StageProgressCard
+        currentStep={displayState.progressStep}
+        compact
+      />
 
       <div className="studentFormActions">
         <button
@@ -2130,13 +2276,15 @@ function ActiveRequestCard({
           {displayState.actionLabel}
         </button>
 
-        <button
-          className="secondaryButton"
-          type="button"
-          onClick={() => onSelect(request)}
-        >
-          Voir ma demande
-        </button>
+        {!primaryActionShowsRequest && (
+          <button
+            className="secondaryButton"
+            type="button"
+            onClick={() => onSelect(request)}
+          >
+            Voir ma demande
+          </button>
+        )}
 
         {studentCanEditRequest(request) && (
           <button
@@ -2369,28 +2517,10 @@ function ContractWorkflowProgress({ contract }) {
   ];
 
   return (
-    <ol className="workflowStepList">
-      {steps.map((label, index) => {
-        const stepNumber = index + 1;
-        const isFinalCompleted =
-          currentStep === steps.length &&
-          stepNumber === currentStep;
-        const className =
-          stepNumber < currentStep ||
-          isFinalCompleted
-            ? "workflowStepDone"
-            : stepNumber === currentStep
-              ? "workflowStepCurrent"
-              : "workflowStepPending";
-
-        return (
-          <li className={className} key={label}>
-            <span>{stepNumber}</span>
-            <strong>{label}</strong>
-          </li>
-        );
-      })}
-    </ol>
+    <StageProgressTimeline
+      currentStep={currentStep}
+      steps={steps}
+    />
   );
 }
 
@@ -2731,6 +2861,10 @@ function DetailItem({
   );
 }
 
+function finalContractDownloadStorageKey(contractId) {
+  return `stagetec-final-contract-downloaded-${contractId}`;
+}
+
 function ContractsSummary({
   contracts = [],
   requests,
@@ -2900,6 +3034,103 @@ function StatusLegend() {
       </div>
     </section>
   );
+}
+
+function StageProgressCard({
+  currentStep,
+  compact = false
+}) {
+  const safeStep = clampProgressStep(
+    currentStep,
+    STAGE_PROGRESS_STEPS.length
+  );
+  const percentage = Math.round(
+    (safeStep / STAGE_PROGRESS_STEPS.length) * 100
+  );
+
+  return (
+    <div
+      className={`stageProgressCard ${
+        compact ? "stageProgressCompact" : ""
+      }`}
+    >
+      <div className="studentProgressRow">
+        <span>Progression du dossier</span>
+
+        <strong>
+          Etape {safeStep}/{STAGE_PROGRESS_STEPS.length}
+        </strong>
+      </div>
+
+      <div
+        className="studentProgressTrack"
+        role="progressbar"
+        aria-label="Progression du dossier"
+        aria-valuemin="1"
+        aria-valuemax={STAGE_PROGRESS_STEPS.length}
+        aria-valuenow={safeStep}
+      >
+        <span
+          style={{
+            width: `${percentage}%`
+          }}
+        />
+      </div>
+
+      <StageProgressTimeline
+        currentStep={safeStep}
+        steps={STAGE_PROGRESS_STEPS}
+      />
+    </div>
+  );
+}
+
+function StageProgressTimeline({
+  currentStep,
+  steps
+}) {
+  const safeStep = clampProgressStep(
+    currentStep,
+    steps.length
+  );
+
+  return (
+    <ol className="stageProgressTimeline">
+      {steps.map((label, index) => {
+        const stepNumber = index + 1;
+        const isFinalCompleted =
+          safeStep === steps.length &&
+          stepNumber === safeStep;
+        const className =
+          stepNumber < safeStep || isFinalCompleted
+            ? "workflowStepDone"
+            : stepNumber === safeStep
+              ? "workflowStepCurrent"
+              : "workflowStepPending";
+
+        return (
+          <li
+            className={className}
+            key={label}
+            title={label}
+          >
+            <span aria-hidden="true">{stepNumber}</span>
+            <strong>{label}</strong>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function clampProgressStep(value, total) {
+  const step = Number(value);
+
+  if (!Number.isFinite(step)) {
+    return 1;
+  }
+
+  return Math.min(Math.max(Math.round(step), 1), total);
 }
 
 function signatureProgressText(contract) {

@@ -19,6 +19,7 @@ import { clearAuthSession } from "../services/authSession.js";
 export default function Dashboard({ user, onLogout }) {
   const [currentUser, setCurrentUser] = useState(user);
   const [activeView, setActiveView] = useState("dashboard");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -59,6 +60,11 @@ export default function Dashboard({ user, onLogout }) {
     return null;
   }
 
+  function handleNavigate(view) {
+    setActiveView(view);
+    setMobileNavOpen(false);
+  }
+
   return (
     <section className="appLayout">
       <aside className="sidebar">
@@ -70,14 +76,37 @@ export default function Dashboard({ user, onLogout }) {
             <strong>StageTec</strong>
             <span>Gestion des stages</span>
           </div>
+          <button
+            className={`sidebarToggle ${
+              mobileNavOpen ? "sidebarToggleOpen" : ""
+            }`}
+            type="button"
+            aria-controls="primary-navigation"
+            aria-expanded={mobileNavOpen}
+            onClick={() =>
+              setMobileNavOpen((isOpen) => !isOpen)
+            }
+          >
+            <span className="sidebarToggleBars" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span>Menu</span>
+          </button>
         </div>
 
-        <nav className="sideNav">
+        <nav
+          className={`sideNav ${
+            mobileNavOpen ? "sideNavOpen" : ""
+          }`}
+          id="primary-navigation"
+        >
           <SidebarButton
             active={activeView === "dashboard"}
             label="Tableau de bord"
             icon="dashboard"
-            onClick={() => setActiveView("dashboard")}
+            onClick={() => handleNavigate("dashboard")}
           />
 
           {["ETUDIANT", "CONSEILLERE"].includes(currentUser.role) && (
@@ -85,7 +114,7 @@ export default function Dashboard({ user, onLogout }) {
               active={activeView === "documents"}
               label="Documents"
               icon="documents"
-              onClick={() => setActiveView("documents")}
+              onClick={() => handleNavigate("documents")}
             />
           )}
 
@@ -94,7 +123,7 @@ export default function Dashboard({ user, onLogout }) {
               active={activeView === "messages"}
               label="Messagerie"
               icon="messages"
-              onClick={() => setActiveView("messages")}
+              onClick={() => handleNavigate("messages")}
             />
           )}
 
@@ -104,19 +133,19 @@ export default function Dashboard({ user, onLogout }) {
                 active={activeView === "requests"}
                 label="Demandes de stage"
                 icon="request"
-                onClick={() => setActiveView("requests")}
+                onClick={() => handleNavigate("requests")}
               />
               <SidebarButton
                 active={activeView === "contracts"}
                 label="Contrats"
                 icon="contract"
-                onClick={() => setActiveView("contracts")}
+                onClick={() => handleNavigate("contracts")}
               />
               <SidebarButton
                 active={activeView === "history"}
                 label="Historique"
                 icon="history"
-                onClick={() => setActiveView("history")}
+                onClick={() => handleNavigate("history")}
               />
             </>
           )}
@@ -127,28 +156,28 @@ export default function Dashboard({ user, onLogout }) {
                 active={activeView === "stageRequests"}
                 label="Demandes à valider"
                 icon="approval"
-                onClick={() => setActiveView("stageRequests")}
+                onClick={() => handleNavigate("stageRequests")}
               />
 
               <SidebarButton
                 active={activeView === "stageContracts"}
                 label="Contrats stage"
                 icon="contract"
-                onClick={() => setActiveView("stageContracts")}
+                onClick={() => handleNavigate("stageContracts")}
               />
 
               <SidebarButton
                 active={activeView === "mileage"}
                 label="Kilométrage"
                 icon="mileage"
-                onClick={() => setActiveView("mileage")}
+                onClick={() => handleNavigate("mileage")}
               />
 
               <SidebarButton
                 active={activeView === "payroll"}
                 label="Paie"
                 icon="payroll"
-                onClick={() => setActiveView("payroll")}
+                onClick={() => handleNavigate("payroll")}
               />
             </>
           )}
@@ -158,7 +187,7 @@ export default function Dashboard({ user, onLogout }) {
               active={activeView === "stageContracts"}
               label="Contrats stage"
               icon="contract"
-              onClick={() => setActiveView("stageContracts")}
+              onClick={() => handleNavigate("stageContracts")}
             />
           )}
 
@@ -167,7 +196,7 @@ export default function Dashboard({ user, onLogout }) {
               active={activeView === "studentImport"}
               label="Importer des étudiants"
               icon="import"
-              onClick={() => setActiveView("studentImport")}
+              onClick={() => handleNavigate("studentImport")}
             />
           )}
 
@@ -176,7 +205,7 @@ export default function Dashboard({ user, onLogout }) {
               active={activeView === "employeeImport"}
               label="Importer des employés"
               icon="import"
-              onClick={() => setActiveView("employeeImport")}
+              onClick={() => handleNavigate("employeeImport")}
             />
           )}
 
@@ -185,7 +214,7 @@ export default function Dashboard({ user, onLogout }) {
               active={activeView === "adminStudents"}
               label="Gérer les étudiants"
               icon="students"
-              onClick={() => setActiveView("adminStudents")}
+              onClick={() => handleNavigate("adminStudents")}
             />
           )}
 
@@ -194,7 +223,7 @@ export default function Dashboard({ user, onLogout }) {
               active={activeView === "adminEmployees"}
               label="Gérer les employés"
               icon="students"
-              onClick={() => setActiveView("adminEmployees")}
+              onClick={() => handleNavigate("adminEmployees")}
             />
           )}
 
@@ -203,7 +232,7 @@ export default function Dashboard({ user, onLogout }) {
               active={activeView === "payroll"}
               label="Paie superviseurs"
               icon="payroll"
-              onClick={() => setActiveView("payroll")}
+              onClick={() => handleNavigate("payroll")}
             />
           )}
 
@@ -212,12 +241,16 @@ export default function Dashboard({ user, onLogout }) {
               active={["history", "historyMileage"].includes(activeView)}
               label="Historique"
               icon="history"
-              onClick={() => setActiveView("history")}
+              onClick={() => handleNavigate("history")}
             />
           )}
         </nav>
 
-        <div className="profileBox">
+        <div
+          className={`profileBox ${
+            mobileNavOpen ? "profileBoxOpen" : ""
+          }`}
+        >
           <div className="profileInitial">{displayName(currentUser).charAt(0).toUpperCase()}</div>
           <div>
             <strong>{displayName(currentUser)}</strong>
@@ -267,7 +300,10 @@ export default function Dashboard({ user, onLogout }) {
         ) : activeView === "adminEmployees" && currentUser.role === "DIRECTION" ? (
           <AdminEmployees />
         ) : activeView === "documents" && ["ETUDIANT", "CONSEILLERE"].includes(currentUser.role) ? (
-          <DocumentsPanel user={currentUser} />
+          <DocumentsPanel
+            user={currentUser}
+            onNavigate={setActiveView}
+          />
         ) : activeView === "messages" &&
           ["ETUDIANT", "SUPERVISEUR", "CONSEILLERE"].includes(currentUser.role) ? (
           <MessagesPanel user={currentUser} />

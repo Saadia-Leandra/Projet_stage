@@ -9,6 +9,7 @@ import {
 import {
   getStudentStageDisplayState,
   isActiveStudentStageRequest,
+  isStudentStageLockedByRefusal,
   studentCanEditRequest,
   studentCanWithdrawRequest
 } from "../../src/frontend/utils/studentStageDisplayState.js";
@@ -22,8 +23,10 @@ import {
   validateMilieuSignedContractFile
 } from "../services/contractService.js";
 import {
+  ensureStudentHasNoRefusedStageRequest,
   isActiveStageFolderStatus,
-  isActiveStageRequestStatus
+  isActiveStageRequestStatus,
+  refusedStageLockMessage
 } from "../services/studentService.js";
 import {
   STUDENT_WITHDRAWABLE_REQUEST_STATUSES
@@ -302,6 +305,29 @@ test("carte etudiante rouge pour correction et documents", () => {
   assert.equal(documentsState.canUpload, true);
 });
 
+test("refus definitif bloque les actions et oriente vers la messagerie", () => {
+  const state = getStudentStageDisplayState({
+    request: {
+      id: 1,
+      status: "REFUSEE",
+      refusalReason: "Milieu non admissible."
+    }
+  });
+
+  assert.equal(state.color, "red");
+  assert.equal(state.targetView, "messages");
+  assert.equal(state.actionLabel, "Ouvrir la messagerie");
+  assert.equal(state.canEdit, false);
+  assert.equal(state.canWithdraw, false);
+  assert.equal(state.canUpload, false);
+  assert.equal(
+    isStudentStageLockedByRefusal([
+      { id: 1, status: "REFUSEE" }
+    ]),
+    true
+  );
+});
+
 test("carte etudiante verte pour dossier complet", () => {
   const state = getStudentStageDisplayState({
     request: { id: 1, status: "APPROUVEE" },
@@ -314,6 +340,34 @@ test("carte etudiante verte pour dossier complet", () => {
   assert.equal(state.color, "green");
   assert.equal(state.canDownload, true);
   assert.equal(state.progressStep, 9);
+});
+
+test("refus definitif bloque toute nouvelle demande cote serveur", async () => {
+  await assert.rejects(
+    () =>
+      ensureStudentHasNoRefusedStageRequest(
+        {
+          execute: async () => [
+            [{ requestId: 10 }]
+          ]
+        },
+        16
+      ),
+    (error) => {
+      assert.equal(error.status, 409);
+      assert.equal(error.message, refusedStageLockMessage);
+      return true;
+    }
+  );
+
+  await assert.doesNotReject(() =>
+    ensureStudentHasNoRefusedStageRequest(
+      {
+        execute: async () => [[]]
+      },
+      16
+    )
+  );
 });
 
 test("aucune liste de statut etudiant dans la vue demandes", async () => {

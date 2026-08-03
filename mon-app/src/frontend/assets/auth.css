@@ -3945,3 +3945,1036 @@ textarea:focus-visible {
       );
   }
 }
+
+/* =========================================================
+   Refonte StageTec - surfaces de gestion des stages
+   ========================================================= */
+
+.appLayout .studentPanel,
+.appLayout .studentHeroCard,
+.appLayout .panel.documentPanel {
+  border-color: #dfe7f1;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow:
+    0 1px 2px rgba(16, 24, 40, 0.04),
+    0 12px 34px rgba(18, 53, 99, 0.04);
+}
+
+.appLayout .studentHeroCard {
+  position: relative;
+  padding: clamp(22px, 3vw, 30px);
+  overflow: hidden;
+  border-left: 4px solid var(--color-accent);
+}
+
+.studentHeroHeader {
+  align-items: flex-start;
+}
+
+.studentHeroHeader h2 {
+  color: var(--color-primary-dark);
+  font-size: clamp(22px, 3vw, 30px);
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.studentHeroHeader p {
+  max-width: 780px;
+  color: #667085;
+  line-height: 1.55;
+}
+
+.panelHeader {
+  align-items: flex-start;
+}
+
+.panelHeader h2 {
+  line-height: 1.2;
+}
+
+.panelHeader .statusPill {
+  flex: 0 0 auto;
+}
+
+.sidebarToggle {
+  display: none;
+}
+
+.sidebarToggleBars {
+  display: inline-grid;
+  gap: 3px;
+}
+
+.sidebarToggleBars span {
+  display: block;
+  width: 16px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.stageInfo div,
+.studentInfo div,
+.requestDetailItem,
+.contractReadOnlyItem {
+  border-color: #dfe7f1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.stageInfo div,
+.studentInfo div {
+  min-width: 0;
+}
+
+.stageInfo strong,
+.studentInfo strong,
+.contractReadOnlyItem strong {
+  color: #475467;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.stageInfo span,
+.studentInfo span,
+.requestDetailItem span,
+.contractReadOnlyItem span {
+  color: #1f2937;
+  overflow-wrap: anywhere;
+}
+
+.statCard {
+  min-height: 106px;
+}
+
+.statCard span {
+  color: var(--color-primary-dark);
+  font-size: clamp(24px, 3vw, 32px);
+  line-height: 1;
+}
+
+.stageProgressCard {
+  display: grid;
+  gap: 12px;
+  margin: 22px 0 20px;
+  padding: 16px;
+  border: 1px solid #dbe5f1;
+  border-radius: 12px;
+  background: #f8fbff;
+}
+
+.stageProgressCompact {
+  margin: 18px 0;
+  padding: 14px;
+}
+
+.studentProgressRow {
+  margin: 0;
+}
+
+.studentProgressRow span {
+  color: #5f6f85;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.studentProgressRow strong {
+  color: var(--color-primary-dark);
+  font-size: 0.9rem;
+}
+
+.studentProgressTrack {
+  height: 10px;
+  margin: 0;
+  background: #e6edf6;
+}
+
+.studentProgressTrack span {
+  background: linear-gradient(90deg, #173f83 0%, #1f5fbf 58%, #f97316 100%);
+  transition: width 0.2s ease;
+}
+
+.stageProgressTimeline {
+  display: flex;
+  gap: 14px;
+  margin: 2px 0 0;
+  padding: 2px 2px 8px;
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.stageProgressTimeline li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  align-items: center;
+  flex: 0 0 min(168px, 68vw);
+  gap: 9px;
+  min-height: 54px;
+  padding: 10px 12px;
+  border: 1px solid #dfe7f1;
+  border-radius: 10px;
+}
+
+.stageProgressTimeline li:not(:last-child)::after {
+  position: absolute;
+  top: 26px;
+  left: calc(100% + 1px);
+  width: 12px;
+  height: 2px;
+  content: "";
+  background: #d5dfeb;
+}
+
+.stageProgressTimeline .workflowStepDone:not(:last-child)::after,
+.stageProgressTimeline .workflowStepCurrent:not(:last-child)::after {
+  background: linear-gradient(90deg, #173f83, #f97316);
+}
+
+.stageProgressTimeline span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.stageProgressTimeline strong {
+  min-width: 0;
+  color: inherit;
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.workflowStepDone {
+  border-color: #b9d7ff;
+  color: #173f83;
+  background: #eef5ff;
+}
+
+.workflowStepDone span {
+  color: #ffffff;
+  background: var(--color-primary);
+}
+
+.workflowStepCurrent {
+  border-color: #fed7aa;
+  color: #9a3412;
+  background: #fff7ed;
+  box-shadow: inset 0 0 0 1px rgba(249, 115, 22, 0.14);
+}
+
+.workflowStepCurrent span {
+  color: #ffffff;
+  background: var(--color-accent);
+}
+
+.workflowStepPending {
+  border-color: #e4e7ec;
+  color: #667085;
+  background: #ffffff;
+}
+
+.workflowStepPending span {
+  color: #667085;
+  background: #eef2f6;
+}
+
+.contractSection .stageProgressTimeline {
+  padding-top: 4px;
+}
+
+.studentDashboardGrid {
+  align-items: start;
+}
+
+.contractRow,
+.notificationItem {
+  border: 1px solid #e4eaf2;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.contractRow {
+  grid-template-columns: 12px minmax(0, 1fr) auto;
+  margin-top: 10px;
+  padding: 14px;
+}
+
+.contractRow:first-of-type {
+  margin-top: 0;
+}
+
+.notificationItem {
+  align-items: start;
+  margin-top: 10px;
+  padding: 13px 14px;
+  border-left: 3px solid var(--color-primary);
+}
+
+.notificationDot {
+  margin-top: 6px;
+  color: var(--color-accent);
+}
+
+.legendPanel {
+  padding-block: 20px;
+}
+
+.legendList {
+  gap: 10px;
+}
+
+.legendList span {
+  padding: 8px 10px;
+  border: 1px solid #e4eaf2;
+  border-radius: 999px;
+  background: #ffffff;
+}
+
+.studentTableWrap {
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.studentTableWrap table {
+  min-width: 760px;
+}
+
+.studentTableWrap th {
+  color: #475467;
+}
+
+.studentTableWrap td {
+  vertical-align: top;
+}
+
+.tableToolbar,
+.supervisorStageFilters {
+  align-items: end;
+}
+
+.requestDetailsLoadingPanel {
+  min-height: 360px;
+}
+
+.requestDetailsLoadingGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.requestDetailsLoadingLine {
+  min-height: 46px;
+  border: 1px solid #dfe7f1;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #eef4fb, #f8fafc);
+}
+
+.requestDetailsLoadingWide {
+  grid-column: 1 / -1;
+}
+
+.requestDetailsLoadingShort {
+  max-width: 72%;
+}
+
+.tableFilter input,
+.tableFilter select,
+.documentUploadForm select,
+.documentUploadForm input,
+.commentInputForm textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cfd7e3;
+  border-radius: 8px;
+  color: #0f172a;
+  background: #ffffff;
+  font: inherit;
+}
+
+.tableFilter input:focus,
+.tableFilter select:focus,
+.documentUploadForm select:focus,
+.documentUploadForm input:focus,
+.commentInputForm textarea:focus {
+  border-color: var(--color-link);
+  outline: 3px solid rgba(31, 95, 191, 0.14);
+  outline-offset: 1px;
+}
+
+.contractSignerList {
+  position: relative;
+  gap: 12px;
+}
+
+.contractSignerItem {
+  border-color: #dfe7f1;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.contractSignerItem > span:first-child {
+  color: #ffffff;
+  background: var(--color-primary);
+}
+
+.contractActions,
+.studentFormActions,
+.requestActions,
+.tableActions {
+  gap: 10px;
+}
+
+.contractUploadForm {
+  border-color: #cfe0f5;
+  border-radius: 12px;
+  background: #f5f9ff;
+}
+
+.receiptPanel {
+  border-radius: 12px;
+}
+
+.panel.documentPanel {
+  padding: clamp(20px, 3vw, 28px);
+}
+
+.panel.documentPanel > .panelHeader {
+  padding-bottom: 18px;
+  border-bottom: 1px solid #e4eaf2;
+}
+
+.panel.documentPanel > .panelHeader select {
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid #cfd7e3;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.documentUploadForm {
+  display: grid;
+  grid-template-columns: minmax(180px, 240px) minmax(220px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 14px;
+  border: 1px dashed #cbd9ea;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.documentUploadForm input[type="file"] {
+  min-height: 44px;
+  padding: 8px 10px;
+}
+
+.documentChecklist {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #dfe7f1;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.documentChecklistHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.documentChecklistHeader strong {
+  color: var(--color-primary-dark);
+  font-size: 0.92rem;
+}
+
+.documentChecklistHeader strong span,
+.checklistCount {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.checklistCountDone {
+  color: #15803d;
+}
+
+.documentChecklistItems {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin-top: 12px;
+}
+
+.documentChecklistItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #1e293b;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.documentChecklistEditable {
+  cursor: pointer;
+}
+
+.documentChecklistDone {
+  color: #15803d;
+}
+
+.documentChecklistItem input {
+  width: 16px;
+  height: 16px;
+  accent-color: #173f83;
+}
+
+.documentChecklistMarker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  color: #ffffff;
+  background: #cbd5e1;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.documentChecklistMarkerDone {
+  background: #16a34a;
+}
+
+.documentList {
+  display: grid;
+  gap: 10px;
+}
+
+.documentListItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  border: 1px solid #e4eaf2;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.documentListMeta,
+.documentListActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.documentListMeta {
+  min-width: 0;
+}
+
+.documentListMeta strong {
+  min-width: 0;
+  color: #0f172a;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+.documentListSubtext,
+.commentDate,
+.documentHistoryMeta {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.documentActionLink {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.documentUploadLabel {
+  cursor: pointer;
+}
+
+.documentHiddenInput {
+  display: none;
+}
+
+.documentDangerLink {
+  color: #b91c1c;
+}
+
+.documentHistoryTitle {
+  margin: 8px 0;
+  color: var(--color-primary-dark);
+}
+
+.dossierDiscussion {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.dossierDiscussionToggle {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.dossierDiscussionIntro {
+  margin: 2px 0 12px;
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.commentItem {
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #6c8ebf;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.commentReply {
+  margin-left: 28px;
+  border-left-color: #cbd5e1;
+}
+
+.commentDeleted {
+  border-style: dashed;
+  border-left-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.commentDeletedText {
+  margin: 0 0 8px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.commentHeader,
+.commentActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.commentHeader {
+  margin-bottom: 6px;
+}
+
+.commentBody {
+  margin: 4px 0 8px;
+  color: #1e293b;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.commentInputForm {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.commentInputForm textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.documentHistoryList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.documentHistoryItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 12px;
+  border-left: 3px solid #6c8ebf;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.documentHistoryAction {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .appLayout .sidebarBrand {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .sidebarToggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 38px;
+    padding: 0 12px;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .sidebarToggle:hover {
+    background: rgba(255, 255, 255, 0.14);
+    box-shadow: none;
+    transform: none;
+  }
+
+  .sidebarToggleOpen {
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .appLayout .sideNav {
+    display: none;
+    padding-top: 8px;
+    overflow: visible;
+  }
+
+  .appLayout .sideNav.sideNavOpen {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 8px;
+  }
+
+  .appLayout .sideNav.sideNavOpen button {
+    width: 100%;
+  }
+
+  .appLayout .profileBox.profileBoxOpen {
+    display: grid;
+    margin-top: 14px;
+  }
+
+  .studentDashboardGrid,
+  .studentInfo.twoColumns,
+  .stageInfo,
+  .studentInfo,
+  .contractReadOnlyGrid,
+  .contractFormGrid,
+  .requestDetailsGrid,
+  .requestDetailsLoadingGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .stageProgressTimeline li {
+    flex-basis: min(158px, 76vw);
+  }
+
+  .documentUploadForm {
+    grid-template-columns: 1fr;
+  }
+
+  .documentUploadForm button,
+  .contractUploadForm .primaryButton {
+    width: 100%;
+  }
+
+  .documentListItem,
+  .contractStatusHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .documentListActions,
+  .requestActions,
+  .tableActions,
+  .contractActions {
+    align-items: stretch;
+  }
+}
+
+@media (max-width: 560px) {
+  .appLayout .studentPanel,
+  .appLayout .studentHeroCard,
+  .panel.documentPanel {
+    padding: 18px;
+  }
+
+  .studentHeroHeader,
+  .studentProgressRow,
+  .panelHeader {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .contractRow {
+    grid-template-columns: 10px minmax(0, 1fr);
+  }
+
+  .contractRow > .statusPill {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .commentReply {
+    margin-left: 14px;
+  }
+
+  .studentTableWrap {
+    margin-right: -2px;
+    margin-left: -2px;
+  }
+}
+
+/* =========================================================
+   Ajustements finaux - boutons et formulaires de stage
+   ========================================================= */
+
+.appLayout .studentForm {
+  gap: 18px;
+}
+
+.appLayout .stageFormSection {
+  position: relative;
+  padding: 22px;
+  border-color: #dfe7f1;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.appLayout .stageFormSection::before {
+  position: absolute;
+  top: 20px;
+  bottom: 20px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  content: "";
+  background: linear-gradient(180deg, #173f83, #f97316);
+}
+
+.appLayout .stageFormSection legend {
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(100% - 16px);
+  min-height: 30px;
+  margin-left: -8px;
+  padding: 0 10px;
+  border: 1px solid #dfe7f1;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  white-space: normal;
+}
+
+.appLayout .studentFormGrid {
+  gap: 16px 18px;
+}
+
+.appLayout .studentForm .field {
+  align-content: start;
+  gap: 7px;
+  color: #344054;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.appLayout .studentForm .field input,
+.appLayout .studentForm .field select,
+.appLayout .studentForm .field textarea,
+.appLayout .studentForm select {
+  min-height: 46px;
+  padding: 11px 13px;
+  color: #172033;
+  font-weight: 500;
+}
+
+.appLayout .studentForm .field textarea {
+  min-height: 132px;
+  line-height: 1.5;
+}
+
+.appLayout .requiredHint {
+  width: fit-content;
+  margin: 0 0 2px;
+  padding: 6px 10px;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  color: #9a3412;
+  background: #fff7ed;
+  font-weight: 700;
+}
+
+.appLayout .stageLockPanel,
+.panel.documentPanel.stageLockPanel {
+  border-left: 4px solid #dc2626;
+}
+
+.appLayout .stageLockNotice {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #991b1b;
+  background: #fef2f2;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.appLayout .stageLockMeta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.appLayout .stageLockMeta div {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #dfe7f1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.appLayout .stageLockMeta strong {
+  color: #475467;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.appLayout .stageLockMeta span {
+  color: #1f2937;
+  overflow-wrap: anywhere;
+}
+
+.appLayout .stageLockActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.appLayout .studentFormActions,
+.appLayout .contractActions,
+.appLayout .requestActions,
+.appLayout .tableActions,
+.appLayout .supervisorDecisionActions,
+.appLayout .modalActions {
+  align-items: center;
+}
+
+.appLayout .studentFormActions .primaryButton,
+.appLayout .studentFormActions .secondaryButton,
+.appLayout .studentFormActions .dangerButton,
+.appLayout .contractActions .primaryButton,
+.appLayout .contractActions .secondaryButton,
+.appLayout .contractActions .dangerButton,
+.appLayout .requestActions .primaryButton,
+.appLayout .requestActions .secondaryButton,
+.appLayout .requestActions .dangerButton,
+.appLayout .tableActions .primaryButton,
+.appLayout .tableActions .secondaryButton,
+.appLayout .tableActions .dangerButton,
+.appLayout .supervisorDecisionActions .primaryButton,
+.appLayout .supervisorDecisionActions .secondaryButton,
+.appLayout .supervisorDecisionActions .dangerButton,
+.appLayout .modalActions .primaryButton,
+.appLayout .modalActions .secondaryButton,
+.appLayout .modalActions .dangerButton {
+  width: auto;
+  min-width: 132px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 8px;
+  white-space: normal;
+}
+
+.appLayout .studentFormActions .primaryButton,
+.appLayout .contractActions .primaryButton,
+.appLayout .supervisorDecisionActions .primaryButton {
+  min-width: 180px;
+}
+
+.appLayout .tableActions .primaryButton,
+.appLayout .tableActions .secondaryButton,
+.appLayout .tableActions .dangerButton,
+.appLayout .requestActions .primaryButton,
+.appLayout .requestActions .secondaryButton,
+.appLayout .requestActions .dangerButton {
+  min-width: 0;
+}
+
+.appLayout .requestActions .requestViewButton {
+  flex: 0 0 118px;
+  min-width: 118px;
+}
+
+.appLayout .documentPanel .studentFormActions .primaryButton,
+.appLayout .contractUploadForm .primaryButton {
+  min-width: 180px;
+}
+
+@media (max-width: 720px) {
+  .appLayout .stageFormSection {
+    padding: 18px;
+  }
+
+  .appLayout .stageFormSection::before {
+    top: 18px;
+    bottom: 18px;
+  }
+
+  .appLayout .stageLockMeta {
+    grid-template-columns: 1fr;
+  }
+
+  .appLayout .stageLockActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .appLayout .studentFormActions .primaryButton,
+  .appLayout .studentFormActions .secondaryButton,
+  .appLayout .studentFormActions .dangerButton,
+  .appLayout .contractActions .primaryButton,
+  .appLayout .contractActions .secondaryButton,
+  .appLayout .contractActions .dangerButton,
+  .appLayout .requestActions .primaryButton,
+  .appLayout .requestActions .secondaryButton,
+  .appLayout .requestActions .dangerButton,
+  .appLayout .tableActions .primaryButton,
+  .appLayout .tableActions .secondaryButton,
+  .appLayout .tableActions .dangerButton,
+  .appLayout .supervisorDecisionActions .primaryButton,
+  .appLayout .supervisorDecisionActions .secondaryButton,
+  .appLayout .supervisorDecisionActions .dangerButton,
+  .appLayout .modalActions .primaryButton,
+  .appLayout .modalActions .secondaryButton,
+  .appLayout .modalActions .dangerButton {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .appLayout .requestActions .requestViewButton {
+    flex-basis: auto;
+  }
+}

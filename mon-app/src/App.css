@@ -79,6 +79,32 @@
   margin-top: 24px;
 }
 
+.requestDetailsLoadingPanel {
+  min-height: 360px;
+}
+
+.requestDetailsLoadingGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.requestDetailsLoadingLine {
+  min-height: 46px;
+  border: 1px solid #dfe7f1;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #eef4fb, #f8fafc);
+}
+
+.requestDetailsLoadingWide {
+  grid-column: 1 / -1;
+}
+
+.requestDetailsLoadingShort {
+  max-width: 72%;
+}
+
 .requestDetailsHeaderActions {
   display: flex;
   align-items: center;
@@ -134,6 +160,10 @@
     grid-template-columns: 1fr;
   }
 
+  .requestDetailsLoadingGrid {
+    grid-template-columns: 1fr;
+  }
+
   .requestDetailWide {
     grid-column: auto;
   }
@@ -170,6 +200,11 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.requestActions .requestViewButton {
+  flex: 0 0 118px;
+  min-width: 118px;
 }
 
 .supervisorDecisionActions {
@@ -464,5 +499,382 @@
 
   .modalActions button {
     width: 100%;
+  }
+}
+
+/* =========================================================
+   Finition professionnelle des formulaires de stage
+   ========================================================= */
+
+.stageFormSection {
+  margin: 0 0 24px;
+  padding: 20px;
+  border: 1px solid #dfe7f1;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+}
+
+.stageFormSection legend {
+  padding: 0 8px;
+  color: #173f83;
+  font-size: 0.98rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+.stageFormDescription {
+  margin: 4px 0 18px;
+  color: #667085;
+  font-size: 0.9rem;
+}
+
+.studentForm .field {
+  margin-bottom: 0;
+}
+
+.studentForm .field input,
+.studentForm .field select,
+.studentForm .field textarea,
+.studentForm select {
+  border-color: #cfd7e3;
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    background-color 0.16s ease;
+}
+
+.studentForm .field input:hover,
+.studentForm .field select:hover,
+.studentForm .field textarea:hover,
+.studentForm select:hover {
+  border-color: #9cabc0;
+}
+
+.studentForm .field input:focus,
+.studentForm .field select:focus,
+.studentForm .field textarea:focus,
+.studentForm select:focus {
+  border-color: #1f5fbf;
+  outline: 3px solid rgba(31, 95, 191, 0.14);
+  outline-offset: 1px;
+}
+
+.studentForm .field input:read-only {
+  color: #64748b;
+  background: #f8fafc;
+}
+
+.checkboxField {
+  padding: 11px 12px;
+  border: 1px solid #dfe7f1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.checkboxField input {
+  width: 16px;
+  height: 16px;
+  accent-color: #173f83;
+}
+
+.studentFormActions {
+  padding-top: 6px;
+}
+
+.requestDetailsSection {
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid #e4eaf2;
+}
+
+.requestDetailsSection h3 {
+  color: #173f83;
+  font-size: 1rem;
+  font-weight: 750;
+}
+
+.requestDetailItem {
+  border-color: #dfe7f1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.requestDetailItem strong {
+  color: #475467;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+}
+
+.supervisorStageFilters {
+  align-items: end;
+  padding: 14px;
+  border: 1px solid #dfe7f1;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+@media (max-width: 720px) {
+  .stageFormSection {
+    padding: 16px;
+  }
+
+  .studentFormActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .studentFormActions button,
+  .supervisorStageFilters button {
+    width: 100%;
+  }
+}
+
+/* =========================================================
+   Ajustements formulaires et boutons stage
+   ========================================================= */
+
+.studentForm {
+  gap: 18px;
+}
+
+.stageFormSection {
+  position: relative;
+  padding: 22px;
+}
+
+.stageFormSection::before {
+  position: absolute;
+  top: 20px;
+  bottom: 20px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  content: "";
+  background: linear-gradient(180deg, #173f83, #f97316);
+}
+
+.stageFormSection legend {
+  display: inline-flex;
+  align-items: center;
+  max-width: calc(100% - 16px);
+  min-height: 30px;
+  margin-left: -8px;
+  padding: 0 10px;
+  border: 1px solid #dfe7f1;
+  border-radius: 999px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.studentFormGrid {
+  gap: 16px 18px;
+}
+
+.studentForm .field {
+  align-content: start;
+  gap: 7px;
+  color: #344054;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.studentForm .field input,
+.studentForm .field select,
+.studentForm .field textarea,
+.studentForm select {
+  min-height: 46px;
+  padding: 11px 13px;
+  color: #172033;
+  font-weight: 500;
+}
+
+.studentForm .field textarea {
+  min-height: 132px;
+  line-height: 1.5;
+}
+
+.studentForm .field input[type="date"],
+.studentForm .field input[type="number"],
+.studentForm .field input[type="tel"],
+.studentForm .field input[type="email"],
+.studentForm .field input[type="url"] {
+  font-variant-numeric: tabular-nums;
+}
+
+.fieldHelp,
+.fieldError {
+  font-size: 0.78rem;
+}
+
+.requiredHint {
+  width: fit-content;
+  margin: 0 0 2px;
+  padding: 6px 10px;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  color: #9a3412;
+  background: #fff7ed;
+  font-weight: 700;
+}
+
+.stageLockPanel {
+  border-left: 4px solid #dc2626;
+}
+
+.stageLockNotice {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  color: #991b1b;
+  background: #fef2f2;
+  font-weight: 650;
+  line-height: 1.5;
+}
+
+.stageLockMeta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0;
+}
+
+.stageLockMeta div {
+  display: grid;
+  gap: 6px;
+  padding: 14px;
+  border: 1px solid #dfe7f1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.stageLockMeta strong {
+  color: #475467;
+  font-size: 0.78rem;
+  font-weight: 750;
+  letter-spacing: 0.035em;
+  text-transform: uppercase;
+}
+
+.stageLockMeta span {
+  color: #1f2937;
+  overflow-wrap: anywhere;
+}
+
+.stageLockActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.studentFormActions,
+.contractActions,
+.requestActions,
+.tableActions,
+.supervisorDecisionActions,
+.modalActions {
+  align-items: center;
+}
+
+.studentFormActions .primaryButton,
+.studentFormActions .secondaryButton,
+.studentFormActions .dangerButton,
+.contractActions .primaryButton,
+.contractActions .secondaryButton,
+.contractActions .dangerButton,
+.requestActions .primaryButton,
+.requestActions .secondaryButton,
+.requestActions .dangerButton,
+.tableActions .primaryButton,
+.tableActions .secondaryButton,
+.tableActions .dangerButton,
+.supervisorDecisionActions .primaryButton,
+.supervisorDecisionActions .secondaryButton,
+.supervisorDecisionActions .dangerButton,
+.modalActions .primaryButton,
+.modalActions .secondaryButton,
+.modalActions .dangerButton {
+  width: auto;
+  min-width: 132px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 8px;
+  white-space: normal;
+}
+
+.studentFormActions .primaryButton,
+.contractActions .primaryButton,
+.supervisorDecisionActions .primaryButton {
+  min-width: 180px;
+}
+
+.tableActions .primaryButton,
+.tableActions .secondaryButton,
+.tableActions .dangerButton,
+.requestActions .primaryButton,
+.requestActions .secondaryButton,
+.requestActions .dangerButton {
+  min-width: 0;
+}
+
+.requestActions .requestViewButton {
+  flex: 0 0 118px;
+  min-width: 118px;
+}
+
+.documentPanel .studentFormActions .primaryButton,
+.contractUploadForm .primaryButton {
+  min-width: 180px;
+}
+
+@media (max-width: 720px) {
+  .stageFormSection {
+    padding: 18px;
+  }
+
+  .stageFormSection::before {
+    top: 18px;
+    bottom: 18px;
+  }
+
+  .stageFormSection legend {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .stageLockMeta {
+    grid-template-columns: 1fr;
+  }
+
+  .stageLockActions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .studentFormActions .primaryButton,
+  .studentFormActions .secondaryButton,
+  .studentFormActions .dangerButton,
+  .contractActions .primaryButton,
+  .contractActions .secondaryButton,
+  .contractActions .dangerButton,
+  .requestActions .primaryButton,
+  .requestActions .secondaryButton,
+  .requestActions .dangerButton,
+  .tableActions .primaryButton,
+  .tableActions .secondaryButton,
+  .tableActions .dangerButton,
+  .supervisorDecisionActions .primaryButton,
+  .supervisorDecisionActions .secondaryButton,
+  .supervisorDecisionActions .dangerButton,
+  .modalActions .primaryButton,
+  .modalActions .secondaryButton,
+  .modalActions .dangerButton {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .requestActions .requestViewButton {
+    flex-basis: auto;
   }
 }

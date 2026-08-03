@@ -23,13 +23,22 @@ export const ACTIVE_STAGE_FOLDER_STATUSES = [
 const activeRequestMessage =
   "Vous avez deja une demande de stage active. Vous devez terminer, corriger ou retirer cette demande avant d'en creer une nouvelle.";
 
+export const refusedStageLockMessage =
+  "Votre demande de stage a ete refusee definitivement. Les actions de stage sont bloquees. Utilisez la messagerie pour contacter votre superviseur ou la conseillere.";
+
 export async function getStudentDashboard(studentId) {
   const student = await getStudentProfile(studentId);
   const requests = await getStudentRequests(studentId);
+  const refusedRequest =
+    requests.find(
+      (request) => request.status === "REFUSEE"
+    ) || null;
 
   return {
     student,
-    requests
+    requests,
+    stageLockedByRefusal: Boolean(refusedRequest),
+    refusedRequest
   };
 }
 
@@ -150,6 +159,11 @@ export async function createInternshipRequest(
     );
 
     await lockStudentStageRequestCreation(
+      connection,
+      studentId
+    );
+
+    await ensureStudentHasNoRefusedStageRequest(
       connection,
       studentId
     );
@@ -679,6 +693,28 @@ async function ensureNoActiveStageRequest(
 
   if (rows[0]) {
     throw createError(activeRequestMessage, 409);
+  }
+}
+
+export async function ensureStudentHasNoRefusedStageRequest(
+  connection,
+  studentId
+) {
+  const [rows] = await connection.execute(
+    `
+      SELECT d.id AS requestId
+      FROM demandes_stage d
+      INNER JOIN dossiers_stage ds
+        ON ds.id = d.dossier_stage_id
+      WHERE ds.etudiant_id = ?
+        AND d.statut = 'REFUSEE'
+      LIMIT 1
+    `,
+    [studentId]
+  );
+
+  if (rows[0]) {
+    throw createError(refusedStageLockMessage, 409);
   }
 }
 
