@@ -144,20 +144,23 @@ test("la lecture des autres rôles conserve la requête et les paramètres exist
   assert.deepEqual(query.params, [5, 1, 1, 5]);
 });
 
-test("DIRECTION peut envoyer uniquement à la conseillère ou à la comptabilité autorisées", () => {
+test("DIRECTION peut envoyer uniquement à la conseillère ou à la comptabilité autorisées", async () => {
   const user = { id: 9, role: "DIRECTION" };
-  const contacts = new Set([1, 3]);
+  const contacts = await calculateContactIds(user, directionDatabase());
 
   assert.doesNotThrow(() => assertAllowedMessageRecipient(user, 1, contacts));
   assert.doesNotThrow(() => assertAllowedMessageRecipient(user, 3, contacts));
 });
 
-test("DIRECTION reçoit une erreur métier claire pour tout autre destinataire", () => {
+test("DIRECTION reçoit une erreur métier claire pour tout autre destinataire", async () => {
+  const user = { id: 9, role: "DIRECTION" };
+  const contacts = await calculateContactIds(user, directionDatabase());
+
   assert.throws(
     () => assertAllowedMessageRecipient(
-      { id: 9, role: "DIRECTION" },
+      user,
       5,
-      new Set([1, 3])
+      contacts
     ),
     (error) => {
       assert.equal(error.status, 403);
