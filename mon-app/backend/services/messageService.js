@@ -81,41 +81,41 @@ async function persistAttachment(file) {
   };
 }
 
-async function getContactIds(user) {
+export async function calculateContactIds(user, database) {
   const ids = new Set();
 
   if (user.role === "ETUDIANT") {
-    const [sup] = await db.query(
+    const [sup] = await database.query(
       `SELECT DISTINCT superviseur_id AS id FROM dossiers_stage
         WHERE etudiant_id = ? AND superviseur_id IS NOT NULL`,
       [user.id]
     );
     sup.forEach((r) => ids.add(Number(r.id)));
 
-    const [cons] = await db.query(
+    const [cons] = await database.query(
       `SELECT id FROM utilisateurs WHERE role = 'CONSEILLERE' AND statut = 'ACTIF'`
     );
     cons.forEach((r) => ids.add(Number(r.id)));
   } else if (user.role === "SUPERVISEUR") {
-    const [etu] = await db.query(
+    const [etu] = await database.query(
       `SELECT DISTINCT etudiant_id AS id FROM dossiers_stage
         WHERE superviseur_id = ?`,
       [user.id]
     );
     etu.forEach((r) => ids.add(Number(r.id)));
 
-    const [cons] = await db.query(
+    const [cons] = await database.query(
       `SELECT id FROM utilisateurs WHERE role = 'CONSEILLERE' AND statut = 'ACTIF'`
     );
     cons.forEach((r) => ids.add(Number(r.id)));
   } else if (user.role === "CONSEILLERE") {
-    const [rows] = await db.query(
+    const [rows] = await database.query(
       `SELECT id FROM utilisateurs
         WHERE role IN ('ETUDIANT', 'SUPERVISEUR') AND statut = 'ACTIF'`
     );
     rows.forEach((r) => ids.add(Number(r.id)));
   } else if (user.role === "DIRECTION") {
-    const [rows] = await db.query(
+    const [rows] = await database.query(
       `SELECT id FROM utilisateurs
         WHERE role IN ('CONSEILLERE', 'COMPTABILITE') AND statut = 'ACTIF'`
     );
@@ -124,6 +124,10 @@ async function getContactIds(user) {
 
   ids.delete(Number(user.id));
   return ids;
+}
+
+async function getContactIds(user) {
+  return calculateContactIds(user, db);
 }
 
 async function assertContact(user, otherUserId) {
