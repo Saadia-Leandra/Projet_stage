@@ -23,6 +23,23 @@ const ALLOWED_MIME_TYPES = new Map([
   ["image/png", ".png"]
 ]);
 
+let messageSchemaCache = null;
+
+async function getMessageSchemaColumns() {
+  if (messageSchemaCache) {
+    return messageSchemaCache;
+  }
+
+  const [rows] = await db.query("DESCRIBE messages");
+  messageSchemaCache = new Set(rows.map((row) => row.Field));
+  return messageSchemaCache;
+}
+
+async function hasModernMessageSchema() {
+  const columns = await getMessageSchemaColumns();
+  return columns.has("destinataire_id") && columns.has("lu_le") && columns.has("cree_le");
+}
+
 function createError(message, status) {
   const error = new Error(message);
   error.status = status;
@@ -97,6 +114,12 @@ async function getContactIds(user) {
         WHERE role IN ('ETUDIANT', 'SUPERVISEUR') AND statut = 'ACTIF'`
     );
     rows.forEach((r) => ids.add(Number(r.id)));
+  } else if (user.role === "DIRECTION") {
+    const [rows] = await db.query(
+      `SELECT id FROM utilisateurs
+        WHERE role IN ('CONSEILLERE', 'COMPTABILITE') AND statut = 'ACTIF'`
+    );
+    rows.forEach((r) => ids.add(Number(r.id)));
   }
 
   ids.delete(Number(user.id));
@@ -114,6 +137,26 @@ export async function listContacts(user) {
   const contactIds = [...(await getContactIds(user))];
   if (contactIds.length === 0) {
     return [];
+  }
+
+  if (!(await hasModernMessageSchema())) {
+    const placeholders = contactIds.map(() => "?").join(", ");
+    const [rows] = await db.query(
+      `
+        SELECT u.id, CONCAT(u.prenom, ' ', u.nom) AS name, u.role
+          FROM utilisateurs u
+         WHERE u.id IN (${placeholders})
+         ORDER BY name ASC
+      `,
+      contactIds
+    );
+
+    return rows.map((row) => ({
+      ...row,
+      lastMessage: null,
+      lastAt: null,
+      unread: 0
+    }));
   }
 
   const placeholders = contactIds.map(() => "?").join(", ");
@@ -153,6 +196,10 @@ export async function listContacts(user) {
 export async function getConversation({ user, otherUserId }) {
   await assertContact(user, otherUserId);
 
+  if (!(await hasModernMessageSchema())) {
+    return [];
+  }
+
   const [messages] = await db.query(
     `
       SELECT id, expediteur_id AS senderId, contenu AS content,
@@ -177,6 +224,10 @@ export async function getConversation({ user, otherUserId }) {
 
 export async function sendMessage({ user, recipientId, content, file }) {
   await assertContact(user, recipientId);
+
+  if (!(await hasModernMessageSchema())) {
+    throw createError("La messagerie n'est pas disponible sur cette base de donnees.", 501);
+  }
 
   const cleanContent = String(content ?? "").trim();
   if (!cleanContent && !file) {
@@ -228,6 +279,10 @@ export async function sendMessage({ user, recipientId, content, file }) {
 }
 
 export async function getAttachment({ user, messageId }) {
+  if (!(await hasModernMessageSchema())) {
+    throw createError("La messagerie n'est pas disponible sur cette base de donnees.", 501);
+  }
+
   const [[message]] = await db.query(
     `SELECT expediteur_id, destinataire_id, fichier_nom, fichier_chemin, fichier_mime
        FROM messages WHERE id = ? LIMIT 1`,
@@ -262,6 +317,10 @@ export async function getAttachment({ user, messageId }) {
 }
 
 export async function countUnread(user) {
+  if (!(await hasModernMessageSchema())) {
+    return 0;
+  }
+
   const [[row]] = await db.query(
     `SELECT COUNT(*) AS n FROM messages WHERE destinataire_id = ? AND lu_le IS NULL`,
     [user.id]

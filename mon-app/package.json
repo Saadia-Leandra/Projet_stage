@@ -15,6 +15,7 @@
     "migrate:db": "node backend/migrateClaraGroupImport.js",
     "migrate:business-rules": "node backend/migrateBusinessRules.js",
     "migrate:payroll-resubmission": "node backend/migratePayrollResubmission.js",
+    "migrate:compatibility": "node backend/migrateSchemaCompatibility.js",
     "build": "vite build",
     "lint": "oxlint",
     "preview": "vite preview"
