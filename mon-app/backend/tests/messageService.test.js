@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  assertAllowedMessageRecipient,
   buildConversationReadQuery,
   calculateContactIds
 } from "../services/messageService.js";
@@ -140,4 +141,42 @@ test("la lecture des autres rôles conserve la requête et les paramètres exist
 
   assert.doesNotMatch(query.sql, /contact\.role/);
   assert.deepEqual(query.params, [5, 1, 1, 5]);
+});
+
+test("DIRECTION peut envoyer uniquement à la conseillère ou à la comptabilité autorisées", () => {
+  const user = { id: 9, role: "DIRECTION" };
+  const contacts = new Set([1, 3]);
+
+  assert.doesNotThrow(() => assertAllowedMessageRecipient(user, 1, contacts));
+  assert.doesNotThrow(() => assertAllowedMessageRecipient(user, 3, contacts));
+});
+
+test("DIRECTION reçoit une erreur métier claire pour tout autre destinataire", () => {
+  assert.throws(
+    () => assertAllowedMessageRecipient(
+      { id: 9, role: "DIRECTION" },
+      5,
+      new Set([1, 3])
+    ),
+    (error) => {
+      assert.equal(error.status, 403);
+      assert.match(error.message, /uniquement a la conseillere ou a la comptabilite/i);
+      return true;
+    }
+  );
+});
+
+test("l'erreur d'envoi existante des autres rôles reste inchangée", () => {
+  assert.throws(
+    () => assertAllowedMessageRecipient(
+      { id: 5, role: "ETUDIANT" },
+      8,
+      new Set([1, 6])
+    ),
+    (error) => {
+      assert.equal(error.status, 403);
+      assert.equal(error.message, "Cette personne n'est pas dans vos contacts.");
+      return true;
+    }
+  );
 });

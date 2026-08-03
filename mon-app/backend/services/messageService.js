@@ -137,6 +137,19 @@ async function assertContact(user, otherUserId) {
   }
 }
 
+export function assertAllowedMessageRecipient(user, recipientId, contactIds) {
+  if (contactIds.has(Number(recipientId))) return;
+
+  if (user.role === "DIRECTION") {
+    throw createError(
+      "La Direction peut envoyer des messages uniquement a la conseillere ou a la comptabilite actives.",
+      403
+    );
+  }
+
+  throw createError("Cette personne n'est pas dans vos contacts.", 403);
+}
+
 export async function listContacts(user) {
   const contactIds = [...(await getContactIds(user))];
   if (contactIds.length === 0) {
@@ -249,7 +262,8 @@ export async function getConversation({ user, otherUserId }) {
 }
 
 export async function sendMessage({ user, recipientId, content, file }) {
-  await assertContact(user, recipientId);
+  const contactIds = await getContactIds(user);
+  assertAllowedMessageRecipient(user, recipientId, contactIds);
 
   if (!(await hasModernMessageSchema())) {
     throw createError("La messagerie n'est pas disponible sur cette base de donnees.", 501);
