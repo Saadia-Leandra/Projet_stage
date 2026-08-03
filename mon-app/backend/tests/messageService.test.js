@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   assertAllowedMessageRecipient,
   buildConversationReadQuery,
+  buildUnreadCountQuery,
   calculateContactIds
 } from "../services/messageService.js";
 
@@ -179,4 +180,26 @@ test("l'erreur d'envoi existante des autres rôles reste inchangée", () => {
       return true;
     }
   );
+});
+
+test("le compteur DIRECTION inclut uniquement les messages non lus des contacts autorisés actifs", () => {
+  const query = buildUnreadCountQuery({ id: 9, role: "DIRECTION" });
+
+  assert.match(query.sql, /sender\.id = m\.expediteur_id/);
+  assert.match(query.sql, /sender\.role IN \('CONSEILLERE', 'COMPTABILITE'\)/);
+  assert.match(query.sql, /sender\.statut = 'ACTIF'/);
+  assert.match(query.sql, /m\.lu_le IS NULL/);
+  assert.deepEqual(query.params, [9]);
+});
+
+test("le compteur des autres rôles conserve son comportement existant", () => {
+  for (const role of ["ETUDIANT", "SUPERVISEUR", "CONSEILLERE", "COMPTABILITE"]) {
+    const query = buildUnreadCountQuery({ id: 5, role });
+
+    assert.equal(
+      query.sql,
+      "SELECT COUNT(*) AS n FROM messages WHERE destinataire_id = ? AND lu_le IS NULL"
+    );
+    assert.deepEqual(query.params, [5]);
+  }
 });

@@ -356,14 +356,33 @@ export async function getAttachment({ user, messageId }) {
   };
 }
 
+export function buildUnreadCountQuery(user) {
+  if (user.role === "DIRECTION") {
+    return {
+      sql: `SELECT COUNT(*) AS n
+              FROM messages m
+              INNER JOIN utilisateurs sender
+                ON sender.id = m.expediteur_id
+             WHERE m.destinataire_id = ?
+               AND m.lu_le IS NULL
+               AND sender.role IN ('CONSEILLERE', 'COMPTABILITE')
+               AND sender.statut = 'ACTIF'`,
+      params: [user.id]
+    };
+  }
+
+  return {
+    sql: "SELECT COUNT(*) AS n FROM messages WHERE destinataire_id = ? AND lu_le IS NULL",
+    params: [user.id]
+  };
+}
+
 export async function countUnread(user) {
   if (!(await hasModernMessageSchema())) {
     return 0;
   }
 
-  const [[row]] = await db.query(
-    `SELECT COUNT(*) AS n FROM messages WHERE destinataire_id = ? AND lu_le IS NULL`,
-    [user.id]
-  );
+  const query = buildUnreadCountQuery(user);
+  const [[row]] = await db.query(query.sql, query.params);
   return Number(row.n);
 }
