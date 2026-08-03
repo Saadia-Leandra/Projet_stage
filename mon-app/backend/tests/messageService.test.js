@@ -72,7 +72,7 @@ test("DIRECTION exclut tous les autres rôles et son propre compte", async () =>
   }
 });
 
-test("les règles existantes des autres rôles restent inchangées", async () => {
+test("les règles existantes des étudiants et superviseurs restent inchangées", async () => {
   const database = {
     async query(sql) {
       if (sql.includes("FROM dossiers_stage") && sql.includes("superviseur_id AS id")) {
@@ -82,9 +82,6 @@ test("les règles existantes des autres rôles restent inchangées", async () =>
         return [[{ id: 5 }]];
       }
       if (sql.includes("role = 'CONSEILLERE'")) return [[{ id: 1 }]];
-      if (sql.includes("role IN ('ETUDIANT', 'SUPERVISEUR')")) {
-        return [[{ id: 5 }, { id: 6 }]];
-      }
       throw new Error(`Requête inattendue : ${sql}`);
     }
   };
@@ -98,10 +95,6 @@ test("les règles existantes des autres rôles restent inchangées", async () =>
     [5, 1]
   );
   assert.deepEqual(
-    [...await calculateContactIds({ id: 1, role: "CONSEILLERE" }, database)],
-    [5, 6]
-  );
-  assert.deepEqual(
     [...await calculateContactIds({ id: 7, role: "ENSEIGNANT" }, database)],
     []
   );
@@ -109,6 +102,40 @@ test("les règles existantes des autres rôles restent inchangées", async () =>
     [...await calculateContactIds({ id: 8, role: "ADMINISTRATEUR" }, database)],
     []
   );
+});
+
+test("CONSEILLERE peut contacter étudiants, superviseurs, Direction et Comptabilité actifs", async () => {
+  const database = {
+    async query(sql) {
+      assert.match(sql, /'ETUDIANT', 'SUPERVISEUR', 'DIRECTION', 'COMPTABILITE'/);
+      assert.match(sql, /statut = 'ACTIF'/);
+      return [[{ id: 5 }, { id: 6 }, { id: 9 }, { id: 3 }]];
+    }
+  };
+
+  const contacts = await calculateContactIds(
+    { id: 1, role: "CONSEILLERE" },
+    database
+  );
+
+  assert.deepEqual([...contacts], [5, 6, 9, 3]);
+});
+
+test("COMPTABILITE peut contacter uniquement Direction et Conseillère actives", async () => {
+  const database = {
+    async query(sql) {
+      assert.match(sql, /role IN \('DIRECTION', 'CONSEILLERE'\)/);
+      assert.match(sql, /statut = 'ACTIF'/);
+      return [[{ id: 9 }, { id: 1 }]];
+    }
+  };
+
+  const contacts = await calculateContactIds(
+    { id: 3, role: "COMPTABILITE" },
+    database
+  );
+
+  assert.deepEqual([...contacts], [9, 1]);
 });
 
 test("le résultat reste itérable et compatible avec le panneau de messagerie", async () => {

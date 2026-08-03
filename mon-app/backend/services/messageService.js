@@ -111,7 +111,14 @@ export async function calculateContactIds(user, database) {
   } else if (user.role === "CONSEILLERE") {
     const [rows] = await database.query(
       `SELECT id FROM utilisateurs
-        WHERE role IN ('ETUDIANT', 'SUPERVISEUR') AND statut = 'ACTIF'`
+        WHERE role IN ('ETUDIANT', 'SUPERVISEUR', 'DIRECTION', 'COMPTABILITE')
+          AND statut = 'ACTIF'`
+    );
+    rows.forEach((r) => ids.add(Number(r.id)));
+  } else if (user.role === "COMPTABILITE") {
+    const [rows] = await database.query(
+      `SELECT id FROM utilisateurs
+        WHERE role IN ('DIRECTION', 'CONSEILLERE') AND statut = 'ACTIF'`
     );
     rows.forEach((r) => ids.add(Number(r.id)));
   } else if (user.role === "DIRECTION") {
