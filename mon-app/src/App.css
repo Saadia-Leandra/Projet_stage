@@ -223,6 +223,17 @@
   box-shadow: 0 24px 70px rgba(15, 23, 42, 0.25);
 }
 
+.mileageCorrectionModal {
+  width: min(1040px, 100%);
+  padding: 0;
+}
+
+.mileageCorrectionModal > .studentPanel {
+  margin: 0;
+  border: 0;
+  box-shadow: none;
+}
+
 .modalCloseButton {
   width: 38px;
   height: 38px;

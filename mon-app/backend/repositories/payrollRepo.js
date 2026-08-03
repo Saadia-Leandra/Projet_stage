@@ -227,6 +227,7 @@ export function createPayrollRepo(db) {
             cps.verrouille AS locked,
             cps.statut AS status,
             cps.motif_refus AS refusalReason,
+            cps.resoumis_le AS resubmittedAt,
             cps.cree_le AS createdAt,
             ecp.commentaire AS comment
           FROM charges_paie_supervision cps
@@ -239,7 +240,68 @@ export function createPayrollRepo(db) {
         params
       );
 
-      return rows;
+      return rows.map((row) => ({ ...row, ...parseChargeComment(row.comment) }));
+    },
+
+    async resubmitSupervisionCharge({ id, supervisorUserId, data }) {
+      const chargeId = positiveId(id);
+      const chargeData = validateChargeData(data);
+
+      const connection = await db.getConnection();
+      try {
+        await connection.beginTransaction();
+        const [rows] = await connection.execute(
+          `SELECT cps.id, ecp.etudiant_id AS studentUserId
+           FROM charges_paie_supervision cps
+           JOIN etudiants_charge_paie ecp ON ecp.charge_paie_supervision_id = cps.id
+           WHERE cps.id = ? AND cps.superviseur_id = ? AND cps.statut = 'REJETE'
+           LIMIT 1 FOR UPDATE`,
+          [chargeId, supervisorUserId]
+        );
+        if (!rows.length) {
+          throw createError("Charge refusée introuvable ou déjà resoumise.", 409);
+        }
+
+        const [studentRows] = await connection.execute(
+          `SELECT e.utilisateur_id AS studentUserId, e.code_etudiant AS studentCode,
+                  CONCAT(u.prenom, ' ', u.nom) AS studentName, ds.id AS stageFileId
+             FROM etudiants e JOIN utilisateurs u ON u.id = e.utilisateur_id
+             LEFT JOIN dossiers_stage ds ON ds.etudiant_id = e.utilisateur_id AND ds.superviseur_id = e.superviseur_id
+            WHERE e.superviseur_id = ? AND u.statut = 'ACTIF' AND e.code_etudiant = ?
+              AND e.programme = ? AND e.groupe = ? ORDER BY ds.cree_le DESC LIMIT 1`,
+          [supervisorUserId, chargeData.studentCode, chargeData.courseTitle, chargeData.courseCodeGroup]
+        );
+        if (!studentRows[0]) throw createError("L'étudiant, le cours et le groupe ne correspondent pas au superviseur.", 400);
+        const student = studentRows[0];
+        if (Number(student.studentUserId) !== Number(rows[0].studentUserId)) {
+          const [duplicate] = await connection.execute(
+            `SELECT 1 FROM verrous_charge_paie_supervision WHERE superviseur_id = ? AND etudiant_id = ? LIMIT 1 FOR UPDATE`,
+            [supervisorUserId, student.studentUserId]
+          );
+          if (duplicate.length) throw createError("Une charge de paie existe déjà pour cet étudiant.", 409);
+          await connection.execute(`DELETE FROM verrous_charge_paie_supervision WHERE superviseur_id = ? AND etudiant_id = ?`, [supervisorUserId, rows[0].studentUserId]);
+          await connection.execute(`INSERT INTO verrous_charge_paie_supervision (superviseur_id, etudiant_id) VALUES (?, ?)`, [supervisorUserId, student.studentUserId]);
+        }
+        await connection.execute(
+          `UPDATE etudiants_charge_paie SET etudiant_id = ?, commentaire = ? WHERE charge_paie_supervision_id = ?`,
+          [student.studentUserId, buildChargeComment(chargeData), chargeId]
+        );
+        await connection.execute(
+          `UPDATE charges_paie_supervision SET
+             statut = 'CALCULE',
+             dossier_stage_id = ?, code_etudiant = ?, nom_etudiant = ?, motif_refus = NULL,
+             resoumis_le = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+          [student.stageFileId || null, student.studentCode, student.studentName, chargeId]
+        );
+        await connection.commit();
+        return { id: chargeId, status: "CALCULE" };
+      } catch (error) {
+        await connection.rollback();
+        throw error;
+      } finally {
+        connection.release();
+      }
     },
 
     async listSupervisorTotals({ user }) {
@@ -440,6 +502,23 @@ function clean(value) {
 function optional(value) {
   const cleanedValue = clean(value);
   return cleanedValue || null;
+}
+
+function parseChargeComment(value) {
+  const result = { courseTitle: "", courseCodeGroup: "", session: "", userComment: "" };
+  for (const part of String(value || "").split(" | ")) {
+    if (part.startsWith("Cours: ")) result.courseTitle = part.slice(7);
+    else if (part.startsWith("Code/groupe: ")) result.courseCodeGroup = part.slice(13);
+    else if (part.startsWith("Session: ")) result.session = part.slice(9);
+    else if (part.startsWith("Commentaire: ")) result.userComment = part.slice(13);
+  }
+  return result;
+}
+
+function positiveId(value) {
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) throw createError("Identifiant de charge invalide.", 400);
+  return id;
 }
 
 function createError(message, status) {

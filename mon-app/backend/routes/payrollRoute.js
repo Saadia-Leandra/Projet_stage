@@ -102,6 +102,26 @@ export default function payrollRoutes({ payrollRepo }) {
     }
   );
 
+  router.put(
+    "/supervision-charges/:id/resubmit",
+    requireRole("SUPERVISEUR"),
+    async (req, res, next) => {
+      try {
+        const charge = await payrollRepo.resubmitSupervisionCharge({
+          id: req.params.id,
+          supervisorUserId: req.user.id,
+          data: req.body
+        });
+        res.json({
+          message: "Charge corrigée et resoumise à la comptabilité.",
+          charge
+        });
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
+
   return router;
 }
 

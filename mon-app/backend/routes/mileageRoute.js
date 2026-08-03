@@ -93,6 +93,35 @@ export default function mileageRoutes({ mileageTripsRepo }) {
     }
   });
 
+  router.put("/trips/:id/resubmit", requireRole("SUPERVISEUR"), async (req, res, next) => {
+    try {
+      const destinations = req.body.destinations || [];
+      await mileageTripsRepo.assertActiveStudents(req.user.id, destinations.map((destination) => destination.studentId));
+      const parkingAmount = Number(req.body.parkingAmount || 0);
+      if (!Number.isFinite(parkingAmount) || parkingAmount < 0) {
+        const error = new Error("Le montant de stationnement est invalide."); error.status = 400; throw error;
+      }
+      const ratePerKm = await mileageTripsRepo.getSupervisorRate(req.user.id);
+      const result = await mileageService.calculate(req.body);
+      const routeProofStoredName = await saveRouteProof(result.routeProofImage);
+      result.routeSnapshot.proofImageStoredName = routeProofStoredName;
+      const parkingReceipt = await saveParkingReceipt(req.body.parkingReceipt);
+      await mileageTripsRepo.updateRejected({
+        id: Number(req.params.id), supervisorUserId: req.user.id,
+        campus: req.body.campus, program: req.body.program, group: req.body.group,
+        tripDate: req.body.tripDate, parkingAmount, ratePerKm,
+        mapUrl: result.mapUrl, routeSnapshot: result.routeSnapshot,
+        distanceKm: result.distanceKm, durationMinutes: result.durationMinutes,
+        provider: result.provider, tripType: result.tripType, destinations: result.destinations,
+        gpsTrace: normalizeGpsTrace(req.body.gpsTrace),
+        startedAt: req.body.startedAt || result.calculatedAt,
+        endedAt: req.body.endedAt || result.calculatedAt, parkingReceipt
+      });
+      const { routeProofImage: _routeProofImage, ...publicResult } = result;
+      res.json({ ...publicResult, ratePerKm, tripId: Number(req.params.id) });
+    } catch (error) { next(error); }
+  });
+
   router.get("/trips", requireRole("SUPERVISEUR", "COMPTABILITE", "DIRECTION", "CONSEILLERE"), async (req, res, next) => {
     try {
       const supervisorUserId = req.user.role === "SUPERVISEUR" ? req.user.id : null;
