@@ -289,6 +289,20 @@ export async function getStudentRequestFile(
     studentId,
     requestId
   );
+  const blockedStatuses = [
+    "BROUILLON",
+    "A_REVISER",
+    "DOCUMENTS_MANQUANTS",
+    "REFUSEE",
+    "ANNULEE"
+  ];
+
+  if (blockedStatuses.includes(request.status)) {
+    throw createError(
+      "Le PDF officiel est disponible seulement pour une demande soumise ou approuvee.",
+      409
+    );
+  }
 
   return generateInternshipRequestPdf(request);
 }

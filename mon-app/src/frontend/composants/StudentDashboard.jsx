@@ -826,6 +826,8 @@ function ContractDetails({
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [generatingPdf, setGeneratingPdf] =
+    useState(false);
   const [submitting, setSubmitting] =
     useState(false);
   const [uploadingMilieu, setUploadingMilieu] =
@@ -867,10 +869,10 @@ function ContractDetails({
       signer.status === "ENVOYE"
   );
 
-  const canUploadMilieuContract = [
-    "CONTRAT_MILIEU_A_DEPOSER",
-    "SIGNATURE_ENTREPRISE"
-  ].includes(contract.status);
+  const canUploadMilieuContract =
+    contract.status === "CONTRAT_MILIEU_A_DEPOSER";
+  const isMilieuDocumensoSignaturePending =
+    contract.status === "SIGNATURE_ENTREPRISE";
   const canDownloadMilieuPdf =
     !canUploadMilieuContract ||
     contract.studentSignedPdfAvailable;
@@ -933,7 +935,7 @@ function ContractDetails({
       await saveContractData(token);
       await onReload();
       setMessage(
-        "Enregistrement fait avec succes. Le PDF prerempli est pret a telecharger."
+        "Enregistrement fait avec succes. Generez le PDF seulement lorsque le contrat est pret."
       );
     } catch (requestError) {
       console.error(requestError);
@@ -943,6 +945,57 @@ function ContractDetails({
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function generateContractPdf() {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setError("Session expiree.");
+      return;
+    }
+
+    setGeneratingPdf(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await saveContractData(token);
+
+      const response = await fetch(
+        `/api/contracts/${contract.id}/generate-pdf`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (!response.ok) {
+        setError(
+          data.error ||
+            "Impossible de generer le PDF."
+        );
+        return;
+      }
+
+      await onReload();
+      setMessage(
+        "Le PDF du contrat a ete genere et ajoute aux documents du dossier."
+      );
+    } catch (requestError) {
+      console.error(requestError);
+      setError(
+        requestError.message ||
+          "Erreur de connexion au serveur."
+      );
+    } finally {
+      setGeneratingPdf(false);
     }
   }
 
@@ -1207,6 +1260,13 @@ function ContractDetails({
           Telechargez le PDF signe par vous, faites-le
           signer par le milieu de stage en presentiel,
           puis deposez le PDF signe ici.
+        </p>
+      )}
+
+      {isMilieuDocumensoSignaturePending && (
+        <p className="notice">
+          Le contrat est en attente de la signature
+          Documenso du milieu de stage.
         </p>
       )}
 
@@ -1552,6 +1612,7 @@ function ContractDetails({
             type="button"
             disabled={
               saving ||
+              generatingPdf ||
               submitting ||
               uploadingMilieu ||
               syncingDocumenso
@@ -1566,10 +1627,30 @@ function ContractDetails({
 
         {isEditable && (
           <button
+            className="secondaryButton"
+            type="button"
+            disabled={
+              saving ||
+              generatingPdf ||
+              submitting ||
+              uploadingMilieu ||
+              syncingDocumenso
+            }
+            onClick={generateContractPdf}
+          >
+            {generatingPdf
+              ? "Generation..."
+              : "Generer le PDF"}
+          </button>
+        )}
+
+        {isEditable && (
+          <button
             className="primaryButton"
             type="button"
             disabled={
               saving ||
+              generatingPdf ||
               submitting ||
               uploadingMilieu ||
               syncingDocumenso
@@ -1578,7 +1659,7 @@ function ContractDetails({
           >
             {submitting
               ? "Envoi..."
-              : "Envoyer pour signature"}
+              : "Enregistrer et envoyer pour signature"}
           </button>
         )}
 
@@ -2210,15 +2291,17 @@ function RequestHistoryTable({
                           : "Voir"}
                       </button>
 
-                      <button
-                        className="secondaryButton"
-                        type="button"
-                        onClick={() =>
-                          downloadRequestPdf(request)
-                        }
-                      >
-                        PDF demande
-                      </button>
+                      {canDownloadRequestPdf(request) && (
+                        <button
+                          className="secondaryButton"
+                          type="button"
+                          onClick={() =>
+                            downloadRequestPdf(request)
+                          }
+                        >
+                          PDF demande
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -2246,6 +2329,16 @@ function studentHistoryRequests(requests) {
     (request) =>
       !isActiveStudentStageRequest(request)
   );
+}
+
+function canDownloadRequestPdf(request) {
+  return ![
+    "BROUILLON",
+    "A_REVISER",
+    "DOCUMENTS_MANQUANTS",
+    "REFUSEE",
+    "ANNULEE"
+  ].includes(request?.status);
 }
 
 function effectiveRequestStatus(request) {
@@ -2931,7 +3024,7 @@ function contractStatusLabel(contract) {
     CONTRAT_MILIEU_A_DEPOSER:
       "Contrat signe par le milieu a recevoir",
     SIGNATURE_ENTREPRISE:
-      "Contrat signe par le milieu a recevoir",
+      "Signature Documenso du milieu",
     SIGNATURE_SUPERVISEUR:
       "En attente de l'enseignant",
     SIGNATURE_CONSEILLERE:

@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createDbPool } from "../config/db.js";
+import { cancelContractsForRequest } from "./contractService.js";
 import { createNotificationForUsers } from "./notificationService.js";
 
 const db = createDbPool();
@@ -152,6 +153,19 @@ export async function requestStageRequestCorrections(
       `,
       [request.folderId]
     );
+
+    await cancelContractsForRequest(connection, {
+      requestId: request.id,
+      actorId: supervisorId,
+      eventType:
+        correction.status === "DOCUMENTS_MANQUANTS"
+          ? "CONTRAT_ANNULE_DOCUMENTS_MANQUANTS"
+          : "CONTRAT_ANNULE_CORRECTIONS",
+      comment:
+        correction.status === "DOCUMENTS_MANQUANTS"
+          ? "Le contrat a ete annule parce que des documents ont ete demandes a l'etudiant."
+          : "Le contrat a ete annule parce que des corrections ont ete demandees a l'etudiant."
+    });
 
     await createWorkflowEvent(connection, {
       folderId: request.folderId,

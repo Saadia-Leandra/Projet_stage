@@ -277,39 +277,48 @@ const signerRoleOrder = [
 const officialSignatureStampPositions = {
   ETUDIANT: {
     pageIndex: 2,
-    x: 28,
+    x: 22,
     y: 764,
-    width: 160,
+    width: 168,
     height: 22,
-    dateX: 190,
+    dateX: 210,
     dateWidth: 70
   },
   SUPERVISEUR: {
     pageIndex: 2,
-    x: 318,
+    x: 320,
     y: 764,
-    width: 176,
+    width: 170,
     height: 22,
-    dateX: 500,
-    dateWidth: 70
+    dateX: 504,
+    dateWidth: 68
   },
   ENTREPRISE: {
     pageIndex: 2,
-    x: 28,
-    y: 712,
-    width: 160,
+    x: 22,
+    y: 716,
+    width: 168,
     height: 22,
-    dateX: 190,
+    dateX: 210,
     dateWidth: 70
+  },
+  CONSEILLERE: {
+    pageIndex: 1,
+    x: 430,
+    y: 690,
+    width: 76,
+    height: 20,
+    dateX: 512,
+    dateWidth: 76
   },
   DIRECTION: {
     pageIndex: 2,
-    x: 318,
-    y: 712,
-    width: 176,
+    x: 320,
+    y: 716,
+    width: 170,
     height: 22,
-    dateX: 500,
-    dateWidth: 70
+    dateX: 504,
+    dateWidth: 68
   }
 };
 

@@ -25,16 +25,16 @@ Le webhook doit envoyer le secret configure dans l'en-tete `X-Documenso-Secret`.
 1. Creer une demande de stage avec un compte etudiant.
 2. Soumettre la demande.
 3. Approuver la demande avec le compte enseignant assigne.
-4. Verifier qu'un contrat est cree et qu'une copie PDF est generee depuis le modele officiel.
+4. Verifier qu'un contrat est cree.
 5. Ouvrir le contrat avec le compte etudiant.
 6. Completer les champs obligatoires.
-7. Cliquer sur `Enregistrer et signer`.
-8. Verifier dans Documenso que le document, le destinataire et le champ de signature etudiant existent.
-9. Signer avec le lien Documenso de l'etudiant.
-10. Attendre le webhook Documenso et verifier que le statut StageTec passe a l'etape du milieu.
-11. Telecharger le PDF a faire signer par le milieu si necessaire.
-12. Faire signer le document par le milieu de stage.
-13. Deposer le PDF signe dans StageTec.
+7. Cliquer sur `Generer le PDF`.
+8. Cliquer sur `Enregistrer et envoyer pour signature`.
+9. Verifier dans Documenso que le document, le destinataire et le champ de signature etudiant existent.
+10. Signer avec le lien Documenso de l'etudiant.
+11. Attendre le webhook Documenso et verifier que le statut StageTec passe a l'etape du milieu.
+12. Verifier que Documenso envoie la signature au milieu de stage si le courriel est valide.
+13. Si l'envoi Documenso au milieu n'est pas disponible, telecharger le PDF et deposer le PDF signe manuellement.
 14. Verifier le code de confirmation `STG-AAAA-XXXXXX`.
 15. Verifier que l'enseignant recoit l'etape de signature Documenso.
 16. Signer comme enseignant et attendre le webhook.

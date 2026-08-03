@@ -14,8 +14,11 @@ import {
 } from "../../src/frontend/utils/studentStageDisplayState.js";
 import {
   generateConfirmationCodeValue,
+  isFictitiousEmail,
   MAX_MILIEU_SIGNED_PDF_SIZE_BYTES,
+  resolveDocumensoRecipientsForSigners,
   validateContractData,
+  validateSigners,
   validateMilieuSignedContractFile
 } from "../services/contractService.js";
 import {
@@ -81,6 +84,139 @@ test("signature etudiante obligatoire avant la suite", () => {
   });
 
   assert.equal(contract.totalHours, 280);
+});
+
+test("signature Documenso bloquee si le courriel ne correspond pas a un compte actif", () => {
+  assert.throws(
+    () =>
+      validateSigners([
+        {
+          role: "ETUDIANT",
+          name: "Prisca Dessources",
+          email: "prisca@teccart.ca",
+          userId: 16,
+          accountEmail: "autre@teccart.ca",
+          accountStatus: "ACTIF"
+        }
+      ]),
+    /pas envoyee automatiquement/
+  );
+
+  assert.throws(
+    () =>
+      validateSigners([
+        {
+          role: "SUPERVISEUR",
+          name: "Saadia Leandra",
+          email: "saadia@teccart.ca",
+          userId: 14,
+          accountEmail: "saadia@teccart.ca",
+          accountStatus: "INACTIF"
+        }
+      ]),
+    /compte.*pas actif/
+  );
+
+  assert.doesNotThrow(() =>
+    validateSigners([
+      {
+        role: "ETUDIANT",
+        name: "Prisca Dessources",
+        email: "prisca@teccart.ca",
+        userId: 16,
+        accountEmail: "prisca@teccart.ca",
+        accountStatus: "ACTIF"
+      }
+    ])
+  );
+});
+
+test("signature Documenso bloquee si le courriel est fictif", () => {
+  assert.equal(isFictitiousEmail("stage@example.com"), true);
+  assert.equal(isFictitiousEmail("fake.signer@teccart.ca"), true);
+  assert.equal(isFictitiousEmail("signature@teccart.ca"), false);
+
+  assert.throws(
+    () =>
+      validateSigners([
+        {
+          role: "ETUDIANT",
+          name: "Prisca Dessources",
+          email: "stage@example.com",
+          userId: 16,
+          accountEmail: "stage@example.com",
+          accountStatus: "ACTIF"
+        }
+      ]),
+    /semble fictif/
+  );
+
+  assert.throws(
+    () =>
+      validateSigners([
+        {
+          role: "ENTREPRISE",
+          name: "Milieu Exemple",
+          email: "milieu@example.com"
+        }
+      ]),
+    /semble fictif/
+  );
+
+  assert.doesNotThrow(() =>
+    validateSigners([
+      {
+        role: "ENTREPRISE",
+        name: "Milieu Exemple",
+        email: "responsable@entreprise.ca"
+      }
+    ])
+  );
+});
+
+test("signature Documenso bloquee si Documenso refuse le courriel", () => {
+  const signers = [
+    {
+      id: 1,
+      role: "ETUDIANT",
+      signingOrder: 1,
+      name: "Prisca Dessources",
+      email: "prisca@teccart.ca"
+    }
+  ];
+
+  assert.throws(
+    () =>
+      resolveDocumensoRecipientsForSigners(
+        signers,
+        {
+          recipients: [
+            {
+              email: "prisca@teccart.ca",
+              signingOrder: 1,
+              sendStatus: "BOUNCED"
+            }
+          ]
+        }
+      ),
+    /pas envoyee automatiquement/
+  );
+
+  assert.doesNotThrow(() =>
+    resolveDocumensoRecipientsForSigners(
+      signers,
+      {
+        recipients: [
+          {
+            email: "prisca@teccart.ca",
+            signingOrder: 1,
+            sendStatus: "SENT",
+            documensoRecipientId: "recipient_1"
+          }
+        ]
+      }
+    )
+  );
 });
 
 test("depot du PDF signe par le milieu valide le type et la taille", () => {

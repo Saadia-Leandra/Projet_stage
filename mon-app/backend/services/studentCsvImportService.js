@@ -96,8 +96,7 @@ const HEADER_ALIASES = {
   no_etu: "code_etudiant",
   no_prog: "programme",
   no_grille: "groupe",
-  telephone_princ: "telephone",
-  telephone_sec: "telephone_secondaire"
+  telephone_princ: "telephone"
 };
 
 export async function previewStudentCsv(file) {

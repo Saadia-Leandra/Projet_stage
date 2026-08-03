@@ -29,6 +29,8 @@ const contractStatusBySignerRole = {
 
 const studentSignerRoles = ["ETUDIANT"];
 
+const milieuSignerRoles = ["ENTREPRISE"];
+
 const administrativeSignerRoles = [
   "SUPERVISEUR",
   "CONSEILLERE",
@@ -37,6 +39,28 @@ const administrativeSignerRoles = [
 
 export const MAX_MILIEU_SIGNED_PDF_SIZE_BYTES =
   15 * 1024 * 1024;
+
+export const ELECTRONIC_SIGNATURE_ROLES = [
+  "ETUDIANT",
+  "SUPERVISEUR",
+  "CONSEILLERE",
+  "DIRECTION"
+];
+
+const documensoRecipientFailureStatuses = new Set([
+  "BOUNCED",
+  "CANCELLED",
+  "DECLINED",
+  "DELIVERY_FAILED",
+  "EMAIL_BOUNCED",
+  "ERROR",
+  "FAILED",
+  "INVALID",
+  "INVALID_EMAIL",
+  "REJECTED",
+  "SEND_FAILED",
+  "UNDELIVERABLE"
+]);
 
 const documensoEventStatuses = {
   DOCUMENT_CREATED: "CREATED",
@@ -120,7 +144,10 @@ export async function updateStudentContract(
           heures_semaine = ?,
           nombre_semaines = ?,
           total_heures = ?,
-          type_horaire = ?
+          type_horaire = ?,
+          chemin_fichier_genere = NULL,
+          pdf_original_path = NULL,
+          genere_le = NULL
         WHERE id = ?
       `,
       [
@@ -141,50 +168,19 @@ export async function updateStudentContract(
       ]
     );
 
-    const updatedContractForPdf = {
-      ...contract,
-      ...cleanedData
-    };
-    const signers = await getContractSigners(
-      connection,
-      contract.id
-    );
-    const pdf = await generateContractPdf(
-      updatedContractForPdf,
-      signers
-    );
-
-    await connection.execute(
-      `
-        UPDATE contrats
-        SET
-          chemin_fichier_genere = ?,
-          pdf_original_path = ?,
-          genere_le = NOW()
-        WHERE id = ?
-      `,
-      [pdf.relativePath, pdf.relativePath, contract.id]
-    );
-
-    await saveDocumentRecord(connection, {
-      folderId: contract.folderId,
+    await archiveContractDocuments(connection, {
       contractId: contract.id,
-      userId: studentId,
-      type: "CONTRAT_GENERE",
-      fileName: pdf.fileName,
-      filePath: pdf.relativePath,
-      mimeType: "application/pdf",
-      status: "DEPOSE"
+      types: ["CONTRAT_GENERE"]
     });
 
     await createWorkflowEvent(connection, {
       folderId: contract.folderId,
       actorId: studentId,
-      eventType: "CONTRAT_PDF_GENERE",
+      eventType: "CONTRAT_MIS_A_JOUR",
       oldStatus: contract.status,
       newStatus: contract.status,
       comment:
-        "Le PDF du contrat a ete genere apres l'enregistrement."
+        "Les informations du contrat ont ete enregistrees. Le PDF devra etre genere manuellement."
     });
 
     await connection.commit();
@@ -371,9 +367,10 @@ export async function submitStudentContract(
     ensureContractCanBeEdited(contract);
     validateContractReadyForSubmission(contract);
 
-    externalId =
-      contract.externalId ||
-      makeContractExternalId(contract);
+    externalId = makeContractExternalId(
+      contract,
+      "student"
+    );
 
     signers = await syncContractSignersForContract(
       connection,
@@ -573,14 +570,9 @@ export async function uploadMilieuSignedContract(
 
   await ensureContractGenerationAllowed(contract);
 
-  if (
-    ![
-      "CONTRAT_MILIEU_A_DEPOSER",
-      "SIGNATURE_ENTREPRISE"
-    ].includes(contract.status)
-  ) {
+  if (contract.status !== "CONTRAT_MILIEU_A_DEPOSER") {
     throw createError(
-      "Le contrat signe par le milieu peut etre depose seulement apres la signature de l'etudiant.",
+      "Le contrat signe par le milieu peut etre depose seulement lorsqu'un depot manuel est requis.",
       400
     );
   }
@@ -822,6 +814,68 @@ export function generateConfirmationCodeValue(
   return `STG-${year}-${randomPart.slice(0, 6)}`;
 }
 
+async function startMilieuSignatureWorkflow(
+  contractId,
+  actorId,
+  relativePdfPath
+) {
+  const contract = await findContractById(db, contractId);
+  await ensureContractGenerationAllowed(contract);
+
+  const signers = (
+    await getContractSigners(db, contractId)
+  ).filter((signer) =>
+    milieuSignerRoles.includes(signer.role)
+  );
+
+  validateSigners(signers);
+
+  const externalId = makeContractExternalId(
+    contract,
+    "milieu"
+  );
+  const absolutePath =
+    resolveContractStoragePath(relativePdfPath);
+  await assertValidPdf(absolutePath);
+
+  const documensoDocument =
+    await createAndSendDocument({
+      pdfPath: absolutePath,
+      title: `Contrat de stage - signature du milieu - ${
+        contract.companyName || contract.id
+      }`,
+      externalId,
+      recipients: signers.map((signer, index) => ({
+        signingOrder: index + 1,
+        role: signer.role,
+        name: signer.name,
+        email: signer.email
+      }))
+    });
+
+  await saveDocumensoPhaseSubmission({
+    actorId,
+    contract,
+    signers,
+    pdf: null,
+    documensoDocument,
+    externalId,
+    newStatus: "SIGNATURE_ENTREPRISE",
+    eventType: "SIGNATURE_MILIEU_DEMARREE",
+    eventComment:
+      "Le contrat a ete envoye a Documenso pour la signature du milieu de stage.",
+    notification: {
+      title: "Signature du milieu en cours",
+      message:
+        "Le contrat a ete envoye au milieu de stage avec Documenso.",
+      type: "SIGNATURE_MILIEU_REQUISE",
+      contractId,
+      actionUrl: `/contracts/${contractId}`,
+      userIds: [contract.studentId]
+    }
+  });
+}
+
 async function startAdministrativeSignatureWorkflow(
   contractId,
   actorId,
@@ -838,9 +892,10 @@ async function startAdministrativeSignatureWorkflow(
 
   validateSigners(signers);
 
-  const externalId =
-    contract.externalId ||
-    makeContractExternalId(contract);
+  const externalId = makeContractExternalId(
+    contract,
+    "administrative"
+  );
   const absolutePath =
     resolveContractStoragePath(relativePdfPath);
   await assertValidPdf(absolutePath);
@@ -1074,6 +1129,90 @@ export async function syncContractSignersForContract(
   }
 
   return getContractSigners(connection, contractId);
+}
+
+export async function cancelContractsForRequest(
+  connection,
+  {
+    requestId,
+    actorId = null,
+    eventType = "CONTRAT_ANNULE",
+    comment =
+      "Le contrat a ete annule parce que la demande n'est plus approuvee."
+  }
+) {
+  const [contracts] = await connection.execute(
+    `
+      SELECT
+        id,
+        dossier_stage_id AS folderId,
+        statut AS status
+      FROM contrats
+      WHERE demande_stage_id = ?
+      FOR UPDATE
+    `,
+    [requestId]
+  );
+
+  for (const contract of contracts) {
+    if (contract.status !== "REJETE") {
+      await connection.execute(
+        `
+          UPDATE contrats
+          SET
+            statut = 'REJETE',
+            chemin_fichier_genere = NULL,
+            pdf_original_path = NULL,
+            pdf_etudiant_signe_path = NULL,
+            chemin_fichier_televerse = NULL,
+            pdf_signed_path = NULL,
+            enveloppe_externe_id = NULL,
+            document_externe_id = NULL,
+            documenso_document_id = NULL,
+            documenso_status = COALESCE(documenso_status, 'CANCELLED'),
+            url_signature = NULL,
+            rejected_at = NOW()
+          WHERE id = ?
+        `,
+        [contract.id]
+      );
+    }
+
+    await connection.execute(
+      `
+        UPDATE signatures_contrat
+        SET
+          statut = 'EN_ATTENTE',
+          signature_externe_id = NULL,
+          url_signature = NULL
+        WHERE contrat_id = ?
+          AND statut <> 'REFUSE'
+      `,
+      [contract.id]
+    );
+
+    await archiveContractDocuments(connection, {
+      contractId: contract.id,
+      types: [
+        "CONTRAT_GENERE",
+        "CONTRAT_SIGNE_ETUDIANT",
+        "CONTRAT_SIGNE_MILIEU",
+        "CONTRAT_SIGNE",
+        "CONTRAT_FINAL"
+      ]
+    });
+
+    await createWorkflowEvent(connection, {
+      folderId: contract.folderId,
+      actorId,
+      eventType,
+      oldStatus: contract.status,
+      newStatus: "REJETE",
+      comment
+    });
+  }
+
+  return contracts.length;
 }
 
 export function verifyDocumensoWebhookSecret(req) {
@@ -1432,6 +1571,11 @@ async function saveDocumensoPhaseSubmission({
   eventComment,
   notification = null
 }) {
+  const recipientsBySignerId =
+    resolveDocumensoRecipientsForSigners(
+      signers,
+      documensoDocument
+    );
   const connection = await db.getConnection();
 
   try {
@@ -1485,12 +1629,8 @@ async function saveDocumensoPhaseSubmission({
 
     for (const signer of signers) {
       const remoteRecipient =
-        documensoDocument.recipients.find(
-          (recipient) =>
-            sameEmail(recipient.email, signer.email) ||
-            Number(recipient.signingOrder) ===
-              Number(signer.signingOrder)
-        ) || {};
+        recipientsBySignerId.get(Number(signer.id)) ||
+        {};
 
       await connection.execute(
         `
@@ -1502,7 +1642,7 @@ async function saveDocumensoPhaseSubmission({
             fournisseur_signature = 'DOCUMENSO'
           WHERE id = ?
         `,
-          [
+        [
           remoteRecipient.documensoRecipientId || null,
           remoteRecipient.signingUrl || null,
           signer === signers[0]
@@ -1901,12 +2041,17 @@ async function getContractSigners(
         utilisateur_signataire_id AS userId,
         nom_signataire AS name,
         courriel_signataire AS email,
+        signer_user.courriel AS accountEmail,
+        signer_user.statut AS accountStatus,
         statut AS status,
         fournisseur_signature AS signatureProvider,
         signature_externe_id AS documensoRecipientId,
         url_signature AS signingUrl,
         signe_le AS signedAt
       FROM signatures_contrat
+      LEFT JOIN utilisateurs signer_user
+        ON signer_user.id =
+          signatures_contrat.utilisateur_signataire_id
       WHERE contrat_id = ?
         AND role_signataire IN (
           'ETUDIANT',
@@ -2102,7 +2247,7 @@ function validateContractReadyForSubmission(contract) {
   validateContractData({}, contract);
 }
 
-function validateSigners(signers) {
+export function validateSigners(signers) {
   if (!signers.length) {
     throw createError(
       "Aucun signataire Documenso n'est disponible.",
@@ -2124,7 +2269,192 @@ function validateSigners(signers) {
         400
       );
     }
+
+    if (isFictitiousEmail(signer.email)) {
+      throw createError(
+        `La signature Documenso n'est pas envoyee automatiquement : le courriel du signataire ${signerRoleLabel(signer.role)} semble fictif.`,
+        400
+      );
+    }
+
+    if (
+      ELECTRONIC_SIGNATURE_ROLES.includes(
+        signer.role
+      )
+    ) {
+      if (!signer.userId) {
+        throw createError(
+          `La signature Documenso n'est pas envoyee automatiquement : le signataire ${signerRoleLabel(signer.role)} doit etre associe a un compte actif.`,
+          400
+        );
+      }
+
+      if (signer.accountStatus !== "ACTIF") {
+        throw createError(
+          `La signature Documenso n'est pas envoyee automatiquement : le compte du signataire ${signerRoleLabel(signer.role)} n'est pas actif.`,
+          400
+        );
+      }
+
+      if (
+        signer.accountEmail &&
+        !sameEmail(signer.email, signer.accountEmail)
+      ) {
+        throw createError(
+          `La signature Documenso n'est pas envoyee automatiquement : le courriel du signataire ${signerRoleLabel(signer.role)} ne correspond pas a son compte actif.`,
+          400
+        );
+      }
+    }
   });
+}
+
+export function resolveDocumensoRecipientsForSigners(
+  signers,
+  documensoDocument = {}
+) {
+  const recipients = Array.isArray(
+    documensoDocument.recipients
+  )
+    ? documensoDocument.recipients
+    : [];
+  const recipientsBySignerId = new Map();
+
+  signers.forEach((signer, index) => {
+    const recipient = findDocumensoRecipientForSigner(
+      recipients,
+      signer,
+      index
+    );
+
+    if (!recipient) {
+      throw createError(
+        `La signature Documenso n'est pas envoyee automatiquement : Documenso n'a pas confirme le destinataire ${signerRoleLabel(signer.role)}.`,
+        502
+      );
+    }
+
+    const failureStatus =
+      findDocumensoRecipientFailureStatus(recipient);
+
+    if (failureStatus) {
+      throw createError(
+        `La signature Documenso n'est pas envoyee automatiquement : le courriel du signataire ${signerRoleLabel(signer.role)} n'a pas ete accepte par Documenso (${failureStatus}).`,
+        502
+      );
+    }
+
+    recipientsBySignerId.set(
+      Number(signer.id),
+      recipient
+    );
+  });
+
+  return recipientsBySignerId;
+}
+
+export function isFictitiousEmail(email) {
+  const normalized = String(email || "")
+    .trim()
+    .toLowerCase();
+  const parts = normalized.split("@");
+
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return false;
+  }
+
+  const [localPart, domain] = parts;
+  const reservedDomains = new Set([
+    "example.com",
+    "example.net",
+    "example.org",
+    "test.com",
+    "test.ca",
+    "fake.com",
+    "fictif.com",
+    "invalid",
+    "localhost"
+  ]);
+  const fictitiousLocalPattern =
+    /^(test|fake|fictif|dummy|placeholder|noreply|no-reply|nepasrepondre|ne-pas-repondre|invalid|invalide)([._+-]|$)/;
+
+  return (
+    reservedDomains.has(domain) ||
+    domain.endsWith(".example") ||
+    domain.endsWith(".invalid") ||
+    domain.endsWith(".test") ||
+    fictitiousLocalPattern.test(localPart)
+  );
+}
+
+function findDocumensoRecipientForSigner(
+  recipients,
+  signer,
+  index
+) {
+  return (
+    recipients.find((recipient) =>
+      sameEmail(recipient.email, signer.email)
+    ) ||
+    recipients.find(
+      (recipient) => Number(recipient.index) === index
+    ) ||
+    recipients.find(
+      (recipient) =>
+        Number(recipient.signingOrder) ===
+        Number(signer.signingOrder)
+    ) ||
+    null
+  );
+}
+
+function findDocumensoRecipientFailureStatus(
+  recipient = {}
+) {
+  return [
+    recipient.sendStatus,
+    recipient.send_status,
+    recipient.deliveryStatus,
+    recipient.delivery_status,
+    recipient.emailStatus,
+    recipient.email_status,
+    recipient.status,
+    recipient.signingStatus,
+    recipient.signing_status
+  ]
+    .map(normalizeStatusValue)
+    .find((status) =>
+      documensoRecipientFailureStatuses.has(status)
+  );
+}
+
+async function archiveContractDocuments(
+  connection,
+  {
+    contractId,
+    types
+  }
+) {
+  const normalizedTypes = types.filter(Boolean);
+
+  if (!normalizedTypes.length) {
+    return;
+  }
+
+  const placeholders = normalizedTypes
+    .map(() => "?")
+    .join(", ");
+
+  await connection.execute(
+    `
+      UPDATE documents
+      SET statut = 'ARCHIVE'
+      WHERE contrat_id = ?
+        AND type_document IN (${placeholders})
+        AND statut <> 'ARCHIVE'
+    `,
+    [contractId, ...normalizedTypes]
+  );
 }
 
 async function saveDocumentRecord(
@@ -2351,12 +2681,21 @@ async function updateContractFromDocumensoEvent(
   if (
     event.type === "DOCUMENT_COMPLETED" &&
     studentSignatureCompleted &&
-    [
-      "CONTRAT_MILIEU_A_DEPOSER",
-      "SIGNATURE_ENTREPRISE"
-    ].includes(contract.status)
+    contract.status === "CONTRAT_MILIEU_A_DEPOSER"
   ) {
     return "student";
+  }
+
+  if (
+    event.type === "DOCUMENT_COMPLETED" &&
+    contract.status === "SIGNATURE_ENTREPRISE" &&
+    await areRolesSigned(
+      connection,
+      contract.id,
+      milieuSignerRoles
+    )
+  ) {
+    return "milieu";
   }
 
   if (
@@ -2583,13 +2922,13 @@ async function markStudentSignatureCompleted(
     oldStatus: contract.status,
     newStatus: "CONTRAT_MILIEU_A_DEPOSER",
     comment:
-      "La signature electronique de l'etudiant est terminee. Le contrat signe par le milieu doit maintenant etre depose."
+      "La signature electronique de l'etudiant est terminee. La signature du milieu de stage doit maintenant etre recue."
   });
 
   await createNotificationForUsers(connection, {
-    title: "Contrat du milieu a deposer",
+    title: "Signature du milieu a recevoir",
     message:
-      "Votre signature est confirmee. Telechargez le PDF, faites-le signer par le milieu de stage, puis deposez-le sur StageTec.",
+      "Votre signature est confirmee. StageTec tente l'envoi Documenso au milieu de stage. Si l'envoi automatique n'est pas disponible, deposez le PDF signe par le milieu.",
     type: "CONTRAT_MILIEU_A_DEPOSER",
     contractId: contract.id,
     actionUrl: `/contracts/${contract.id}`,
@@ -2762,11 +3101,17 @@ async function downloadAndSaveDocumensoPdf(
     contractId
   );
   const connection = await db.getConnection();
+  let startMilieuWorkflowPath = null;
+  let startAdministrativeWorkflowPath = null;
 
   try {
     await connection.beginTransaction();
+    const requiresConfirmationCode = [
+      "milieu",
+      "final"
+    ].includes(type);
     const confirmationCode =
-      type === "final"
+      requiresConfirmationCode
         ? contract.confirmationCode ||
           await generateUniqueConfirmationCode(
             connection
@@ -2794,6 +3139,45 @@ async function downloadAndSaveDocumensoPdf(
         `,
         [pdf.relativePath, contractId]
       );
+      startMilieuWorkflowPath = pdf.relativePath;
+    } else if (type === "milieu") {
+      await connection.execute(
+        `
+          UPDATE contrats
+          SET
+            chemin_fichier_televerse = ?,
+            milieu_signe_recu_le = NOW(),
+            code_confirmation_reception =
+              COALESCE(code_confirmation_reception, ?),
+            statut = 'SIGNATURE_SUPERVISEUR'
+          WHERE id = ?
+        `,
+        [
+          pdf.relativePath,
+          confirmationCode,
+          contractId
+        ]
+      );
+
+      await createWorkflowEvent(connection, {
+        folderId: contract.folderId,
+        actorId: contract.studentId,
+        eventType: "CONTRAT_SIGNE_MILIEU_RECU",
+        oldStatus: contract.status,
+        newStatus: "SIGNATURE_SUPERVISEUR",
+        comment: `Contrat signe par le milieu recu depuis Documenso. Code de confirmation : ${confirmationCode}.`
+      });
+
+      await createNotificationForUsers(connection, {
+        title: "Contrat signe par le milieu recu",
+        message: `Le contrat signe par le milieu pour ${fullStudentName(contract) || "un etudiant"} a ete recupere depuis Documenso. Une signature enseignant est requise.`,
+        type: "CONTRAT_MILIEU_RECU",
+        contractId: contract.id,
+        actionUrl: `/stage-management/contracts/${contract.id}`,
+        userIds: [contract.teacherId]
+      });
+
+      startAdministrativeWorkflowPath = pdf.relativePath;
     } else {
       await connection.execute(
         `
@@ -2823,7 +3207,9 @@ async function downloadAndSaveDocumensoPdf(
       type:
         type === "student"
           ? "CONTRAT_SIGNE_ETUDIANT"
-          : "CONTRAT_FINAL",
+          : type === "milieu"
+            ? "CONTRAT_SIGNE_MILIEU"
+            : "CONTRAT_FINAL",
       fileName: pdf.fileName,
       filePath: pdf.relativePath,
       mimeType: "application/pdf",
@@ -2845,6 +3231,36 @@ async function downloadAndSaveDocumensoPdf(
     throw error;
   } finally {
     connection.release();
+  }
+
+  if (
+    startMilieuWorkflowPath &&
+    isDocumensoConfigured()
+  ) {
+    try {
+      await startMilieuSignatureWorkflow(
+        contractId,
+        contract.studentId,
+        startMilieuWorkflowPath
+      );
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  if (
+    startAdministrativeWorkflowPath &&
+    isDocumensoConfigured()
+  ) {
+    try {
+      await startAdministrativeSignatureWorkflow(
+        contractId,
+        contract.studentId,
+        startAdministrativeWorkflowPath
+      );
+    } catch (error) {
+      console.error(error);
+    }
   }
 }
 
@@ -2924,8 +3340,15 @@ export function mapDocumensoRecipientStatus(recipient) {
   return null;
 }
 
-function makeContractExternalId(contract) {
-  return `stagetec-contract-${contract.id}-${Date.now()}`;
+function makeContractExternalId(
+  contract,
+  phase = "workflow"
+) {
+  const suffix = crypto
+    .randomBytes(4)
+    .toString("hex");
+
+  return `stagetec-contract-${contract.id}-${phase}-${Date.now()}-${suffix}`;
 }
 
 function normalizeDocumensoEventType(type) {
@@ -3050,6 +3473,13 @@ function isValidEmail(value) {
 function sameEmail(left, right) {
   return String(left || "").toLowerCase() ===
     String(right || "").toLowerCase();
+}
+
+function normalizeStatusValue(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
 }
 
 function signerRoleLabel(role) {

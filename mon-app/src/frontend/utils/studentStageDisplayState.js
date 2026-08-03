@@ -262,7 +262,7 @@ export function getStudentStageDisplayState({
       title:
         "Votre demande a ete approuvee. Completez maintenant votre contrat.",
       message:
-        "Enregistrez le contrat pour generer le PDF prerempli.",
+        "Completez le contrat, puis generez le PDF lorsque les informations sont pretes.",
       nextStep:
         "Completer les champs restants du contrat.",
       actionLabel: "Completer mon contrat",
