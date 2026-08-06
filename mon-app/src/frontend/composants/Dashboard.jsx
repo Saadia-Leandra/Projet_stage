@@ -118,7 +118,7 @@ export default function Dashboard({ user, onLogout }) {
             />
           )}
 
-          {["ETUDIANT", "SUPERVISEUR", "CONSEILLERE"].includes(currentUser.role) && (
+          {["ETUDIANT", "SUPERVISEUR", "CONSEILLERE", "DIRECTION"].includes(currentUser.role) && (
             <SidebarButton
               active={activeView === "messages"}
               label="Messagerie"
@@ -305,7 +305,7 @@ export default function Dashboard({ user, onLogout }) {
             onNavigate={setActiveView}
           />
         ) : activeView === "messages" &&
-          ["ETUDIANT", "SUPERVISEUR", "CONSEILLERE"].includes(currentUser.role) ? (
+          ["ETUDIANT", "SUPERVISEUR", "CONSEILLERE", "DIRECTION"].includes(currentUser.role) ? (
           <MessagesPanel user={currentUser} />
         ) : activeView === "stageContracts" ? (
           <StageContractsDashboard user={currentUser} />

@@ -23,6 +23,23 @@ const ALLOWED_MIME_TYPES = new Map([
   ["image/png", ".png"]
 ]);
 
+let messageSchemaCache = null;
+
+async function getMessageSchemaColumns() {
+  if (messageSchemaCache) {
+    return messageSchemaCache;
+  }
+
+  const [rows] = await db.query("DESCRIBE messages");
+  messageSchemaCache = new Set(rows.map((row) => row.Field));
+  return messageSchemaCache;
+}
+
+async function hasModernMessageSchema() {
+  const columns = await getMessageSchemaColumns();
+  return columns.has("destinataire_id") && columns.has("lu_le") && columns.has("cree_le");
+}
+
 function createError(message, status) {
   const error = new Error(message);
   error.status = status;
@@ -64,43 +81,53 @@ async function persistAttachment(file) {
   };
 }
 
-async function getContactIds(user) {
+export async function calculateContactIds(user, database) {
   const ids = new Set();
 
   if (user.role === "ETUDIANT") {
-    const [sup] = await db.query(
+    const [sup] = await database.query(
       `SELECT DISTINCT superviseur_id AS id FROM dossiers_stage
         WHERE etudiant_id = ? AND superviseur_id IS NOT NULL`,
       [user.id]
     );
     sup.forEach((r) => ids.add(Number(r.id)));
 
-    const [cons] = await db.query(
+    const [cons] = await database.query(
       `SELECT id FROM utilisateurs WHERE role = 'CONSEILLERE' AND statut = 'ACTIF'`
     );
     cons.forEach((r) => ids.add(Number(r.id)));
   } else if (user.role === "SUPERVISEUR") {
-    const [etu] = await db.query(
+    const [etu] = await database.query(
       `SELECT DISTINCT etudiant_id AS id FROM dossiers_stage
         WHERE superviseur_id = ?`,
       [user.id]
     );
     etu.forEach((r) => ids.add(Number(r.id)));
 
-    const [cons] = await db.query(
+    const [cons] = await database.query(
       `SELECT id FROM utilisateurs WHERE role = 'CONSEILLERE' AND statut = 'ACTIF'`
     );
     cons.forEach((r) => ids.add(Number(r.id)));
   } else if (user.role === "CONSEILLERE") {
-    const [rows] = await db.query(
+    const [rows] = await database.query(
       `SELECT id FROM utilisateurs
         WHERE role IN ('ETUDIANT', 'SUPERVISEUR') AND statut = 'ACTIF'`
+    );
+    rows.forEach((r) => ids.add(Number(r.id)));
+  } else if (user.role === "DIRECTION") {
+    const [rows] = await database.query(
+      `SELECT id FROM utilisateurs
+        WHERE role IN ('CONSEILLERE', 'COMPTABILITE') AND statut = 'ACTIF'`
     );
     rows.forEach((r) => ids.add(Number(r.id)));
   }
 
   ids.delete(Number(user.id));
   return ids;
+}
+
+async function getContactIds(user) {
+  return calculateContactIds(user, db);
 }
 
 async function assertContact(user, otherUserId) {
@@ -110,10 +137,43 @@ async function assertContact(user, otherUserId) {
   }
 }
 
+export function assertAllowedMessageRecipient(user, recipientId, contactIds) {
+  if (contactIds.has(Number(recipientId))) return;
+
+  if (user.role === "DIRECTION") {
+    throw createError(
+      "La Direction peut envoyer des messages uniquement a la conseillere ou a la comptabilite actives.",
+      403
+    );
+  }
+
+  throw createError("Cette personne n'est pas dans vos contacts.", 403);
+}
+
 export async function listContacts(user) {
   const contactIds = [...(await getContactIds(user))];
   if (contactIds.length === 0) {
     return [];
+  }
+
+  if (!(await hasModernMessageSchema())) {
+    const placeholders = contactIds.map(() => "?").join(", ");
+    const [rows] = await db.query(
+      `
+        SELECT u.id, CONCAT(u.prenom, ' ', u.nom) AS name, u.role
+          FROM utilisateurs u
+         WHERE u.id IN (${placeholders})
+         ORDER BY name ASC
+      `,
+      contactIds
+    );
+
+    return rows.map((row) => ({
+      ...row,
+      lastMessage: null,
+      lastAt: null,
+      unread: 0
+    }));
   }
 
   const placeholders = contactIds.map(() => "?").join(", ");
@@ -150,21 +210,47 @@ export async function listContacts(user) {
   return rows.map((r) => ({ ...r, unread: Number(r.unread) }));
 }
 
-export async function getConversation({ user, otherUserId }) {
-  await assertContact(user, otherUserId);
+export function buildConversationReadQuery(user, otherUserId) {
+  const directionRestriction = user.role === "DIRECTION"
+    ? `AND EXISTS (
+         SELECT 1
+           FROM utilisateurs contact
+          WHERE contact.id = ?
+            AND contact.role IN ('CONSEILLERE', 'COMPTABILITE')
+            AND contact.statut = 'ACTIF'
+       )`
+    : "";
 
-  const [messages] = await db.query(
-    `
+  return {
+    sql: `
       SELECT id, expediteur_id AS senderId, contenu AS content,
              fichier_nom AS attachmentName, fichier_taille AS attachmentSize,
              lu_le AS readAt, cree_le AS createdAt
         FROM messages
-       WHERE (expediteur_id = ? AND destinataire_id = ?)
-          OR (expediteur_id = ? AND destinataire_id = ?)
+       WHERE ((expediteur_id = ? AND destinataire_id = ?)
+          OR (expediteur_id = ? AND destinataire_id = ?))
+         ${directionRestriction}
        ORDER BY cree_le ASC, id ASC
     `,
-    [user.id, otherUserId, otherUserId, user.id]
-  );
+    params: [
+      user.id,
+      otherUserId,
+      otherUserId,
+      user.id,
+      ...(user.role === "DIRECTION" ? [otherUserId] : [])
+    ]
+  };
+}
+
+export async function getConversation({ user, otherUserId }) {
+  await assertContact(user, otherUserId);
+
+  if (!(await hasModernMessageSchema())) {
+    return [];
+  }
+
+  const query = buildConversationReadQuery(user, otherUserId);
+  const [messages] = await db.query(query.sql, query.params);
 
   await db.query(
     `UPDATE messages SET lu_le = NOW()
@@ -176,7 +262,12 @@ export async function getConversation({ user, otherUserId }) {
 }
 
 export async function sendMessage({ user, recipientId, content, file }) {
-  await assertContact(user, recipientId);
+  const contactIds = await getContactIds(user);
+  assertAllowedMessageRecipient(user, recipientId, contactIds);
+
+  if (!(await hasModernMessageSchema())) {
+    throw createError("La messagerie n'est pas disponible sur cette base de donnees.", 501);
+  }
 
   const cleanContent = String(content ?? "").trim();
   if (!cleanContent && !file) {
@@ -228,6 +319,10 @@ export async function sendMessage({ user, recipientId, content, file }) {
 }
 
 export async function getAttachment({ user, messageId }) {
+  if (!(await hasModernMessageSchema())) {
+    throw createError("La messagerie n'est pas disponible sur cette base de donnees.", 501);
+  }
+
   const [[message]] = await db.query(
     `SELECT expediteur_id, destinataire_id, fichier_nom, fichier_chemin, fichier_mime
        FROM messages WHERE id = ? LIMIT 1`,
@@ -261,10 +356,33 @@ export async function getAttachment({ user, messageId }) {
   };
 }
 
+export function buildUnreadCountQuery(user) {
+  if (user.role === "DIRECTION") {
+    return {
+      sql: `SELECT COUNT(*) AS n
+              FROM messages m
+              INNER JOIN utilisateurs sender
+                ON sender.id = m.expediteur_id
+             WHERE m.destinataire_id = ?
+               AND m.lu_le IS NULL
+               AND sender.role IN ('CONSEILLERE', 'COMPTABILITE')
+               AND sender.statut = 'ACTIF'`,
+      params: [user.id]
+    };
+  }
+
+  return {
+    sql: "SELECT COUNT(*) AS n FROM messages WHERE destinataire_id = ? AND lu_le IS NULL",
+    params: [user.id]
+  };
+}
+
 export async function countUnread(user) {
-  const [[row]] = await db.query(
-    `SELECT COUNT(*) AS n FROM messages WHERE destinataire_id = ? AND lu_le IS NULL`,
-    [user.id]
-  );
+  if (!(await hasModernMessageSchema())) {
+    return 0;
+  }
+
+  const query = buildUnreadCountQuery(user);
+  const [[row]] = await db.query(query.sql, query.params);
   return Number(row.n);
 }

@@ -51,6 +51,13 @@ function roleLabel(role) {
   return labels[role] || role;
 }
 
+function visibleContactsForUser(contacts, userRole) {
+  if (userRole !== "DIRECTION") return contacts;
+  return contacts.filter((contact) =>
+    ["CONSEILLERE", "COMPTABILITE"].includes(contact.role)
+  );
+}
+
 export default function MessagesPanel({ user }) {
   const [contacts, setContacts] = useState([]);
   const [activeContact, setActiveContact] = useState(null);
@@ -70,13 +77,13 @@ export default function MessagesPanel({ user }) {
   const loadContacts = useCallback(async () => {
     try {
       const data = await apiJson("/api/messages/contacts");
-      setContacts(data.contacts || []);
+      setContacts(visibleContactsForUser(data.contacts || [], user.role));
     } catch (loadError) {
       setError(loadError.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user.role]);
 
   const loadConversation = useCallback(async (contactId) => {
     if (!contactId) return;
