@@ -2,7 +2,9 @@
 
 import CityInput from "./CityInput.jsx";
 import ProvinceInput from "./ProvinceInput.jsx";
-import { calculateStageWeeks } from "../utils/stageDuration.js";
+import {
+  recalculateStagePeriod
+} from "../utils/stageDuration.js";
 
 const initialForm = {
   studentPhone: "",
@@ -60,7 +62,6 @@ export default function StudentRequestForm({ student, onCreated }) {
   const [fieldErrors, setFieldErrors] = useState({});
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
-  const [weeksManuallyEdited, setWeeksManuallyEdited] = useState(false);
 
   useEffect(() => {
     const defaults = studentProfileDefaults(student);
@@ -96,37 +97,37 @@ export default function StudentRequestForm({ student, onCreated }) {
     const { name, value, type, checked } = event.target;
     const fieldValue = type === "checkbox" ? checked : value;
 
-    if (name === "numberOfWeeks") {
-      setWeeksManuallyEdited(value !== "");
-    }
-
     setForm((currentForm) => {
-      const nextForm = {
-        ...currentForm,
-        [name]: fieldValue
-      };
-
       if (
-        (name === "startDate" || name === "endDate") &&
-        !weeksManuallyEdited
+        name === "startDate" ||
+        name === "numberOfWeeks" ||
+        name === "endDate"
       ) {
-        nextForm.numberOfWeeks = calculateStageWeeks(
-          name === "startDate" ? value : currentForm.startDate,
-          name === "endDate" ? value : currentForm.endDate
+        return recalculateStagePeriod(
+          currentForm,
+          name,
+          fieldValue
         );
       }
 
-      return nextForm;
+      return {
+        ...currentForm,
+        [name]: fieldValue
+      };
     });
 
     setFieldErrors((currentErrors) => {
       const fieldsToClear = [name];
 
-      if (
-        (name === "startDate" || name === "endDate") &&
-        !weeksManuallyEdited
-      ) {
+      if (name === "startDate" || name === "endDate") {
         fieldsToClear.push("numberOfWeeks");
+      }
+
+      if (
+        name === "startDate" ||
+        name === "numberOfWeeks"
+      ) {
+        fieldsToClear.push("endDate");
       }
 
       if (
@@ -219,7 +220,6 @@ export default function StudentRequestForm({ student, onCreated }) {
           ...initialForm,
           ...studentProfileDefaults(student)
         });
-        setWeeksManuallyEdited(false);
       }
       setFieldErrors({});
       setSuccess(

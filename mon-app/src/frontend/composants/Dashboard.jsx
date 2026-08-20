@@ -19,6 +19,8 @@ import { clearAuthSession } from "../services/authSession.js";
 export default function Dashboard({ user, onLogout }) {
   const [currentUser, setCurrentUser] = useState(user);
   const [activeView, setActiveView] = useState("dashboard");
+  const [navigationContext, setNavigationContext] =
+    useState({});
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [error, setError] = useState("");
 
@@ -60,8 +62,13 @@ export default function Dashboard({ user, onLogout }) {
     return null;
   }
 
-  function handleNavigate(view) {
+  function handleNavigate(view, context = {}) {
     setActiveView(view);
+    setNavigationContext((currentContext) => ({
+      ...(context || {}),
+      navigationKey:
+        Number(currentContext.navigationKey || 0) + 1
+    }));
     setMobileNavOpen(false);
   }
 
@@ -267,7 +274,7 @@ export default function Dashboard({ user, onLogout }) {
             <h1>{pageTitle(activeView)}</h1>
             <p>{pageDescription(activeView, currentUser.role)}</p>
           </div>
-          <NotificationBell onNavigate={setActiveView} />
+          <NotificationBell onNavigate={handleNavigate} />
         </header>
 
         {error && <div className="error-message">{error}</div>}
@@ -302,7 +309,7 @@ export default function Dashboard({ user, onLogout }) {
         ) : activeView === "documents" && ["ETUDIANT", "CONSEILLERE"].includes(currentUser.role) ? (
           <DocumentsPanel
             user={currentUser}
-            onNavigate={setActiveView}
+            onNavigate={handleNavigate}
           />
         ) : activeView === "messages" &&
           ["ETUDIANT", "SUPERVISEUR", "CONSEILLERE"].includes(currentUser.role) ? (
@@ -312,15 +319,20 @@ export default function Dashboard({ user, onLogout }) {
         ) : activeView === "payroll" ? (
           <PayrollDashboard user={currentUser} />
         ) : currentUser.role === "ETUDIANT" ? (
-          <StudentDashboard view={activeView} onNavigate={setActiveView} />
+          <StudentDashboard
+            view={activeView}
+            navigationContext={navigationContext}
+            onNavigate={handleNavigate}
+          />
         ) : currentUser.role === "SUPERVISEUR" ? (
           <SupervisorDashboard
             view={activeView}
             user={currentUser}
-            onNavigate={setActiveView}
+            navigationContext={navigationContext}
+            onNavigate={handleNavigate}
           />
         ) : (
-          <ProfilePanel user={currentUser} onNavigate={setActiveView} />
+          <ProfilePanel user={currentUser} onNavigate={handleNavigate} />
         )}
       </main>
     </section>

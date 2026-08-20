@@ -160,32 +160,34 @@ export default function SupervisorCorrectionModal({
             />
           </label>
 
-          <div className="field wide">
-            <span>Documents demandes</span>
+          {isDocumentsMode && (
+            <div className="field wide">
+              <span>Documents demandes *</span>
 
-            <div className="documentChoiceGrid">
-              {documentOptions.map(
-                ([documentType, label]) => (
-                  <label
-                    className="checkboxField"
-                    key={documentType}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={missingDocuments.includes(
-                        documentType
-                      )}
-                      onChange={() =>
-                        toggleDocument(documentType)
-                      }
-                      disabled={loading}
-                    />
-                    {label}
-                  </label>
-                )
-              )}
+              <div className="documentChoiceGrid">
+                {documentOptions.map(
+                  ([documentType, label]) => (
+                    <label
+                      className="checkboxField"
+                      key={documentType}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={missingDocuments.includes(
+                          documentType
+                        )}
+                        onChange={() =>
+                          toggleDocument(documentType)
+                        }
+                        disabled={loading}
+                      />
+                      {label}
+                    </label>
+                  )
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           <label className="field wide">
             Commentaire pour l'etudiant *

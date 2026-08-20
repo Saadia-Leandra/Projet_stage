@@ -20,7 +20,12 @@ const CAMPUS_OPTIONS = {
 
 const DEFAULT_CAMPUS = CAMPUS_OPTIONS.MTL;
 
-export default function SupervisorDashboard({ view, user, onNavigate }) {
+export default function SupervisorDashboard({
+  view,
+  user,
+  navigationContext = {},
+  onNavigate
+}) {
   const [trips, setTrips] = useState([]);
   const [students, setStudents] = useState([]);
   const [stageRequests, setStageRequests] = useState([]);
@@ -115,7 +120,12 @@ export default function SupervisorDashboard({ view, user, onNavigate }) {
   const supervisorTrips = trips.filter((trip) => Number(trip.supervisorUserId) === Number(user.id));
 
   if (view === "stageRequests") {
-    return <SupervisorStageRequests />;
+    return (
+      <SupervisorStageRequests
+        initialRequestId={navigationContext.requestId}
+        navigationKey={navigationContext.navigationKey}
+      />
+    );
   }
 
   if (view === "mileage") {

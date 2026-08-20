@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { navigationTargetFromActionUrl } from "../utils/navigationContext.js";
 
 export default function DashboardNotifications({ onNavigate }) {
   const [notifications, setNotifications] = useState([]);
@@ -26,8 +27,12 @@ export default function DashboardNotifications({ onNavigate }) {
         item.id === notification.id ? { ...item, readAt: new Date().toISOString() } : item
       ));
     }
-    const destination = notificationDestination(notification.actionUrl);
-    if (destination) onNavigate(destination);
+    const destination = navigationTargetFromActionUrl(
+      notification.actionUrl
+    );
+    if (destination) {
+      onNavigate(destination.view, destination.context);
+    }
   }
 
   const unreadCount = notifications.filter((notification) => !notification.readAt).length;
@@ -40,11 +45,4 @@ export default function DashboardNotifications({ onNavigate }) {
     ><span className="notificationDot" /><p><strong>{notification.title}</strong><br />{notification.message}</p></button>)}
     {!error && !notifications.length && <div className="notificationItem"><p>Aucune notification pour le moment.</p></div>}
   </section>;
-}
-
-function notificationDestination(actionUrl = "") {
-  if (actionUrl.includes("/contracts/")) return actionUrl.includes("/stage-management/") ? "stageContracts" : "contracts";
-  if (actionUrl.includes("/supervisor/stages/requests/")) return "stageRequests";
-  if (actionUrl.includes("/demandes-stage/")) return "requests";
-  return "";
 }

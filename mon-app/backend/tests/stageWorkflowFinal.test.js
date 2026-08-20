@@ -14,9 +14,12 @@ import {
   studentCanWithdrawRequest
 } from "../../src/frontend/utils/studentStageDisplayState.js";
 import {
+  canReplaceMilieuSignedContract,
   generateConfirmationCodeValue,
   isFictitiousEmail,
+  isStageTecTestModeEnabled,
   MAX_MILIEU_SIGNED_PDF_SIZE_BYTES,
+  resolveStudentAcademicDefaults,
   resolveDocumensoRecipientsForSigners,
   validateContractData,
   validateSigners,
@@ -87,6 +90,42 @@ test("signature etudiante obligatoire avant la suite", () => {
   });
 
   assert.equal(contract.totalHours, 280);
+});
+
+test("contrat recupere session et annee depuis le dossier etudiant", () => {
+  assert.deepEqual(
+    resolveStudentAcademicDefaults({
+      studentSession: "Hiver 2026",
+      studentGroupStartDate: "2026-01-07",
+      studentGroupEndDate: "2026-04-24"
+    }),
+    {
+      schoolYear: "2026",
+      session: "Hiver"
+    }
+  );
+
+  const contract = validateContractData(
+    {
+      functionStage: "Stagiaire developpeur",
+      descriptionStage:
+        "Developpement de modules internes.",
+      scheduleType: "TEMPS_PLEIN",
+      hoursPerWeek: 35,
+      numberOfWeeks: 8,
+      isPaid: false
+    },
+    {
+      studentSession: "Hiver 2026",
+      studentGroupStartDate: "2026-01-07",
+      studentGroupEndDate: "2026-04-24",
+      codeProgram: "420.B0"
+    }
+  );
+
+  assert.equal(contract.schoolYear, "2026");
+  assert.equal(contract.session, "Hiver");
+  assert.equal(contract.codeProgram, "420.B0");
 });
 
 test("signature Documenso bloquee si le courriel ne correspond pas a un compte actif", () => {
@@ -177,6 +216,36 @@ test("signature Documenso bloquee si le courriel est fictif", () => {
   );
 });
 
+test("mode demonstration StageTec desactive en production", () => {
+  assert.equal(
+    isStageTecTestModeEnabled({
+      NODE_ENV: "development"
+    }),
+    false
+  );
+  assert.equal(
+    isStageTecTestModeEnabled({
+      STAGETEC_TEST_MODE: "false",
+      NODE_ENV: "development"
+    }),
+    false
+  );
+  assert.equal(
+    isStageTecTestModeEnabled({
+      STAGETEC_TEST_MODE: "true",
+      NODE_ENV: "development"
+    }),
+    true
+  );
+  assert.equal(
+    isStageTecTestModeEnabled({
+      STAGETEC_TEST_MODE: "true",
+      NODE_ENV: "production"
+    }),
+    false
+  );
+});
+
 test("signature Documenso bloquee si Documenso refuse le courriel", () => {
   const signers = [
     {
@@ -254,6 +323,40 @@ test("depot du PDF signe par le milieu valide le type et la taille", () => {
         ])
       }),
     /taille maximale/
+  );
+});
+
+test("redépôt du PDF signe par le milieu limite aux signatures internes non demarrees", () => {
+  const contract = {
+    status: "SIGNATURE_SUPERVISEUR",
+    milieuSignedReceivedAt: "2026-08-19 19:00:00"
+  };
+
+  assert.equal(
+    canReplaceMilieuSignedContract(contract, [
+      { role: "SUPERVISEUR", status: "EN_ATTENTE", signingUrl: "" },
+      { role: "CONSEILLERE", status: "EN_ATTENTE", signingUrl: "" },
+      { role: "DIRECTION", status: "EN_ATTENTE", signingUrl: "" }
+    ]),
+    true
+  );
+
+  assert.equal(
+    canReplaceMilieuSignedContract(contract, [
+      {
+        role: "SUPERVISEUR",
+        status: "ENVOYE",
+        signingUrl: "https://documenso.test/sign/superviseur"
+      }
+    ]),
+    false
+  );
+
+  assert.equal(
+    canReplaceMilieuSignedContract({
+      status: "CONTRAT_MILIEU_A_DEPOSER"
+    }),
+    false
   );
 });
 
@@ -381,6 +484,129 @@ test("aucune liste de statut etudiant dans la vue demandes", async () => {
 
   assert.equal(source.includes("Toutes les demandes"), false);
   assert.equal(source.includes("Filtrer"), false);
+});
+
+test("les telechargements de contrat etudiant sont nommes en francais", async () => {
+  const source = await readFile(
+    new URL(
+      "../../src/frontend/composants/StudentDashboard.jsx",
+      import.meta.url
+    ),
+    "utf8"
+  );
+
+  assert.equal(source.includes("original-contrat"), false);
+  assert.equal(source.includes("signed-contrat"), false);
+  assert.equal(source.includes("contrat-final-"), false);
+  assert.equal(source.includes("contrat-signe"), false);
+  assert.equal(source.includes("Contrat final.pdf"), true);
+  assert.equal(
+    source.includes("contractDownloadFileName"),
+    true
+  );
+});
+
+test("session et annee du contrat sont reprises automatiquement", async () => {
+  const source = await readFile(
+    new URL(
+      "../../src/frontend/composants/StudentDashboard.jsx",
+      import.meta.url
+    ),
+    "utf8"
+  );
+
+  assert.equal(/updateField\(\s*"schoolYear"/.test(source), false);
+  assert.equal(/updateField\(\s*"session"/.test(source), false);
+  assert.equal(
+    /label="Année scolaire"\s+value=\{contract\.schoolYear\}/s.test(source),
+    true
+  );
+  assert.equal(
+    /label="Session"\s+value=\{contract\.session\}/s.test(source),
+    true
+  );
+  assert.equal(
+    source.includes("Documents ou informations à compléter"),
+    true
+  );
+  assert.equal(
+    source.includes("fonction du stage et autres"),
+    true
+  );
+  assert.equal(
+    source.includes("[\"schoolYear\", \"annee scolaire\"]"),
+    false
+  );
+  assert.equal(
+    source.includes("[\"session\", \"session\"]"),
+    false
+  );
+});
+
+test("depot manuel du milieu cache le champ fichier par defaut", async () => {
+  const source = await readFile(
+    new URL(
+      "../../src/frontend/composants/StudentDashboard.jsx",
+      import.meta.url
+    ),
+    "utf8"
+  );
+
+  assert.equal(source.includes("manualMilieuUploadEnabled"), true);
+  assert.equal(
+    source.includes("Remplacer le document du milieu de stage"),
+    true
+  );
+  assert.equal(
+    source.includes("Aucun fichier"),
+    false
+  );
+  assert.equal(
+    source.includes("n'est transmis"),
+    false
+  );
+});
+
+test("signature du milieu configuree pour Documenso par defaut", async () => {
+  const source = await readFile(
+    new URL(
+      "../services/contractService.js",
+      import.meta.url
+    ),
+    "utf8"
+  );
+
+  assert.equal(
+    source.includes("role: \"ENTREPRISE\""),
+    true
+  );
+  assert.equal(
+    source.includes("signatureProvider: \"DOCUMENSO\""),
+    true
+  );
+  assert.equal(
+    source.includes("CONTRAT_MILIEU_RECU_ETUDIANT"),
+    true
+  );
+});
+
+test("PDF Documenso final conserve comme source de verite", async () => {
+  const source = await readFile(
+    new URL(
+      "../services/contractPdfService.js",
+      import.meta.url
+    ),
+    "utf8"
+  );
+
+  assert.equal(
+    source.includes("includeOfficialStamps = false"),
+    true
+  );
+  assert.equal(
+    source.includes("includeAttestation || includeOfficialStamps"),
+    true
+  );
 });
 
 test("modification et retrait limites aux statuts autorises", () => {

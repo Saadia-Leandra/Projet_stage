@@ -6,7 +6,10 @@ import {
 
 import CityInput from "./CityInput.jsx";
 import ProvinceInput from "./ProvinceInput.jsx";
-import { calculateStageWeeks } from "../utils/stageDuration.js";
+import {
+  calculateStageWeeks,
+  recalculateStagePeriod
+} from "../utils/stageDuration.js";
 
 const documentOptions = [
   ["ATTESTATION", "Attestation"],
@@ -74,7 +77,6 @@ export default function StudentRequestEditForm({
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
-  const [weeksManuallyEdited, setWeeksManuallyEdited] = useState(false);
 
   useEffect(() => {
     if (!request) {
@@ -89,8 +91,6 @@ export default function StudentRequestEditForm({
     );
     const savedNumberOfWeeks =
       request.numberOfWeeks || "";
-
-    setWeeksManuallyEdited(false);
 
     setForm({
       studentPhone:
@@ -186,37 +186,37 @@ export default function StudentRequestEditForm({
     const fieldValue =
       type === "checkbox" ? checked : value;
 
-    if (name === "numberOfWeeks") {
-      setWeeksManuallyEdited(value !== "");
-    }
-
     setForm((currentForm) => {
-      const nextForm = {
-        ...currentForm,
-        [name]: fieldValue
-      };
-
       if (
-        (name === "startDate" || name === "endDate") &&
-        !weeksManuallyEdited
+        name === "startDate" ||
+        name === "numberOfWeeks" ||
+        name === "endDate"
       ) {
-        nextForm.numberOfWeeks = calculateStageWeeks(
-          name === "startDate" ? value : currentForm.startDate,
-          name === "endDate" ? value : currentForm.endDate
+        return recalculateStagePeriod(
+          currentForm,
+          name,
+          fieldValue
         );
       }
 
-      return nextForm;
+      return {
+        ...currentForm,
+        [name]: fieldValue
+      };
     });
 
     setFieldErrors((currentErrors) => {
       const fieldsToClear = [name];
 
-      if (
-        (name === "startDate" || name === "endDate") &&
-        !weeksManuallyEdited
-      ) {
+      if (name === "startDate" || name === "endDate") {
         fieldsToClear.push("numberOfWeeks");
+      }
+
+      if (
+        name === "startDate" ||
+        name === "numberOfWeeks"
+      ) {
+        fieldsToClear.push("endDate");
       }
 
       if (

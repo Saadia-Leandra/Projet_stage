@@ -96,6 +96,7 @@ DOCUMENSO_API_URL=https://app.documenso.com/api/v2
 DOCUMENSO_API_KEY=
 DOCUMENSO_WEBHOOK_SECRET=
 APP_PUBLIC_URL=
+STAGETEC_TEST_MODE=false
 ```
 
 Ne pas committer `backend/.env`, les secrets, les fichiers televerses ni les PDF generes.
@@ -117,6 +118,24 @@ ${APP_PUBLIC_URL}/api/webhooks/documenso
 ```
 
 La procedure de test manuel est documentee dans `mon-app/docs/documenso-test-manuel.md`.
+
+### Mode demonstration
+
+Le mode normal de presentation doit utiliser :
+
+```env
+STAGETEC_TEST_MODE=false
+```
+
+ou laisser la variable absente. Documenso reste actif dans ce mode : les enveloppes, recipients, webhooks, synchronisations et PDF signes continuent d'utiliser l'integration reelle.
+
+En developpement uniquement, il est possible d'activer :
+
+```env
+STAGETEC_TEST_MODE=true
+```
+
+Ce mode expose des outils de demonstration controles, dont les vraies URLs de signature Documenso deja creees pour les roles autorises. Il ne simule jamais une signature, un statut `SIGNE`, un webhook ou un PDF final. En production, le backend refuse toujours ce mode meme si la variable vaut `true`.
 
 ## Tests
 

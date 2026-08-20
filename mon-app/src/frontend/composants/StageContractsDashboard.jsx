@@ -17,6 +17,14 @@ export default function StageContractsDashboard({ user }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [syncingId, setSyncingId] = useState(null);
+  const [demoSigningEnabled, setDemoSigningEnabled] =
+    useState(false);
+  const [demoSigningLinks, setDemoSigningLinks] =
+    useState(null);
+  const [demoSigningLoading, setDemoSigningLoading] =
+    useState(false);
+  const [demoSigningError, setDemoSigningError] =
+    useState("");
   const contractDetailsRef = useRef(null);
 
   async function loadData() {
@@ -81,6 +89,9 @@ export default function StageContractsDashboard({ user }) {
 
       setRequests(requestsData.requests || []);
       setContracts(contractsData.contracts || []);
+      setDemoSigningEnabled(
+        Boolean(contractsData.testMode?.demoSigning)
+      );
       setNotifications(
         notificationsResponse.ok
           ? notificationsData.notifications || []
@@ -115,6 +126,16 @@ export default function StageContractsDashboard({ user }) {
   const currentUserSigner = selectedContract
     ? findCurrentUserSigner(selectedContract, user)
     : null;
+
+  useEffect(() => {
+    if (!demoSigningEnabled || !selectedContract?.id) {
+      setDemoSigningLinks(null);
+      setDemoSigningError("");
+      return;
+    }
+
+    loadDemoSigningLinks(selectedContract.id);
+  }, [demoSigningEnabled, selectedContract?.id]);
 
   const stats = useMemo(
     () => ({
@@ -224,6 +245,62 @@ export default function StageContractsDashboard({ user }) {
       setError("Erreur de connexion au serveur.");
     } finally {
       setSyncingId(null);
+    }
+  }
+
+  async function loadDemoSigningLinks(contractId) {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      setDemoSigningLinks(null);
+      return;
+    }
+
+    setDemoSigningLoading(true);
+    setDemoSigningError("");
+    setDemoSigningLinks(null);
+
+    try {
+      const response = await fetch(
+        `/api/stage-management/contracts/${contractId}/demo-signing-links`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      const data = await response
+        .json()
+        .catch(() => ({}));
+
+      if (response.status === 403 || response.status === 404) {
+        setDemoSigningEnabled(false);
+        setDemoSigningLinks(null);
+        return;
+      }
+
+      if (!response.ok) {
+        setDemoSigningLinks(null);
+        setDemoSigningError(
+          data.error ||
+            "Impossible de charger le mode demonstration."
+        );
+        return;
+      }
+
+      setDemoSigningLinks({
+        testMode: Boolean(data.testMode),
+        signers: data.signers || []
+      });
+    } catch (requestError) {
+      console.error(requestError);
+      setDemoSigningLinks(null);
+      setDemoSigningError(
+        "Erreur de connexion au serveur."
+      );
+    } finally {
+      setDemoSigningLoading(false);
     }
   }
 
@@ -627,6 +704,59 @@ export default function StageContractsDashboard({ user }) {
                   ? "Actualisation..."
                   : "Actualiser Documenso"}
               </button>
+            </div>
+          )}
+
+          {demoSigningLinks?.testMode && (
+            <div className="contractSection">
+              <div className="nextActionText">
+                <strong>Mode demonstration</strong>
+                <span>
+                  Ouvrir une vraie session Documenso pour
+                  un signataire de ce contrat.
+                </span>
+              </div>
+
+              {demoSigningLoading && (
+                <p className="notice">
+                  Chargement des liens de signature...
+                </p>
+              )}
+
+              {demoSigningError && (
+                <p className="studentError">
+                  {demoSigningError}
+                </p>
+              )}
+
+              <div className="contractSignerList">
+                {demoSigningLinks.signers.map((signer) => (
+                  <div
+                    className="contractSignerItem"
+                    key={signer.id}
+                  >
+                    <span>{signer.signingOrder}</span>
+
+                    <div>
+                      <strong>{signer.label}</strong>
+                      <small>
+                        {signer.name} - {signer.email}
+                      </small>
+                    </div>
+
+                    <button
+                      className="secondaryButton fitButton"
+                      type="button"
+                      disabled={!signer.signingUrl}
+                      onClick={() =>
+                        openSigningUrl(signer.signingUrl)
+                      }
+                    >
+                      Ouvrir la signature
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

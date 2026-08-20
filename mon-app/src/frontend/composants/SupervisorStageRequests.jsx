@@ -9,12 +9,20 @@
 import SupervisorRequestDetails from "./SupervisorRequestDetails.jsx";
 import SupervisorCorrectionModal from "./SupervisorCorrectionModal.jsx";
 import SupervisorRefusalModal from "./SupervisorRefusalModal.jsx";
+import {
+  requestByNavigationId,
+  stableRequestSelection
+} from "../utils/navigationContext.js";
 
-export default function SupervisorStageRequests() {
+export default function SupervisorStageRequests({
+  initialRequestId = null,
+  navigationKey = 0
+}) {
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] =
     useState(null);
   const latestDetailsRequestId = useRef(null);
+  const consumedNavigationKey = useRef(null);
 
   const [requestToRefuse, setRequestToRefuse] =
     useState(null);
@@ -144,19 +152,21 @@ export default function SupervisorStageRequests() {
         return;
       }
 
-      setRequests(data.requests || []);
+      const nextRequests = data.requests || [];
+      setRequests(nextRequests);
+      setSelectedRequest((currentRequest) => {
+        if (!currentRequest) {
+          return null;
+        }
 
-      if (selectedRequest) {
-        const updatedSelectedRequest =
-          (data.requests || []).find(
+        return (
+          nextRequests.find(
             (request) =>
-              request.id === selectedRequest.id
-          );
-
-        setSelectedRequest(
-          updatedSelectedRequest || null
+              Number(request.id) ===
+              Number(currentRequest.id)
+          ) || null
         );
-      }
+      });
     } catch (requestError) {
       console.error(requestError);
 
@@ -166,7 +176,7 @@ export default function SupervisorStageRequests() {
     } finally {
       setLoading(false);
     }
-  }, [selectedRequest]);
+  }, []);
 
   async function approveRequest(request) {
     const confirmed = window.confirm(
@@ -348,22 +358,25 @@ export default function SupervisorStageRequests() {
     }
   }
 
-  async function openDetails(request) {
+  const openDetails = useCallback(async function openDetails(
+    request
+  ) {
     const token = localStorage.getItem("token");
+    const requestId = Number(request.id);
 
-    latestDetailsRequestId.current = request.id;
+    latestDetailsRequestId.current = requestId;
     setPendingDetailsRequest(request);
-    setDetailsLoadingId(request.id);
+    setDetailsLoadingId(requestId);
     setSelectedRequest((currentRequest) =>
-      currentRequest?.id === request.id
-        ? currentRequest
-        : null
+      stableRequestSelection(
+        currentRequest,
+        request
+      )
     );
     setError("");
     setSuccess("");
 
     if (!token) {
-      setSelectedRequest(request);
       setPendingDetailsRequest(null);
       setDetailsLoadingId(null);
       return;
@@ -385,12 +398,12 @@ export default function SupervisorStageRequests() {
 
       if (response.ok && data.request) {
         if (
-          latestDetailsRequestId.current === request.id
+          latestDetailsRequestId.current === requestId
         ) {
           setSelectedRequest(data.request);
         }
       } else if (
-        latestDetailsRequestId.current === request.id
+        latestDetailsRequestId.current === requestId
       ) {
         setSelectedRequest((currentRequest) =>
           currentRequest || request
@@ -399,7 +412,7 @@ export default function SupervisorStageRequests() {
     } catch (requestError) {
       console.error(requestError);
       if (
-        latestDetailsRequestId.current === request.id
+        latestDetailsRequestId.current === requestId
       ) {
         setSelectedRequest((currentRequest) =>
           currentRequest || request
@@ -407,13 +420,39 @@ export default function SupervisorStageRequests() {
       }
     } finally {
       if (
-        latestDetailsRequestId.current === request.id
+        latestDetailsRequestId.current === requestId
       ) {
         setPendingDetailsRequest(null);
         setDetailsLoadingId(null);
       }
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    if (
+      !navigationKey ||
+      consumedNavigationKey.current === navigationKey
+    ) {
+      return;
+    }
+
+    const targetRequest = requestByNavigationId(
+      requests,
+      initialRequestId
+    );
+
+    if (!targetRequest) {
+      return;
+    }
+
+    consumedNavigationKey.current = navigationKey;
+    openDetails(targetRequest);
+  }, [
+    initialRequestId,
+    navigationKey,
+    requests,
+    openDetails
+  ]);
 
   function openRefusalModal(request) {
     setRequestToRefuse(request);
@@ -637,9 +676,11 @@ function RequestsTable({
             const nextAction =
               nextActionLabel(request);
             const isSelected =
-              selectedRequest?.id === request.id;
+              Number(selectedRequest?.id) ===
+              Number(request.id);
             const isLoadingDetails =
-              detailsLoadingId === request.id;
+              Number(detailsLoadingId) ===
+              Number(request.id);
 
             return (
               <tr key={request.id}>
