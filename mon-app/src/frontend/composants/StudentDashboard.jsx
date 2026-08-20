@@ -10,6 +10,9 @@ import {
   studentCanEditRequest,
   studentCanWithdrawRequest
 } from "../utils/studentStageDisplayState.js";
+import {
+  requestByNavigationId
+} from "../utils/navigationContext.js";
 
 const STAGE_PROGRESS_STEPS = [
   "Demande creee",
@@ -25,6 +28,7 @@ const STAGE_PROGRESS_STEPS = [
 
 export default function StudentDashboard({
   view,
+  navigationContext = {},
   onNavigate
 }) {
   const [student, setStudent] = useState(null);
@@ -190,6 +194,8 @@ export default function StudentDashboard({
           contracts={contracts}
           stageLockedByRefusal={stageLockedByRefusal}
           refusedRequest={refusedRequest}
+          targetRequestId={navigationContext.requestId}
+          navigationKey={navigationContext.navigationKey}
           onCreated={loadDashboard}
           onNavigate={onNavigate}
         />
@@ -201,6 +207,7 @@ export default function StudentDashboard({
           requests={requests}
           stageLockedByRefusal={stageLockedByRefusal}
           refusedRequest={refusedRequest}
+          targetContractId={navigationContext.contractId}
           onNavigate={onNavigate}
           onReload={loadDashboard}
         />
@@ -327,7 +334,7 @@ function OverviewView({
       const link = document.createElement("a");
 
       link.href = url;
-      link.download = `contrat-final-${latestContract.id}.pdf`;
+      link.download = finalContractFileName();
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -457,8 +464,8 @@ function OverviewView({
 
         {missingItems.length > 0 && (
           <p className="notice">
-            Documents ou informations a completer :{" "}
-            {missingItems.join(", ")}.
+            Documents ou informations à compléter :{" "}
+            {formatMissingContractItems(missingItems)}.
           </p>
         )}
 
@@ -481,7 +488,14 @@ function OverviewView({
                 return;
               }
 
-              onNavigate(displayState.targetView);
+              onNavigate(
+                displayState.targetView,
+                navigationContextForStudentAction({
+                  targetView: displayState.targetView,
+                  request: latestRequest,
+                  contract: latestContract
+                })
+              );
             }}
           >
             {displayState.actionLabel}
@@ -511,13 +525,15 @@ function OverviewView({
           onNavigate={onNavigate}
         />
 
-        <NotificationsSummary
-          latestRequest={latestRequest}
-          notifications={notifications}
-        />
-      </div>
+        <div className="studentDashboardSide">
+          <StatusLegend />
 
-      <StatusLegend />
+          <NotificationsSummary
+            latestRequest={latestRequest}
+            notifications={notifications}
+          />
+        </div>
+      </div>
 
       {loading && (
         <div className="studentMessage">
@@ -528,6 +544,22 @@ function OverviewView({
   );
 }
 
+function navigationContextForStudentAction({
+  targetView,
+  request,
+  contract
+}) {
+  if (targetView === "requests" && request?.id) {
+    return { requestId: request.id };
+  }
+
+  if (targetView === "contracts" && contract?.id) {
+    return { contractId: contract.id };
+  }
+
+  return {};
+}
+
 function RequestsView({
   loading,
   student,
@@ -535,6 +567,8 @@ function RequestsView({
   contracts,
   stageLockedByRefusal,
   refusedRequest,
+  targetRequestId,
+  navigationKey,
   onCreated,
   onNavigate
 }) {
@@ -575,6 +609,24 @@ function RequestsView({
       setEditingRequest(null);
     }
   }, [stageLockedByRefusal]);
+
+  useEffect(() => {
+    const targetRequest = requestByNavigationId(
+      requests,
+      targetRequestId
+    );
+
+    if (!targetRequest) {
+      return;
+    }
+
+    setEditingRequest(null);
+    setSelectedRequest((currentRequest) =>
+      Number(currentRequest?.id) === Number(targetRequest.id)
+        ? currentRequest
+        : targetRequest
+    );
+  }, [requests, targetRequestId, navigationKey]);
 
   async function handleUpdated() {
     await onCreated();
@@ -872,6 +924,7 @@ function ContractsView({
   requests,
   stageLockedByRefusal,
   refusedRequest,
+  targetContractId,
   onNavigate,
   onReload
 }) {
@@ -879,10 +932,22 @@ function ContractsView({
     useState(null);
 
   useEffect(() => {
+    const targetId = Number(targetContractId);
+
+    if (
+      Number.isInteger(targetId) &&
+      contracts.some(
+        (contract) => Number(contract.id) === targetId
+      )
+    ) {
+      setSelectedContractId(targetId);
+      return;
+    }
+
     if (!selectedContractId && contracts[0]) {
       setSelectedContractId(contracts[0].id);
     }
-  }, [contracts, selectedContractId]);
+  }, [contracts, selectedContractId, targetContractId]);
 
   const selectedContract = useMemo(
     () =>
@@ -922,30 +987,42 @@ function ContractsView({
         </div>
 
         {contracts.length > 1 && (
-          <div className="contractSelector">
-            <label htmlFor="contractSelect">
-              Contrat
-            </label>
+          <div
+            className="contractSelectionGrid"
+            aria-label="Sélection du contrat"
+          >
+            {contracts.map((contract) => {
+              const isSelected =
+                Number(contract.id) ===
+                Number(selectedContract?.id);
 
-            <select
-              id="contractSelect"
-              value={selectedContract?.id || ""}
-              onChange={(event) =>
-                setSelectedContractId(
-                  Number(event.target.value)
-                )
-              }
-            >
-              {contracts.map((contract) => (
-                <option
+              return (
+                <button
+                  className={`contractChoiceButton ${
+                    isSelected
+                      ? "contractChoiceButtonActive"
+                      : ""
+                  }`}
+                  type="button"
                   key={contract.id}
-                  value={contract.id}
+                  onClick={() =>
+                    setSelectedContractId(contract.id)
+                  }
+                  aria-pressed={isSelected}
                 >
-                  {contract.companyName || "Contrat"} -{" "}
-                  {contractStatusLabel(contract)}
-                </option>
-              ))}
-            </select>
+                  <span>
+                    {contract.companyName || "Contrat"}
+                  </span>
+                  <small>
+                    {formatDate(contract.startDate)} au{" "}
+                    {formatDate(contract.endDate)}
+                  </small>
+                  <strong>
+                    {contractStatusLabel(contract)}
+                  </strong>
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -989,6 +1066,14 @@ function ContractDetails({
     useState("");
   const [previousContractId, setPreviousContractId] =
     useState(contract.id);
+  const [receiptPanelVisible, setReceiptPanelVisible] =
+    useState(false);
+  const [
+    manualMilieuUploadEnabled,
+    setManualMilieuUploadEnabled
+  ] = useState(false);
+  const [milieuUploadInputKey, setMilieuUploadInputKey] =
+    useState(0);
 
   useEffect(() => {
     setFormData(contractToForm(contract));
@@ -1017,8 +1102,23 @@ function ContractDetails({
       signer.status === "ENVOYE"
   );
 
+  const hasActiveAdministrativeSignature =
+    contract.signers?.some((signer) =>
+      ["SUPERVISEUR", "CONSEILLERE", "DIRECTION"].includes(
+        signer.role
+      ) &&
+      (
+        signer.signingUrl ||
+        ["ENVOYE", "SIGNE"].includes(signer.status)
+      )
+    );
+  const canReplaceMilieuContract =
+    contract.status === "SIGNATURE_SUPERVISEUR" &&
+    contract.milieuSignedPdfAvailable &&
+    !hasActiveAdministrativeSignature;
   const canUploadMilieuContract =
-    contract.status === "CONTRAT_MILIEU_A_DEPOSER";
+    contract.status === "CONTRAT_MILIEU_A_DEPOSER" ||
+    canReplaceMilieuContract;
   const isMilieuDocumensoSignaturePending =
     contract.status === "SIGNATURE_ENTREPRISE";
   const canDownloadMilieuPdf =
@@ -1032,6 +1132,32 @@ function ContractDetails({
   const confirmationCode =
     receipt?.confirmationCode ||
     contract.confirmationCode;
+
+  useEffect(() => {
+    setManualMilieuUploadEnabled(false);
+    setMilieuUploadInputKey((currentKey) => currentKey + 1);
+  }, [contract.id, contract.status]);
+
+  useEffect(() => {
+    if (!confirmationCode) {
+      setReceiptPanelVisible(false);
+      return;
+    }
+
+    setReceiptPanelVisible(true);
+  }, [confirmationCode, contract.id]);
+
+  useEffect(() => {
+    if (!receiptPanelVisible || !confirmationCode) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      setReceiptPanelVisible(false);
+    }, 15000);
+
+    return () => window.clearTimeout(timer);
+  }, [receiptPanelVisible, confirmationCode]);
 
   function updateField(name, value) {
     setFormData((current) => ({
@@ -1201,6 +1327,7 @@ function ContractDetails({
   async function uploadMilieuSignedDocument(event) {
     event.preventDefault();
 
+    const form = event.currentTarget;
     const token = localStorage.getItem("token");
 
     if (!token) {
@@ -1208,9 +1335,15 @@ function ContractDetails({
       return;
     }
 
+    if (!manualMilieuUploadEnabled) {
+      setError(
+        "Cochez l'option de depot manuel avant de choisir un PDF."
+      );
+      return;
+    }
+
     const file =
-      event.currentTarget.elements
-        .milieuSignedDocument?.files?.[0];
+      form.elements.milieuSignedDocument?.files?.[0];
 
     if (!file) {
       setError(
@@ -1251,13 +1384,19 @@ function ContractDetails({
       }
 
       setReceipt(data.contract?.receipt || null);
+      form.reset();
+      setManualMilieuUploadEnabled(false);
+      setMilieuUploadInputKey((currentKey) => currentKey + 1);
       await onReload();
       setMessage(
-        data.contract?.documensoWarning
-          ? `Contrat signe par le milieu recu. ${data.contract.documensoWarning}`
-          : "Contrat signe par le milieu recu. La signature electronique de l'enseignant est lancee."
+        canReplaceMilieuContract
+          ? data.contract?.documensoWarning
+            ? `PDF signe par le milieu remplace. ${data.contract.documensoWarning}`
+            : "PDF signe par le milieu remplace. La signature electronique de l'enseignant est relancee."
+          : data.contract?.documensoWarning
+            ? `Contrat signe par le milieu recu. ${data.contract.documensoWarning}`
+            : "Contrat signe par le milieu recu. La signature electronique de l'enseignant est lancee."
       );
-      event.currentTarget.reset();
     } catch (requestError) {
       console.error(requestError);
       setError("Erreur de connexion au serveur.");
@@ -1348,7 +1487,7 @@ function ContractDetails({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${type}-contrat-${contract.id}.pdf`;
+      link.download = contractDownloadFileName(type);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -1358,6 +1497,15 @@ function ContractDetails({
       setError("Erreur de connexion au serveur.");
     } finally {
       setDownloading("");
+    }
+  }
+
+  function toggleManualMilieuUpload(event) {
+    const checked = event.target.checked;
+    setManualMilieuUploadEnabled(checked);
+
+    if (!checked) {
+      setMilieuUploadInputKey((currentKey) => currentKey + 1);
     }
   }
 
@@ -1405,9 +1553,11 @@ function ContractDetails({
 
       {canUploadMilieuContract && (
         <p className="notice">
-          Telechargez le PDF signe par vous, faites-le
-          signer par le milieu de stage en presentiel,
-          puis deposez le PDF signe ici.
+          La signature normale du milieu passe par
+          Documenso. Utilisez le depot manuel seulement si
+          vous devez remplacer explicitement le document du
+          milieu ou si l'envoi Documenso n'a pas pu etre
+          utilise.
         </p>
       )}
 
@@ -1444,13 +1594,13 @@ function ContractDetails({
 
         <div className="contractReadOnlyGrid">
           <ContractReadOnlyItem
-            label="Etudiant"
+            label="Étudiant"
             value={`${contract.studentFirstName || ""} ${
               contract.studentLastName || ""
             }`.trim()}
           />
           <ContractReadOnlyItem
-            label="Code etudiant"
+            label="Code étudiant"
             value={contract.studentCode}
           />
           <ContractReadOnlyItem
@@ -1466,15 +1616,23 @@ function ContractDetails({
             value={contract.studentGroup}
           />
           <ContractReadOnlyItem
-            label="Courriel etudiant"
+            label="Année scolaire"
+            value={contract.schoolYear}
+          />
+          <ContractReadOnlyItem
+            label="Session"
+            value={contract.session}
+          />
+          <ContractReadOnlyItem
+            label="Courriel étudiant"
             value={contract.studentEmail}
           />
           <ContractReadOnlyItem
-            label="Telephone etudiant"
+            label="Téléphone étudiant"
             value={contract.studentPhone}
           />
           <ContractReadOnlyItem
-            label="Adresse etudiant"
+            label="Adresse étudiant"
             value={formatAddress(
               contract.studentAddress,
               contract.studentCity,
@@ -1552,36 +1710,10 @@ function ContractDetails({
       </div>
 
       <div className="contractSection">
-        <h3>Informations a completer</h3>
+        <h3>Informations à compléter</h3>
         <p className="requiredHint">* Champ obligatoire</p>
 
         <div className="contractFormGrid">
-        <ContractField label="Annee scolaire *">
-          <input
-            value={formData.schoolYear}
-            disabled={!isEditable}
-            onChange={(event) =>
-              updateField(
-                "schoolYear",
-                event.target.value
-              )
-            }
-          />
-        </ContractField>
-
-        <ContractField label="Session *">
-          <input
-            value={formData.session}
-            disabled={!isEditable}
-            onChange={(event) =>
-              updateField(
-                "session",
-                event.target.value
-              )
-            }
-          />
-        </ContractField>
-
         <ContractField label="Code programme *">
           <input
             value={formData.codeProgram}
@@ -1852,7 +1984,9 @@ function ContractDetails({
             >
               {downloading === "original"
                 ? "Telechargement..."
-                : canUploadMilieuContract
+                : canReplaceMilieuContract
+                  ? "Telecharger le PDF a remplacer"
+                  : canUploadMilieuContract
                   ? "Telecharger le PDF a signer par le milieu"
                   : "Telecharger le PDF"}
             </button>
@@ -1873,43 +2007,79 @@ function ContractDetails({
       </div>
 
       {canUploadMilieuContract && (
-        <form
-          className="contractUploadForm"
-          onSubmit={uploadMilieuSignedDocument}
-        >
-          <ContractField
-            label="PDF signe par le milieu *"
-            wide
-          >
+        <div className="contractManualUploadPanel">
+          <label className="checkboxField manualReplacementToggle">
             <input
-              type="file"
-              name="milieuSignedDocument"
-              accept="application/pdf"
+              type="checkbox"
+              checked={manualMilieuUploadEnabled}
+              onChange={toggleManualMilieuUpload}
               disabled={
                 uploadingMilieu ||
                 syncingDocumenso
               }
-              required
             />
-          </ContractField>
+            {canReplaceMilieuContract
+              ? "Remplacer le document du milieu de stage"
+              : "Deposer manuellement le document signe par le milieu de stage"}
+          </label>
 
-          <button
-            className="primaryButton fitButton"
-            type="submit"
-            disabled={
-              uploadingMilieu ||
-              syncingDocumenso
-            }
-          >
-            {uploadingMilieu
-              ? "Depot..."
-              : "Deposer le PDF signe"}
-          </button>
-        </form>
+          {manualMilieuUploadEnabled && (
+            <form
+              className="contractUploadForm"
+              onSubmit={uploadMilieuSignedDocument}
+            >
+              <ContractField
+                label={
+                  canReplaceMilieuContract
+                    ? "Nouveau PDF signe par le milieu *"
+                    : "PDF signe par le milieu *"
+                }
+                wide
+              >
+                <input
+                  key={milieuUploadInputKey}
+                  type="file"
+                  name="milieuSignedDocument"
+                  accept="application/pdf"
+                  disabled={
+                    uploadingMilieu ||
+                    syncingDocumenso
+                  }
+                  required
+                />
+              </ContractField>
+
+              <button
+                className="primaryButton fitButton"
+                type="submit"
+                disabled={
+                  uploadingMilieu ||
+                  syncingDocumenso
+                }
+              >
+                {uploadingMilieu
+                  ? "Depot..."
+                  : canReplaceMilieuContract
+                    ? "Remplacer le PDF signe"
+                    : "Deposer le PDF signe"}
+              </button>
+            </form>
+          )}
+        </div>
       )}
 
-      {confirmationCode && (
+      {confirmationCode && receiptPanelVisible && (
         <div className="receiptPanel">
+          <button
+            className="receiptPanelClose"
+            type="button"
+            onClick={() =>
+              setReceiptPanelVisible(false)
+            }
+            aria-label="Fermer le recu"
+          >
+            x
+          </button>
           <strong>
             Votre contrat signe a ete recu avec succes.
           </strong>
@@ -1929,6 +2099,25 @@ function ContractDetails({
             {receipt?.nextStep ||
               "Signature electronique interne"}
           </span>
+        </div>
+      )}
+
+      {confirmationCode && !receiptPanelVisible && (
+        <div className="receiptCompactNotice">
+          <span>
+            Recu enregistre. Code de confirmation :{" "}
+            <strong>{confirmationCode}</strong>
+          </span>
+
+          <button
+            className="proofLinkButton"
+            type="button"
+            onClick={() =>
+              setReceiptPanelVisible(true)
+            }
+          >
+            Afficher le recu
+          </button>
         </div>
       )}
     </div>
@@ -2865,6 +3054,16 @@ function finalContractDownloadStorageKey(contractId) {
   return `stagetec-final-contract-downloaded-${contractId}`;
 }
 
+function finalContractFileName() {
+  return "Contrat final.pdf";
+}
+
+function contractDownloadFileName(type) {
+  return type === "signed"
+    ? finalContractFileName()
+    : "Contrat.pdf";
+}
+
 function ContractsSummary({
   contracts = [],
   requests,
@@ -3155,8 +3354,6 @@ function missingContractItems(contract) {
   }
 
   const requiredItems = [
-    ["schoolYear", "annee scolaire"],
-    ["session", "session"],
     ["codeProgram", "code programme"],
     ["functionStage", "fonction du stage"],
     ["descriptionStage", "description du stage"],
@@ -3168,6 +3365,20 @@ function missingContractItems(contract) {
   return requiredItems
     .filter(([key]) => !contract[key])
     .map(([, label]) => label);
+}
+
+function formatMissingContractItems(items) {
+  if (!items.length) {
+    return "";
+  }
+
+  if (items.includes("fonction du stage")) {
+    return "fonction du stage et autres";
+  }
+
+  return items.length > 1
+    ? `${items[0]} et autres`
+    : items[0];
 }
 
 function isCorrectionStatus(status) {

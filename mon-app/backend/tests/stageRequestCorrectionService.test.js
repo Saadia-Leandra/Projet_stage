@@ -28,6 +28,33 @@ test("demande marquee comme incomplete", () => {
   assert.equal(correction.status, "A_REVISER");
 });
 
+test("correction textuelle acceptee sans document demande", () => {
+  const correction = normalizeCorrectionPayload({
+    status: "A_REVISER",
+    reason: "Description du stage a clarifier",
+    correctionItems: "Resume des taches",
+    studentComment:
+      "Precisez les responsabilites quotidiennes du stage avant de resoumettre."
+  });
+
+  assert.equal(correction.status, "A_REVISER");
+  assert.deepEqual(correction.missingDocuments, []);
+});
+
+test("documents manquants exigent un document cible", () => {
+  assert.throws(
+    () =>
+      normalizeCorrectionPayload({
+        status: "DOCUMENTS_MANQUANTS",
+        reason: "Document requis pour completer le dossier",
+        correctionItems: "Piece justificative",
+        studentComment:
+          "Deposez le document demande avant de resoumettre."
+      }),
+    /document manquant/
+  );
+});
+
 test("commentaire obligatoire", () => {
   assert.throws(
     () =>

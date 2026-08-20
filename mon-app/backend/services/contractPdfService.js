@@ -42,7 +42,7 @@ export async function generateContractPdf(
 ) {
   const fileName = makePdfFileName(
     contract,
-    "contrat-original"
+    "contrat"
   );
   const relativePath = path.join("original", fileName);
   const absolutePath =
@@ -99,7 +99,8 @@ export async function saveSignedContractPdf(
   pdfBuffer,
   {
     signers = [],
-    includeAttestation = false
+    includeAttestation = false,
+    includeOfficialStamps = false
   } = {}
 ) {
   if (!isPdfBuffer(pdfBuffer)) {
@@ -109,18 +110,19 @@ export async function saveSignedContractPdf(
     );
   }
 
-  const fileName = makePdfFileName(contract, "signed");
+  const fileName = makePdfFileName(contract, "contrat-signe");
   const relativePath = path.join("signed", fileName);
   const absolutePath =
     resolveContractStoragePath(relativePath);
   const signedBuffer =
-    signers.length || includeAttestation
+    includeAttestation || includeOfficialStamps
       ? await stampContractSignaturesOnPdf(
           pdfBuffer,
           {
             contract,
             signers,
-            includeAttestation
+            includeAttestation,
+            includeOfficialStamps
           }
         )
       : pdfBuffer;
@@ -139,7 +141,8 @@ export async function stampContractSignaturesOnPdf(
   {
     contract = {},
     signers = [],
-    includeAttestation = false
+    includeAttestation = false,
+    includeOfficialStamps = false
   } = {}
 ) {
   if (!isPdfBuffer(pdfBuffer)) {
@@ -163,11 +166,13 @@ export async function stampContractSignaturesOnPdf(
     (signer) => signer.status === "SIGNE"
   );
 
-  drawOfficialSignatureStamps(
-    pdfDoc,
-    fonts,
-    signedSigners
-  );
+  if (includeOfficialStamps) {
+    drawOfficialSignatureStamps(
+      pdfDoc,
+      fonts,
+      signedSigners
+    );
+  }
 
   if (includeAttestation) {
     drawSignatureAttestationPage(

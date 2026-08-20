@@ -11,6 +11,7 @@ Cette procedure sert a valider l'integration reelle Documenso. Les tests automat
    - `DOCUMENSO_API_KEY=...`
    - `DOCUMENSO_WEBHOOK_SECRET=...`
    - `APP_PUBLIC_URL=https://adresse-publique`
+   - `STAGETEC_TEST_MODE=false` pour un test de presentation normal
 4. Exposer l'application locale avec une URL publique si le test est fait en local.
 5. Declarer le webhook dans Documenso :
 
@@ -19,6 +20,12 @@ ${APP_PUBLIC_URL}/api/webhooks/documenso
 ```
 
 Le webhook doit envoyer le secret configure dans l'en-tete `X-Documenso-Secret`.
+
+## Mode normal et mode demonstration
+
+- `STAGETEC_TEST_MODE=false` ou variable absente : StageTec utilise le workflow normal, les vrais courriels, Documenso, les webhooks et la synchronisation. Aucune URL de signature n'est exposee par les outils de demonstration.
+- `STAGETEC_TEST_MODE=true` hors production : les roles autorises peuvent ouvrir les vraies URLs de signature Documenso deja creees pour faciliter les tests. Ce mode ne simule jamais une signature, un webhook, un statut signe ou un PDF final.
+- `NODE_ENV=production` : le backend refuse toujours le mode demonstration, meme si `STAGETEC_TEST_MODE=true`.
 
 ## Scenario de validation
 

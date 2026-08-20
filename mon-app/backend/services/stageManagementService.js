@@ -1,4 +1,5 @@
 import { createDbPool } from "../config/db.js";
+import { resolveStudentAcademicDefaults } from "./contractService.js";
 
 const db = createDbPool();
 
@@ -267,6 +268,9 @@ function contractColumns() {
     c.id,
     c.dossier_stage_id AS folderId,
     c.demande_stage_id AS requestId,
+    c.annee_scolaire AS schoolYear,
+    c.session,
+    c.code_programme AS codeProgram,
     c.statut AS status,
     c.documenso_document_id AS documensoDocumentId,
     c.documenso_status AS documensoStatus,
@@ -290,6 +294,10 @@ function contractColumns() {
     student_user.courriel AS studentEmail,
     etu.code_etudiant AS studentCode,
     etu.programme AS program,
+    etu.cohorte AS studentCohort,
+    etu.session AS studentSession,
+    etu.date_debut_groupe AS studentGroupStartDate,
+    etu.date_fin_groupe AS studentGroupEndDate,
 
     ent.nom AS companyName,
     ent.ville AS companyCity,
@@ -320,8 +328,14 @@ function accessParams(user) {
 }
 
 function formatContract(row) {
+  const academicDefaults =
+    resolveStudentAcademicDefaults(row);
+
   return {
     ...row,
+    schoolYear: academicDefaults.schoolYear,
+    session: academicDefaults.session,
+    codeProgram: row.codeProgram || row.program || "",
     signedCount: Number(row.signedCount || 0),
     signerCount: Number(row.signerCount || 0),
     nextSigningOrder: row.nextSigningOrder

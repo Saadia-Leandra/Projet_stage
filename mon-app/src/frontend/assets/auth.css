@@ -1112,6 +1112,51 @@ h2 {
   margin: 12px 0 18px;
 }
 
+.contractSelectionGrid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  margin: 12px 0 18px;
+}
+
+.contractChoiceButton {
+  display: grid;
+  gap: 5px;
+  min-height: 96px;
+  padding: 14px;
+  border: 1px solid #dfe7f1;
+  border-radius: 8px;
+  color: #0f172a;
+  text-align: left;
+  background: #ffffff;
+  cursor: pointer;
+}
+
+.contractChoiceButton:hover,
+.contractChoiceButtonActive {
+  border-color: var(--color-primary);
+  background: #f5f9ff;
+}
+
+.contractChoiceButton span,
+.contractChoiceButton strong,
+.contractChoiceButton small {
+  display: block;
+}
+
+.contractChoiceButton span {
+  font-weight: 800;
+}
+
+.contractChoiceButton small {
+  color: var(--color-muted);
+}
+
+.contractChoiceButton strong {
+  color: var(--color-primary);
+  font-size: 12px;
+}
+
 .contractSelector label,
 .contractField span {
   color: #475569;
@@ -1162,6 +1207,45 @@ h2 {
   gap: 6px;
   margin-top: 16px;
   padding: 16px;
+  position: relative;
+}
+
+.receiptPanelClose {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #86efac;
+  border-radius: 8px;
+  color: #067647;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 14px;
+  font-weight: 800;
+  height: 30px;
+  justify-content: center;
+  line-height: 1;
+  min-width: 30px;
+  padding: 0;
+  position: absolute;
+  right: 10px;
+  top: 10px;
+}
+
+.receiptPanelClose:hover {
+  background: #dcfce7;
+}
+
+.receiptCompactNotice {
+  align-items: center;
+  background: #f0fdf4;
+  border: 1px solid #abefc6;
+  border-radius: 8px;
+  color: #067647;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  margin-top: 16px;
+  padding: 12px 14px;
 }
 
 .receiptBarcode {
@@ -1506,6 +1590,21 @@ h2 {
   border: 1px solid #bfdbfe;
   border-radius: 8px;
   background: #eff6ff;
+}
+
+.contractManualUploadPanel {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #dfe7f1;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.manualReplacementToggle {
+  margin: 0;
+  color: #0f172a;
+  font-weight: 800;
 }
 
 .contractUploadForm .primaryButton {
@@ -4195,6 +4294,16 @@ textarea:focus-visible {
   align-items: start;
 }
 
+.studentDashboardSide {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.studentDashboardSide .studentPanel {
+  margin-bottom: 0;
+}
+
 .contractRow,
 .notificationItem {
   border: 1px solid #e4eaf2;
@@ -4225,17 +4334,23 @@ textarea:focus-visible {
 }
 
 .legendPanel {
+  margin-top: 0;
   padding-block: 20px;
 }
 
 .legendList {
+  display: grid;
   gap: 10px;
 }
 
 .legendList span {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr);
+  align-items: center;
+  line-height: 1.35;
   padding: 8px 10px;
   border: 1px solid #e4eaf2;
-  border-radius: 999px;
+  border-radius: 8px;
   background: #ffffff;
 }
 

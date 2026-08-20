@@ -14,6 +14,52 @@ export function calculateStageWeeks(startDate, endDate) {
   return String(Math.ceil(dayCount / 7));
 }
 
+export function calculateStageEndDate(startDate, numberOfWeeks) {
+  const start = parseDateOnly(startDate);
+  const weeks = Number(numberOfWeeks);
+
+  if (!start || !Number.isFinite(weeks) || weeks <= 0) {
+    return "";
+  }
+
+  const dayCount = Math.max(1, Math.ceil(weeks * 7));
+  const end = new Date(
+    start.getTime() + (dayCount - 1) * MS_PER_DAY
+  );
+
+  return formatDateOnly(end);
+}
+
+export function recalculateStagePeriod(form, changedField, value) {
+  const nextForm = {
+    ...form,
+    [changedField]: value
+  };
+
+  if (
+    changedField === "startDate" ||
+    changedField === "numberOfWeeks"
+  ) {
+    nextForm.endDate = calculateStageEndDate(
+      changedField === "startDate"
+        ? value
+        : form.startDate,
+      changedField === "numberOfWeeks"
+        ? value
+        : form.numberOfWeeks
+    );
+  }
+
+  if (changedField === "endDate") {
+    nextForm.numberOfWeeks = calculateStageWeeks(
+      form.startDate,
+      value
+    );
+  }
+
+  return nextForm;
+}
+
 function parseDateOnly(value) {
   if (!value) {
     return null;
@@ -39,4 +85,12 @@ function parseDateOnly(value) {
   }
 
   return date;
+}
+
+function formatDateOnly(date) {
+  return [
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0")
+  ].join("-");
 }

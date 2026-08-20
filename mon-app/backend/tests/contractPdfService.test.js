@@ -9,6 +9,7 @@ import {
   generateContractPdf,
   generateInternshipRequestPdf,
   resolveContractStoragePath,
+  saveSignedContractPdf,
   stampContractSignaturesOnPdf
 } from "../services/contractPdfService.js";
 
@@ -73,12 +74,38 @@ test("genere un PDF de contrat valide", async () => {
 
   assert.equal(header.slice(0, 5), "%PDF-");
   assert.equal(pdfDoc.getPageCount(), 7);
+  assert.match(file.fileName, /-contrat-\d{14}-[0-9a-f]{8}\.pdf$/);
+  assert.doesNotMatch(file.fileName, /contrat-original|signed/);
   assert.equal(
     resolveContractStoragePath(file.relativePath),
     file.absolutePath
   );
 
   await fs.rm(file.absolutePath, { force: true });
+});
+
+test("nomme le PDF signe en francais", async () => {
+  const contract = {
+    id: 321,
+    externalId: "stagetec-test-321",
+    studentFirstName: "Marie",
+    studentLastName: "Tremblay",
+    companyName: "ACME"
+  };
+  const originalFile = await generateContractPdf(contract);
+  const signedFile = await saveSignedContractPdf(
+    contract,
+    await fs.readFile(originalFile.absolutePath)
+  );
+
+  assert.match(
+    signedFile.fileName,
+    /-contrat-signe-\d{14}-[0-9a-f]{8}\.pdf$/
+  );
+  assert.doesNotMatch(signedFile.fileName, /signed/);
+
+  await fs.rm(originalFile.absolutePath, { force: true });
+  await fs.rm(signedFile.absolutePath, { force: true });
 });
 
 test("genere une demande de stage PDF valide", async () => {
@@ -186,6 +213,44 @@ test("ajoute l'attestation des signatures au PDF final", async () => {
   assert.equal(pdfDoc.getPageCount(), 8);
 
   await fs.rm(file.absolutePath, { force: true });
+});
+
+test("conserve le PDF Documenso signe sans tampons StageTec par defaut", async () => {
+  const contract = {
+    id: 790,
+    externalId: "stagetec-test-790",
+    studentFirstName: "Marie",
+    studentLastName: "Tremblay",
+    companyName: "ACME"
+  };
+  const file = await generateContractPdf(contract);
+  const sourceBuffer = await fs.readFile(
+    file.absolutePath
+  );
+
+  const savedFile = await saveSignedContractPdf(
+    contract,
+    sourceBuffer,
+    {
+      signers: [
+        {
+          role: "ETUDIANT",
+          name: "Marie Tremblay",
+          status: "SIGNE",
+          signedAt: "2026-07-31T14:00:00.000Z",
+          signatureProvider: "DOCUMENSO"
+        }
+      ]
+    }
+  );
+  const pdfDoc = await PDFDocument.load(
+    await fs.readFile(savedFile.absolutePath)
+  );
+
+  assert.equal(pdfDoc.getPageCount(), 7);
+
+  await fs.rm(file.absolutePath, { force: true });
+  await fs.rm(savedFile.absolutePath, { force: true });
 });
 
 test("rejette les chemins de stockage relatifs dangereux", () => {

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { navigationTargetFromActionUrl } from "../utils/navigationContext.js";
 
 export default function NotificationBell({ onNavigate }) {
   const [notifications, setNotifications] = useState([]);
@@ -64,8 +65,12 @@ export default function NotificationBell({ onNavigate }) {
       }
     }
 
-    const destination = notificationDestination(notification.actionUrl);
-    if (destination) onNavigate(destination);
+    const destination = navigationTargetFromActionUrl(
+      notification.actionUrl
+    );
+    if (destination) {
+      onNavigate(destination.view, destination.context);
+    }
     setOpen(false);
   }
 
@@ -123,17 +128,6 @@ export default function NotificationBell({ onNavigate }) {
       )}
     </div>
   );
-}
-
-function notificationDestination(actionUrl = "") {
-  if (actionUrl.includes("/contracts/")) return actionUrl.includes("/stage-management/")
-    ? "stageContracts"
-    : "contracts";
-  if (actionUrl.includes("/supervisor/stages/requests/")) return "stageRequests";
-  if (actionUrl.includes("/demandes-stage/")) return "requests";
-  if (actionUrl.includes("/messages")) return "messages";
-  if (actionUrl.includes("/documents")) return "documents";
-  return "";
 }
 
 function BellIcon() {

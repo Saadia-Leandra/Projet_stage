@@ -37,6 +37,11 @@ const administrativeSignerRoles = [
   "DIRECTION"
 ];
 
+const activeDocumensoSignerStatuses = new Set([
+  "ENVOYE",
+  "SIGNE"
+]);
+
 export const MAX_MILIEU_SIGNED_PDF_SIZE_BYTES =
   15 * 1024 * 1024;
 
@@ -46,6 +51,32 @@ export const ELECTRONIC_SIGNATURE_ROLES = [
   "CONSEILLERE",
   "DIRECTION"
 ];
+
+export function resolveStudentAcademicDefaults(source = {}) {
+  const rawSession = firstClean(
+    source.session,
+    source.studentSession
+  );
+  const parsedSession =
+    splitAcademicSession(rawSession);
+  const schoolYear =
+    firstClean(
+      source.schoolYear,
+      source.studentSchoolYear
+    ) ||
+    parsedSession.schoolYear ||
+    firstClean(source.studentCohort) ||
+    inferSchoolYearFromDates(
+      source.studentGroupStartDate,
+      source.studentGroupEndDate
+    ) ||
+    inferSchoolYearFromSession(rawSession);
+
+  return {
+    schoolYear,
+    session: parsedSession.session
+  };
+}
 
 const documensoRecipientFailureStatuses = new Set([
   "BOUNCED",
@@ -72,6 +103,17 @@ const documensoEventStatuses = {
   DOCUMENT_REJECTED: "REJECTED",
   DOCUMENT_CANCELLED: "CANCELLED"
 };
+
+export function isStageTecTestModeEnabled(env = process.env) {
+  return (
+    String(env.STAGETEC_TEST_MODE || "")
+      .trim()
+      .toLowerCase() === "true" &&
+    String(env.NODE_ENV || "")
+      .trim()
+      .toLowerCase() !== "production"
+  );
+}
 
 export async function getStudentContracts(studentId) {
   const contracts = await findContractsForStudent(
@@ -551,8 +593,14 @@ export async function getStudentContractFile(
 
   return {
     absolutePath,
-    fileName: path.basename(absolutePath)
+    fileName: contractDownloadFileName(type)
   };
+}
+
+function contractDownloadFileName(type) {
+  return type === "signed"
+    ? "Contrat final.pdf"
+    : "Contrat.pdf";
 }
 
 export async function uploadMilieuSignedContract(
@@ -570,7 +618,19 @@ export async function uploadMilieuSignedContract(
 
   await ensureContractGenerationAllowed(contract);
 
-  if (contract.status !== "CONTRAT_MILIEU_A_DEPOSER") {
+  const signers = await getContractSigners(
+    db,
+    contract.id
+  );
+  const isInitialMilieuDeposit =
+    contract.status === "CONTRAT_MILIEU_A_DEPOSER";
+  const isReplacementMilieuDeposit =
+    canReplaceMilieuSignedContract(contract, signers);
+
+  if (
+    !isInitialMilieuDeposit &&
+    !isReplacementMilieuDeposit
+  ) {
     throw createError(
       "Le contrat signe par le milieu peut etre depose seulement lorsqu'un depot manuel est requis.",
       400
@@ -578,6 +638,7 @@ export async function uploadMilieuSignedContract(
   }
 
   const confirmationCode =
+    contract.confirmationCode ||
     await generateUniqueConfirmationCode(db);
   const storedFile = await saveUploadedContractPdf(
     contract,
@@ -648,7 +709,9 @@ export async function uploadMilieuSignedContract(
       eventType: "CONTRAT_SIGNE_MILIEU_RECU",
       oldStatus: contract.status,
       newStatus: "SIGNATURE_SUPERVISEUR",
-      comment: `Contrat signe par le milieu recu. Code de confirmation : ${confirmationCode}.`
+      comment: isReplacementMilieuDeposit
+        ? `Contrat signe par le milieu remplace. Code de confirmation : ${confirmationCode}.`
+        : `Contrat signe par le milieu recu. Code de confirmation : ${confirmationCode}.`
     });
 
     await createNotificationForUsers(connection, {
@@ -791,6 +854,33 @@ export function validateMilieuSignedContractFile(
     size,
     buffer
   };
+}
+
+export function canReplaceMilieuSignedContract(
+  contract,
+  signers = []
+) {
+  if (
+    contract?.status !== "SIGNATURE_SUPERVISEUR" ||
+    !(
+      contract.milieuSignedReceivedAt ||
+      contract.uploadedFilePath ||
+      contract.milieuSignedPdfAvailable
+    )
+  ) {
+    return false;
+  }
+
+  return signers
+    .filter((signer) =>
+      administrativeSignerRoles.includes(signer.role)
+    )
+    .every((signer) =>
+      !signer.signingUrl &&
+      !activeDocumensoSignerStatuses.has(
+        String(signer.status || "").toUpperCase()
+      )
+    );
 }
 
 export function generateConfirmationCodeValue(
@@ -1039,7 +1129,7 @@ export async function syncContractSignersForContract(
       signingOrder: 2,
       role: "ENTREPRISE",
       userId: null,
-      signatureProvider: "AUTRE",
+      signatureProvider: "DOCUMENSO",
       name: firstValue(
         source.companySignatureName,
         source.companySupervisorName,
@@ -1407,6 +1497,42 @@ export async function syncPendingDocumensoContractsForUser(
   return synced;
 }
 
+export async function getContractDemoSigningLinksForUser(
+  user,
+  contractId
+) {
+  if (!isStageTecTestModeEnabled()) {
+    throw createError(
+      "Mode demonstration desactive.",
+      403
+    );
+  }
+
+  if (!canAccessDemoSigningLinks(user)) {
+    throw createError(
+      "Contrat introuvable ou acces refuse.",
+      404
+    );
+  }
+
+  const contract = await findContractById(
+    db,
+    contractId
+  );
+  ensureContractAccessibleForUser(user, contract);
+
+  const signers = await getContractSigners(
+    db,
+    contract.id
+  );
+
+  return {
+    testMode: true,
+    contractId: contract.id,
+    signers: signers.map(formatDemoSigningLink)
+  };
+}
+
 function shouldSyncDocumensoContract(contract) {
   return Boolean(
     contract?.id &&
@@ -1415,6 +1541,29 @@ function shouldSyncDocumensoContract(contract) {
         "SIGNATURE_"
       )
   );
+}
+
+function canAccessDemoSigningLinks(user) {
+  return [
+    "SUPERVISEUR",
+    "CONSEILLERE",
+    "DIRECTION"
+  ].includes(user?.role);
+}
+
+function formatDemoSigningLink(signer) {
+  return {
+    id: signer.id,
+    signingOrder: signer.signingOrder,
+    role: signer.role,
+    label: signer.label,
+    name: signer.name,
+    email: signer.email,
+    status: signer.status,
+    signatureProvider: signer.signatureProvider,
+    signedAt: signer.signedAt,
+    signingUrl: signer.signingUrl || ""
+  };
 }
 
 export function normalizeDocumensoWebhookEvent(body = {}) {
@@ -1898,7 +2047,11 @@ function contractSelectColumns() {
     etu.code_etudiant AS studentCode,
     etu.code_permanent AS studentPermanentCode,
     etu.programme AS program,
+    etu.cohorte AS studentCohort,
     etu.groupe AS studentGroup,
+    etu.session AS studentSession,
+    etu.date_debut_groupe AS studentGroupStartDate,
+    etu.date_fin_groupe AS studentGroupEndDate,
     etu.adresse AS studentAddress,
     etu.ville AS studentCity,
     etu.province AS studentProvince,
@@ -2069,8 +2222,17 @@ async function getContractSigners(
 }
 
 function formatContract(row) {
+  const academicDefaults =
+    resolveStudentAcademicDefaults(row);
+
   return {
     ...row,
+    schoolYear: academicDefaults.schoolYear,
+    session: academicDefaults.session,
+    codeProgram: firstClean(
+      row.codeProgram,
+      row.program
+    ),
     isPaid: Boolean(row.isPaid),
     documensoConfigured: isDocumensoConfigured(),
     documensoMessage: getDocumensoConfigMessage(),
@@ -2155,13 +2317,19 @@ export function validateContractData(
   data = {},
   current = {}
 ) {
+  const academicDefaults =
+    resolveStudentAcademicDefaults({
+      ...current,
+      ...data
+    });
+
   const cleanedData = {
-    schoolYear: clean(
-      data.schoolYear ?? current.schoolYear
-    ),
-    session: clean(data.session ?? current.session),
-    codeProgram: clean(
-      data.codeProgram ?? current.codeProgram
+    schoolYear: academicDefaults.schoolYear,
+    session: academicDefaults.session,
+    codeProgram: firstClean(
+      data.codeProgram,
+      current.codeProgram,
+      current.program
     ),
     functionStage: clean(
       data.functionStage ?? current.functionStage
@@ -3177,6 +3345,16 @@ async function downloadAndSaveDocumensoPdf(
         userIds: [contract.teacherId]
       });
 
+      await createNotificationForUsers(connection, {
+        title: "Signature du milieu confirmee",
+        message:
+          "La signature du milieu de stage a ete confirmee dans Documenso. Le contrat poursuit maintenant le circuit de signatures internes.",
+        type: "CONTRAT_MILIEU_RECU_ETUDIANT",
+        contractId: contract.id,
+        actionUrl: `/contracts/${contract.id}`,
+        userIds: [contract.studentId]
+      });
+
       startAdministrativeWorkflowPath = pdf.relativePath;
     } else {
       await connection.execute(
@@ -3383,6 +3561,73 @@ function firstValue(...values) {
       value !== null &&
       value !== ""
   );
+}
+
+function firstClean(...values) {
+  for (const value of values) {
+    const cleanedValue = clean(value);
+
+    if (cleanedValue) {
+      return cleanedValue;
+    }
+  }
+
+  return "";
+}
+
+function splitAcademicSession(value) {
+  const cleanedValue = clean(value);
+  const match = cleanedValue.match(
+    /^(.*?)[\s/-]*(20\d{2})$/
+  );
+
+  if (!match) {
+    return {
+      schoolYear: "",
+      session: cleanedValue
+    };
+  }
+
+  const session = clean(match[1]);
+
+  return {
+    schoolYear: match[2],
+    session: session || cleanedValue
+  };
+}
+
+function inferSchoolYearFromDates(startDate, endDate) {
+  const startYear = yearFromDateLike(startDate);
+  const endYear = yearFromDateLike(endDate);
+
+  if (startYear && endYear && startYear !== endYear) {
+    return `${startYear}-${endYear}`;
+  }
+
+  return startYear || endYear || "";
+}
+
+function inferSchoolYearFromSession(session) {
+  const match = String(session || "").match(/\b(20\d{2})\b/);
+
+  return match?.[1] || "";
+}
+
+function yearFromDateLike(value) {
+  if (!value) {
+    return "";
+  }
+
+  if (
+    value instanceof Date &&
+    !Number.isNaN(value.getTime())
+  ) {
+    return String(value.getFullYear());
+  }
+
+  const match = String(value).match(/\b(20\d{2})\b/);
+
+  return match?.[1] || "";
 }
 
 function joinName(firstName, lastName) {

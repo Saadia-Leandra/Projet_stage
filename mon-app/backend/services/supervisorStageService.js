@@ -1,6 +1,7 @@
 import { createDbPool } from "../config/db.js";
 import {
   cancelContractsForRequest,
+  resolveStudentAcademicDefaults,
   syncContractSignersForContract
 } from "./contractService.js";
 import { createNotificationForUsers } from "./notificationService.js";
@@ -505,7 +506,11 @@ async function findAssignedRequest(
 
         ds.etudiant_id AS studentId,
 
-        etu.programme AS program
+        etu.programme AS program,
+        etu.cohorte AS studentCohort,
+        etu.session AS studentSession,
+        etu.date_debut_groupe AS studentGroupStartDate,
+        etu.date_fin_groupe AS studentGroupEndDate
 
       FROM demandes_stage d
 
@@ -559,6 +564,8 @@ async function createContractIfMissing(
   connection,
   request
 ) {
+  const academicDefaults =
+    resolveStudentAcademicDefaults(request);
   const totalHours =
     Number(request.hoursPerWeek || 0) *
     Number(request.numberOfWeeks || 0);
@@ -579,6 +586,8 @@ async function createContractIfMissing(
       `
         UPDATE contrats
         SET
+          annee_scolaire = ?,
+          session = ?,
           code_programme = ?,
           description_stage = ?,
           est_remunere = ?,
@@ -592,6 +601,8 @@ async function createContractIfMissing(
         WHERE id = ?
       `,
       [
+        academicDefaults.schoolYear,
+        academicDefaults.session,
         request.program,
         request.taskSummary,
         Boolean(request.isPaid),
@@ -618,6 +629,8 @@ async function createContractIfMissing(
       INSERT INTO contrats (
         dossier_stage_id,
         demande_stage_id,
+        annee_scolaire,
+        session,
         code_programme,
         description_stage,
         est_remunere,
@@ -630,13 +643,15 @@ async function createContractIfMissing(
         statut
       )
       VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         'A_COMPLETER_ETUDIANT'
       )
     `,
     [
       request.folderId,
       request.id,
+      academicDefaults.schoolYear,
+      academicDefaults.session,
       request.program,
       request.taskSummary,
       Boolean(request.isPaid),

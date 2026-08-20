@@ -11,6 +11,8 @@ import {
   getStageRequestsForUser
 } from "../services/stageManagementService.js";
 import {
+  getContractDemoSigningLinksForUser,
+  isStageTecTestModeEnabled,
   syncContractDocumensoStatusForUser,
   syncPendingDocumensoContractsForUser
 } from "../services/contractService.js";
@@ -42,11 +44,42 @@ router.get("/contracts", async (req, res, next) => {
       );
     }
 
-    res.json({ contracts });
+    const response = { contracts };
+
+    if (isStageTecTestModeEnabled()) {
+      response.testMode = {
+        demoSigning: true
+      };
+    }
+
+    res.json(response);
   } catch (error) {
     next(error);
   }
 });
+
+router.get(
+  "/contracts/:contractId/demo-signing-links",
+  async (req, res, next) => {
+    try {
+      const contractId = validateId(
+        req.params.contractId,
+        "Identifiant de contrat invalide."
+      );
+
+      const demoSigningLinks =
+        await getContractDemoSigningLinksForUser(
+          req.user,
+          contractId
+        );
+
+      res.set("Cache-Control", "no-store");
+      res.json(demoSigningLinks);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 router.get(
   "/contracts/:contractId",
