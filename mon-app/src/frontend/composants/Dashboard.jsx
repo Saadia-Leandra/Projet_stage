@@ -125,7 +125,7 @@ export default function Dashboard({ user, onLogout }) {
             />
           )}
 
-          {["ETUDIANT", "SUPERVISEUR", "CONSEILLERE", "DIRECTION"].includes(currentUser.role) && (
+          {["ETUDIANT", "SUPERVISEUR", "CONSEILLERE", "COMPTABILITE", "DIRECTION"].includes(currentUser.role) && (
             <SidebarButton
               active={activeView === "messages"}
               label="Messagerie"
@@ -312,10 +312,13 @@ export default function Dashboard({ user, onLogout }) {
             onNavigate={handleNavigate}
           />
         ) : activeView === "messages" &&
-          ["ETUDIANT", "SUPERVISEUR", "CONSEILLERE", "DIRECTION"].includes(currentUser.role) ? (
+          ["ETUDIANT", "SUPERVISEUR", "CONSEILLERE", "COMPTABILITE", "DIRECTION"].includes(currentUser.role) ? (
           <MessagesPanel user={currentUser} />
         ) : activeView === "stageContracts" ? (
-          <StageContractsDashboard user={currentUser} />
+          <StageContractsDashboard
+            user={currentUser}
+            navigationContext={navigationContext}
+          />
         ) : activeView === "payroll" ? (
           <PayrollDashboard user={currentUser} />
         ) : currentUser.role === "ETUDIANT" ? (
@@ -519,6 +522,7 @@ function pageTitle(view) {
     payroll: "Paie superviseurs",
     studentImport: "Importation des étudiants",
     employeeImport: "Importation des employés",
+    adminStudents: "Gérer les étudiants",
     adminEmployees: "Gestion des employés",
     history: "Historique",
     historyMileage: "Historique"
@@ -544,6 +548,7 @@ function pageDescription(view, role) {
     payroll: "Consultez les périodes, montants et statuts de paiement.",
     studentImport: "Ajoutez plusieurs étudiants de manière contrôlée.",
     employeeImport: "Créez les comptes du personnel à partir du fichier préparé par l’école.",
+    adminStudents: "Recherchez, filtrez et mettez à jour les dossiers étudiants.",
     adminEmployees: "Consultez et mettez à jour les comptes du personnel.",
     history: "Consultez les opérations de paie et de kilométrage déjà traitées.",
     historyMileage: "Consultez les opérations de paie et de kilométrage déjà traitées."

@@ -50,6 +50,11 @@
           LEFT JOIN entreprises ent ON ent.id = d.entreprise_id
           WHERE e.superviseur_id = ?
             AND u.statut = 'ACTIF'
+            AND (ds.id IS NULL OR ds.id = (
+              SELECT ds2.id FROM dossiers_stage ds2
+              WHERE ds2.etudiant_id = e.utilisateur_id
+              ORDER BY ds2.cree_le DESC, ds2.id DESC LIMIT 1
+            ))
           ORDER BY u.nom, u.prenom
         `,
         [supervisorUserId]

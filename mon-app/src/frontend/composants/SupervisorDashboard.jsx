@@ -2,6 +2,7 @@
 import SupervisorStageRequests from "./SupervisorStageRequests.jsx";
 import { Fragment } from "react";
 import FrozenRouteSnapshot from "./FrozenRouteSnapshot.jsx";
+import { dedupeStudents } from "../utils/dedupeStudents.js";
 
 const CAMPUS_OPTIONS = {
   MTL: {
@@ -68,7 +69,7 @@ export default function SupervisorDashboard({
         return;
       }
 
-      setStudents(studentsData.students || []);
+      setStudents(dedupeStudents(studentsData.students));
       const requestsResponse = await fetch("/api/supervisor/stages/requests", {
         headers: { Authorization: `Bearer ${token}` }
       });

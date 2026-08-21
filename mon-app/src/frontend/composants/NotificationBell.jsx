@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { navigationTargetFromActionUrl } from "../utils/navigationContext.js";
+import NotificationCard from "./NotificationCard.jsx";
 
 export default function NotificationBell({ onNavigate }) {
   const [notifications, setNotifications] = useState([]);
@@ -36,6 +37,14 @@ export default function NotificationBell({ onNavigate }) {
   }, []);
 
   useEffect(() => {
+    const removeReadNotification = (event) => {
+      setNotifications((current) => current.filter((item) => item.id !== event.detail));
+    };
+    window.addEventListener("notification-read", removeReadNotification);
+    return () => window.removeEventListener("notification-read", removeReadNotification);
+  }, []);
+
+  useEffect(() => {
     function closeOnOutsideClick(event) {
       if (!containerRef.current?.contains(event.target)) setOpen(false);
     }
@@ -54,15 +63,13 @@ export default function NotificationBell({ onNavigate }) {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      if (response.ok) {
-        setNotifications((current) =>
-          current.map((item) =>
-            item.id === notification.id
-              ? { ...item, readAt: new Date().toISOString() }
-              : item
-          )
-        );
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setError(data.error || "Impossible de marquer la notification comme lue.");
+        return;
       }
+      setNotifications((current) => current.filter((item) => item.id !== notification.id));
+      window.dispatchEvent(new CustomEvent("notification-read", { detail: notification.id }));
     }
 
     const destination = navigationTargetFromActionUrl(
@@ -106,23 +113,10 @@ export default function NotificationBell({ onNavigate }) {
 
           <div className="notificationPopoverList">
             {error && <p className="notificationPopoverMessage">{error}</p>}
-            {!error && notifications.length === 0 && (
+            {!error && unreadCount === 0 && (
               <p className="notificationPopoverMessage">Aucune notification pour le moment.</p>
             )}
-            {notifications.slice(0, 6).map((notification) => (
-              <button
-                className={`notificationPopoverItem${notification.readAt ? "" : " unread"}`}
-                type="button"
-                key={notification.id}
-                onClick={() => openNotification(notification)}
-              >
-                <span className="notificationPopoverDot" />
-                <span>
-                  <strong>{notification.title}</strong>
-                  <small>{notification.message}</small>
-                </span>
-              </button>
-            ))}
+            {notifications.filter((notification) => !notification.readAt).slice(0, 6).map((notification) => <NotificationCard compact key={notification.id} notification={notification} onClick={() => openNotification(notification)} />)}
           </div>
         </section>
       )}

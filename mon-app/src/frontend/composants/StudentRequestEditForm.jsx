@@ -6,6 +6,7 @@ import {
 
 import CityInput from "./CityInput.jsx";
 import ProvinceInput from "./ProvinceInput.jsx";
+import CompanyAutocomplete from "./CompanyAutocomplete.jsx";
 import {
   calculateStageWeeks,
   recalculateStagePeriod
@@ -607,6 +608,11 @@ export default function StudentRequestEditForm({
               message={fieldErrors.companyAddress}
             />
           </label>
+
+          <CompanyAutocomplete
+            form={form}
+            onApply={(values) => setForm((current) => ({ ...current, ...values }))}
+          />
 
           <label className="field">
             Ville *

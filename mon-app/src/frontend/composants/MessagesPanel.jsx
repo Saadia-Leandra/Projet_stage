@@ -51,13 +51,6 @@ function roleLabel(role) {
   return labels[role] || role;
 }
 
-function visibleContactsForUser(contacts, userRole) {
-  if (userRole !== "DIRECTION") return contacts;
-  return contacts.filter((contact) =>
-    ["CONSEILLERE", "COMPTABILITE"].includes(contact.role)
-  );
-}
-
 export default function MessagesPanel({ user }) {
   const [contacts, setContacts] = useState([]);
   const [activeContact, setActiveContact] = useState(null);
@@ -66,24 +59,28 @@ export default function MessagesPanel({ user }) {
   const [attachment, setAttachment] = useState(null);
   const [recipientQuery, setRecipientQuery] = useState("");
   const [recipientOpen, setRecipientOpen] = useState(false);
+  const [composing, setComposing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const bottomRef = useRef(null);
 
+  const conversationContacts = contacts.filter((contact) =>
+    contact.lastAt || contact.lastMessage || contact.unread > 0
+  );
   const matchingContacts = contacts.filter((contact) =>
-    normalizeSearch(contact.name).startsWith(normalizeSearch(recipientQuery))
+    normalizeSearch(contact.name).includes(normalizeSearch(recipientQuery))
   );
 
   const loadContacts = useCallback(async () => {
     try {
       const data = await apiJson("/api/messages/contacts");
-      setContacts(visibleContactsForUser(data.contacts || [], user.role));
+      setContacts(data.contacts || []);
     } catch (loadError) {
       setError(loadError.message);
     } finally {
       setLoading(false);
     }
-  }, [user.role]);
+  }, []);
 
   const loadConversation = useCallback(async (contactId) => {
     if (!contactId) return;
@@ -115,6 +112,7 @@ export default function MessagesPanel({ user }) {
     setActiveContact(contact);
     setRecipientQuery(contact.name || "");
     setRecipientOpen(false);
+    setComposing(false);
     setMessages([]);
     await loadConversation(contact.id);
     loadContacts();
@@ -191,14 +189,22 @@ export default function MessagesPanel({ user }) {
           <h2>Messagerie</h2>
           <p>Échangez simplement avec les personnes liées à votre dossier.</p>
         </div>
-        <span className="messagesContactCount">{contacts.length} contact(s)</span>
+        <span className="messagesContactCount">{conversationContacts.length} conversation(s)</span>
       </div>
 
       {error && <div className="error-message">{error}</div>}
 
       <div className="messagesWorkspace">
         <div className="messagesContacts">
-          <div className="messageRecipientPicker">
+          <button className="newConversationButton" type="button" onClick={() => {
+            setComposing((current) => !current);
+            setRecipientOpen(!composing);
+            setRecipientQuery("");
+          }}>
+            <span aria-hidden="true">+</span>
+            Nouvelle conversation
+          </button>
+          {composing && <div className="messageRecipientPicker">
             <label htmlFor="messageRecipient">Destinataire</label>
             <div className="messageRecipientInputWrap">
               <span className="messageRecipientSearch" aria-hidden="true">⌕</span>
@@ -233,12 +239,12 @@ export default function MessagesPanel({ user }) {
                 )) : <p>Aucun destinataire trouvé.</p>}
               </div>
             )}
-          </div>
-          <div className="messagesContactsTitle"><strong>Conversations</strong><span>{contacts.filter((contact) => contact.unread > 0).length} non lue(s)</span></div>
-          {contacts.length === 0 ? (
-            <p className="emptyState">Aucun contact disponible.</p>
+          </div>}
+          <div className="messagesContactsTitle"><strong>Conversations récentes</strong><span>{conversationContacts.filter((contact) => contact.unread > 0).length} non lue(s)</span></div>
+          {conversationContacts.length === 0 ? (
+            <div className="messagesNoConversation"><strong>Aucune conversation</strong><span>Utilisez « Nouvelle conversation » pour écrire à un contact.</span></div>
           ) : (
-            contacts.map((contact) => (
+            conversationContacts.map((contact) => (
               <button
                 key={contact.id}
                 type="button"

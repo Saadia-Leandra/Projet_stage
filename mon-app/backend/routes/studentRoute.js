@@ -7,6 +7,7 @@ import { readMultipartFormData } from "../services/multipartService.js";
 
 import {
   createInternshipRequest,
+  findFrequentCompanies,
   getStudentDashboard,
   getStudentRequestFile,
   getStudentRequests
@@ -41,6 +42,16 @@ router.get(
     } catch (error) {
       next(error);
     }
+  }
+);
+
+router.get(
+  "/company-suggestions",
+  async (req, res, next) => {
+    try {
+      const companies = await findFrequentCompanies({ name: req.query.name, address: req.query.address });
+      res.json({ companies });
+    } catch (error) { next(error); }
   }
 );
 
