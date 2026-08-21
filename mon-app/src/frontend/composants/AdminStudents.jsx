@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { dedupeStudents } from "../utils/dedupeStudents.js";
 
 const EMPTY_FORM = {
   userId: null,
@@ -39,6 +40,24 @@ export default function AdminStudents() {
   const [statusLoadingId, setStatusLoadingId] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [filters, setFilters] = useState({ search: "", course: "", session: "", status: "" });
+
+  const courses = useMemo(() => [...new Set(students
+    .map((student) => student.numero_cours || student.titre_cours || student.programme)
+    .filter(Boolean))].sort(), [students]);
+  const sessions = useMemo(() => [...new Set(students.map((student) => student.session).filter(Boolean))].sort(), [students]);
+  const filteredStudents = useMemo(() => {
+    const search = filters.search.trim().toLocaleLowerCase("fr-CA");
+    return students.filter((student) => {
+      const course = student.numero_cours || student.titre_cours || student.programme || "";
+      const identity = [student.nom, student.prenom, student.code_etudiant, student.courriel]
+        .filter(Boolean).join(" ").toLocaleLowerCase("fr-CA");
+      return (!search || identity.includes(search))
+        && (!filters.course || course === filters.course)
+        && (!filters.session || student.session === filters.session)
+        && (!filters.status || student.statut === filters.status);
+    });
+  }, [students, filters]);
 
   async function loadStudents() {
     setLoading(true);
@@ -54,7 +73,7 @@ export default function AdminStudents() {
         throw new Error(data.error || "Impossible de charger les étudiants.");
       }
 
-      setStudents(data.students || []);
+      setStudents(dedupeStudents(data.students));
       setSupervisors(data.supervisors || []);
     } catch (loadError) {
       setError(loadError.message || "Impossible de charger les étudiants.");
@@ -85,7 +104,12 @@ export default function AdminStudents() {
       ...student,
       telephone: student.telephone || "",
       telephone_secondaire: student.telephone_secondaire || "",
-      superviseur_id: student.superviseur_id || ""
+      superviseur_id: student.superviseur_id || "",
+      expiration_caq: dateValue(student.expiration_caq),
+      expiration_permis_etudes: dateValue(student.expiration_permis_etudes),
+      expiration_assurance: dateValue(student.expiration_assurance),
+      date_debut_groupe: dateValue(student.date_debut_groupe),
+      date_fin_groupe: dateValue(student.date_fin_groupe)
     });
   }
 
@@ -173,13 +197,29 @@ export default function AdminStudents() {
         <div>
           <h2>Liste des étudiants créés</h2>
           <p className="panelSubtle">
-            {students.length} étudiant(s) enregistré(s)
+            {filteredStudents.length} étudiant(s) trouvé(s) sur {students.length}
           </p>
         </div>
       </div>
 
       {error && <div className="error-message">{error}</div>}
       {success && <div className="success-message">{success}</div>}
+
+      {!loading && students.length > 0 && <div className="managementStats">
+        <div><span>Total</span><strong>{students.length}</strong></div>
+        <div><span>Actifs</span><strong>{students.filter((student) => student.statut === "ACTIF").length}</strong></div>
+        <div><span>Archivés</span><strong>{students.filter((student) => student.statut !== "ACTIF").length}</strong></div>
+      </div>}
+
+      {!loading && students.length > 0 && (
+        <div className="adminStudentFilters managementToolbar">
+          <label className="managementSearch"><span>Rechercher</span><input name="search" value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Nom, courriel ou numéro de dossier" /></label>
+          <label><span>Cours</span><select name="course" value={filters.course} onChange={(event) => setFilters((current) => ({ ...current, course: event.target.value }))}><option value="">Tous les cours</option>{courses.map((course) => <option key={course} value={course}>{course}</option>)}</select></label>
+          <label><span>Session</span><select name="session" value={filters.session} onChange={(event) => setFilters((current) => ({ ...current, session: event.target.value }))}><option value="">Toutes les sessions</option>{sessions.map((session) => <option key={session} value={session}>{session}</option>)}</select></label>
+          <label><span>Statut</span><select name="status" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}><option value="">Tous</option><option value="ACTIF">Actifs</option><option value="INACTIF">Archivés</option></select></label>
+          <button className="secondaryButton fitButton" type="button" onClick={() => setFilters({ search: "", course: "", session: "", status: "" })}>Réinitialiser</button>
+        </div>
+      )}
 
       {loading ? (
         <p>Chargement des étudiants...</p>
@@ -190,23 +230,19 @@ export default function AdminStudents() {
           <table>
             <thead>
               <tr>
-                <th>Dossier</th>
-                <th>Nom</th>
-                <th>Prénom</th>
-                <th>Courriel</th>
-                <th>Téléphone</th>
+                <th>Étudiant</th>
+                <th>Coordonnées</th>
+                <th>Parcours</th>
                 <th>Statut</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {students.map((student) => (
+              {filteredStudents.map((student) => (
                 <tr key={student.userId}>
-                  <td>{student.code_etudiant}</td>
-                  <td>{student.nom}</td>
-                  <td>{student.prenom}</td>
-                  <td>{student.courriel}</td>
-                  <td>{student.telephone || "—"}</td>
+                  <td><div className="studentIdentity"><span className="studentAvatar">{initials(student)}</span><span><strong>{student.prenom} {student.nom}</strong><small>{student.code_etudiant}</small></span></div></td>
+                  <td><strong className="tablePrimaryText">{student.courriel}</strong><span className="tableSubtext">{student.telephone || "Aucun téléphone"}</span></td>
+                  <td><strong className="tablePrimaryText">{student.numero_cours || student.programme || "—"}</strong><span className="tableSubtext">{[student.session, student.groupe].filter(Boolean).join(" · ") || "Non précisé"}</span></td>
                   <td>
                     <span
                       className={`statusPill ${
@@ -239,6 +275,7 @@ export default function AdminStudents() {
                   </td>
                 </tr>
               ))}
+              {!filteredStudents.length && <tr><td colSpan="5"><div className="emptyState"><strong>Aucun étudiant trouvé</strong><span>Modifiez les critères ou réinitialisez les filtres.</span></div></td></tr>}
             </tbody>
           </table>
         </div>
@@ -412,4 +449,8 @@ function authHeaders() {
 
 function dateValue(value) {
   return value ? String(value).slice(0, 10) : "";
+}
+
+function initials(student) {
+  return `${student.prenom?.[0] || ""}${student.nom?.[0] || ""}`.toUpperCase() || "?";
 }

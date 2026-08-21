@@ -5,15 +5,16 @@ import {
   useState
 } from "react";
 
-export default function StageContractsDashboard({ user }) {
+export default function StageContractsDashboard({ user, navigationContext = {} }) {
   const [requests, setRequests] = useState([]);
   const [contracts, setContracts] = useState([]);
-  const [notifications, setNotifications] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [requestFilter, setRequestFilter] =
     useState("TOUTES");
   const [contractFilter, setContractFilter] =
     useState("TOUS");
+  const [requestSearch, setRequestSearch] = useState("");
+  const [contractSearch, setContractSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [syncingId, setSyncingId] = useState(null);
@@ -43,19 +44,14 @@ export default function StageContractsDashboard({ user }) {
         Authorization: `Bearer ${token}`
       };
 
-      const [
-        requestsResponse,
-        contractsResponse,
-        notificationsResponse
-      ] =
+      const [requestsResponse, contractsResponse] =
         await Promise.all([
           fetch("/api/stage-management/requests", {
             headers
           }),
           fetch("/api/stage-management/contracts", {
             headers
-          }),
-          fetch("/api/notifications", { headers })
+          })
         ]);
 
       const requestsData = await requestsResponse
@@ -82,20 +78,10 @@ export default function StageContractsDashboard({ user }) {
         return;
       }
 
-      const notificationsData =
-        await notificationsResponse
-          .json()
-          .catch(() => ({}));
-
       setRequests(requestsData.requests || []);
       setContracts(contractsData.contracts || []);
       setDemoSigningEnabled(
         Boolean(contractsData.testMode?.demoSigning)
-      );
-      setNotifications(
-        notificationsResponse.ok
-          ? notificationsData.notifications || []
-          : []
       );
       setError("");
     } catch (requestError) {
@@ -109,6 +95,13 @@ export default function StageContractsDashboard({ user }) {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const contractId = Number(navigationContext.contractId);
+    if (Number.isInteger(contractId) && contracts.some((contract) => Number(contract.id) === contractId)) {
+      openContractDetails(contractId);
+    }
+  }, [contracts, navigationContext.contractId, navigationContext.navigationKey]);
 
   useEffect(() => {
     if (!selectedId && contracts[0]) {
@@ -161,30 +154,21 @@ export default function StageContractsDashboard({ user }) {
   );
 
   const filteredRequests = useMemo(() => {
-    if (requestFilter === "TOUTES") {
-      return requests;
-    }
-
-    return requests.filter(
-      (request) => request.status === requestFilter
+    const search = requestSearch.trim().toLocaleLowerCase("fr-CA");
+    return requests.filter((request) =>
+      (requestFilter === "TOUTES" || request.status === requestFilter)
+      && (!search || [request.studentName, request.studentCode, request.companyName, request.companyCity].filter(Boolean).join(" ").toLocaleLowerCase("fr-CA").includes(search))
     );
-  }, [requests, requestFilter]);
+  }, [requests, requestFilter, requestSearch]);
 
   const filteredContracts = useMemo(() => {
-    if (contractFilter === "TOUS") {
-      return contracts;
-    }
-
-    if (contractFilter === "SIGNATURE") {
-      return contracts.filter((contract) =>
-        isSignatureStatus(contract.status)
-      );
-    }
-
-    return contracts.filter(
-      (contract) => contract.status === contractFilter
-    );
-  }, [contracts, contractFilter]);
+    const search = contractSearch.trim().toLocaleLowerCase("fr-CA");
+    return contracts.filter((contract) => {
+      const statusMatches = contractFilter === "TOUS" || (contractFilter === "SIGNATURE" ? isSignatureStatus(contract.status) : contract.status === contractFilter);
+      const identity = [contract.studentName, contract.studentCode, contract.companyName, contract.teacherName].filter(Boolean).join(" ").toLocaleLowerCase("fr-CA");
+      return statusMatches && (!search || identity.includes(search));
+    });
+  }, [contracts, contractFilter, contractSearch]);
 
   function openContractDetails(contractId) {
     setSelectedId(contractId);
@@ -317,9 +301,6 @@ export default function StageContractsDashboard({ user }) {
             <p>{roleText(user.role)}</p>
           </div>
 
-          <span className="statusPill">
-            {loading ? "Chargement" : "A jour"}
-          </span>
         </div>
 
         <div className="stageInfo">
@@ -354,7 +335,7 @@ export default function StageContractsDashboard({ user }) {
         <div className="panelHeader">
           <div>
             <h2>Demandes de stage</h2>
-            <p>Lecture des demandes selon votre role.</p>
+            <p>Suivi des demandes reçues.</p>
           </div>
 
           <span className="statusPill">
@@ -365,6 +346,7 @@ export default function StageContractsDashboard({ user }) {
         </div>
 
         <div className="tableToolbar">
+          <label className="tableFilter tableSearch">Rechercher<input value={requestSearch} onChange={(event) => setRequestSearch(event.target.value)} placeholder="Étudiant, dossier ou entreprise" /></label>
           <label className="tableFilter">
             Filtrer les demandes
             <select
@@ -484,6 +466,7 @@ export default function StageContractsDashboard({ user }) {
         </div>
 
         <div className="tableToolbar">
+          <label className="tableFilter tableSearch">Rechercher<input value={contractSearch} onChange={(event) => setContractSearch(event.target.value)} placeholder="Étudiant, entreprise ou enseignant" /></label>
           <label className="tableFilter">
             Filtrer les contrats
             <select
@@ -835,35 +818,6 @@ export default function StageContractsDashboard({ user }) {
         </section>
       )}
 
-      <section className="studentPanel">
-        <div className="panelHeader">
-          <h2>Notifications</h2>
-          <span className="statusPill">
-            {notifications.length}
-          </span>
-        </div>
-
-        {notifications.map((notification) => (
-          <div
-            className="notificationItem"
-            key={notification.id}
-          >
-            <span className="notificationDot" />
-            <p>
-              <strong>{notification.title}</strong>
-              <span className="tableSubtext">
-                {notification.message}
-              </span>
-            </p>
-          </div>
-        ))}
-
-        {!notifications.length && (
-          <p className="notice">
-            Aucune notification pour le moment.
-          </p>
-        )}
-      </section>
     </>
   );
 }

@@ -84,42 +84,70 @@ async function persistAttachment(file) {
 export async function calculateContactIds(user, database) {
   const ids = new Set();
 
+  const addRows = (rows) => rows.forEach((row) => ids.add(Number(row.id)));
+
+  async function addContractParticipants() {
+    const [rows] = await database.query(
+      `SELECT DISTINCT participant.id
+         FROM contrats c
+         JOIN dossiers_stage ds ON ds.id = c.dossier_stage_id
+         JOIN utilisateurs participant
+           ON participant.statut = 'ACTIF'
+          AND (
+            participant.id = ds.etudiant_id
+            OR participant.id IN (
+              SELECT sc_participant.utilisateur_signataire_id
+                FROM signatures_contrat sc_participant
+               WHERE sc_participant.contrat_id = c.id
+                 AND sc_participant.utilisateur_signataire_id IS NOT NULL
+            )
+          )
+        WHERE ds.etudiant_id = ?
+           OR EXISTS (
+             SELECT 1
+               FROM signatures_contrat sc_user
+              WHERE sc_user.contrat_id = c.id
+                AND sc_user.utilisateur_signataire_id = ?
+           )`,
+      [user.id, user.id]
+    );
+    addRows(rows);
+  }
+
   if (user.role === "ETUDIANT") {
     const [sup] = await database.query(
       `SELECT DISTINCT superviseur_id AS id FROM dossiers_stage
         WHERE etudiant_id = ? AND superviseur_id IS NOT NULL`,
       [user.id]
     );
-    sup.forEach((r) => ids.add(Number(r.id)));
+    addRows(sup);
 
     const [cons] = await database.query(
       `SELECT id FROM utilisateurs WHERE role = 'CONSEILLERE' AND statut = 'ACTIF'`
     );
-    cons.forEach((r) => ids.add(Number(r.id)));
-  } else if (user.role === "SUPERVISEUR") {
-    const [etu] = await database.query(
-      `SELECT DISTINCT etudiant_id AS id FROM dossiers_stage
-        WHERE superviseur_id = ?`,
-      [user.id]
-    );
-    etu.forEach((r) => ids.add(Number(r.id)));
-
-    const [cons] = await database.query(
-      `SELECT id FROM utilisateurs WHERE role = 'CONSEILLERE' AND statut = 'ACTIF'`
-    );
-    cons.forEach((r) => ids.add(Number(r.id)));
-  } else if (user.role === "CONSEILLERE") {
+    addRows(cons);
+    await addContractParticipants();
+  } else if (["SUPERVISEUR", "CONSEILLERE"].includes(user.role)) {
     const [rows] = await database.query(
       `SELECT id FROM utilisateurs
-        WHERE role IN ('ETUDIANT', 'SUPERVISEUR') AND statut = 'ACTIF'`
+        WHERE statut = 'ACTIF'`
     );
-    rows.forEach((r) => ids.add(Number(r.id)));
+    addRows(rows);
+  } else if (user.role === "COMPTABILITE") {
+    const [rows] = await database.query(
+      `SELECT id FROM utilisateurs
+        WHERE role IN ('SUPERVISEUR', 'CONSEILLERE', 'COMPTABILITE', 'DIRECTION')
+          AND statut = 'ACTIF'`
+    );
+    addRows(rows);
   } else if (user.role === "DIRECTION") {
     const [rows] = await database.query(
       `SELECT id FROM utilisateurs
-        WHERE role IN ('CONSEILLERE', 'COMPTABILITE') AND statut = 'ACTIF'`
+        WHERE role IN ('SUPERVISEUR', 'CONSEILLERE', 'COMPTABILITE', 'DIRECTION')
+          AND statut = 'ACTIF'`
     );
-    rows.forEach((r) => ids.add(Number(r.id)));
+    addRows(rows);
+    await addContractParticipants();
   }
 
   ids.delete(Number(user.id));
@@ -139,14 +167,6 @@ async function assertContact(user, otherUserId) {
 
 export function assertAllowedMessageRecipient(user, recipientId, contactIds) {
   if (contactIds.has(Number(recipientId))) return;
-
-  if (user.role === "DIRECTION") {
-    throw createError(
-      "La Direction peut envoyer des messages uniquement a la conseillere ou a la comptabilite actives.",
-      403
-    );
-  }
-
   throw createError("Cette personne n'est pas dans vos contacts.", 403);
 }
 
@@ -211,16 +231,6 @@ export async function listContacts(user) {
 }
 
 export function buildConversationReadQuery(user, otherUserId) {
-  const directionRestriction = user.role === "DIRECTION"
-    ? `AND EXISTS (
-         SELECT 1
-           FROM utilisateurs contact
-          WHERE contact.id = ?
-            AND contact.role IN ('CONSEILLERE', 'COMPTABILITE')
-            AND contact.statut = 'ACTIF'
-       )`
-    : "";
-
   return {
     sql: `
       SELECT id, expediteur_id AS senderId, contenu AS content,
@@ -229,15 +239,13 @@ export function buildConversationReadQuery(user, otherUserId) {
         FROM messages
        WHERE ((expediteur_id = ? AND destinataire_id = ?)
           OR (expediteur_id = ? AND destinataire_id = ?))
-         ${directionRestriction}
        ORDER BY cree_le ASC, id ASC
     `,
     params: [
       user.id,
       otherUserId,
       otherUserId,
-      user.id,
-      ...(user.role === "DIRECTION" ? [otherUserId] : [])
+      user.id
     ]
   };
 }
@@ -357,20 +365,6 @@ export async function getAttachment({ user, messageId }) {
 }
 
 export function buildUnreadCountQuery(user) {
-  if (user.role === "DIRECTION") {
-    return {
-      sql: `SELECT COUNT(*) AS n
-              FROM messages m
-              INNER JOIN utilisateurs sender
-                ON sender.id = m.expediteur_id
-             WHERE m.destinataire_id = ?
-               AND m.lu_le IS NULL
-               AND sender.role IN ('CONSEILLERE', 'COMPTABILITE')
-               AND sender.statut = 'ACTIF'`,
-      params: [user.id]
-    };
-  }
-
   return {
     sql: "SELECT COUNT(*) AS n FROM messages WHERE destinataire_id = ? AND lu_le IS NULL",
     params: [user.id]

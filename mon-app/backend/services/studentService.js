@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createDbPool } from "../config/db.js";
 import { generateInternshipRequestPdf } from "./contractPdfService.js";
 import { createNotificationForUsers } from "./notificationService.js";
@@ -25,6 +26,38 @@ const activeRequestMessage =
 
 export const refusedStageLockMessage =
   "Votre demande de stage a ete refusee definitivement. Les actions de stage sont bloquees. Utilisez la messagerie pour contacter votre superviseur ou la conseillere.";
+
+export async function findFrequentCompanies({ name, address }) {
+  const cleanName = String(name || "").trim().toLowerCase();
+  const cleanAddress = String(address || "").trim().toLowerCase();
+  if (cleanName.length < 2 && cleanAddress.length < 5) return [];
+
+  const conditions = [];
+  const params = [];
+  if (cleanName.length >= 2) { conditions.push("LOWER(ent.nom) LIKE ?"); params.push(`%${cleanName}%`); }
+  if (cleanAddress.length >= 5) { conditions.push("LOWER(ent.adresse) LIKE ?"); params.push(`%${cleanAddress}%`); }
+
+  const [rows] = await db.execute(`
+    SELECT ent.id, ent.nom AS companyName, ent.neq AS companyNeq,
+      ent.adresse AS companyAddress, ent.ville AS companyCity,
+      ent.province AS companyProvince, ent.code_postal AS companyPostalCode,
+      ent.telephone AS companyPhone, ent.poste_telephonique AS companyPhoneExtension,
+      ent.courriel AS companyEmail, ent.site_web AS companyWebsite,
+      ent.type_organisation AS organizationType, ent.secteur_activite AS businessSector,
+      COUNT(DISTINCT ds.etudiant_id) AS studentCount
+    FROM entreprises ent
+    JOIN demandes_stage d ON d.entreprise_id = ent.id
+    JOIN dossiers_stage ds ON ds.id = d.dossier_stage_id
+    WHERE ${conditions.join(" AND ")}
+    GROUP BY ent.id, ent.nom, ent.neq, ent.adresse, ent.ville, ent.province,
+      ent.code_postal, ent.telephone, ent.poste_telephonique, ent.courriel,
+      ent.site_web, ent.type_organisation, ent.secteur_activite
+    HAVING COUNT(DISTINCT ds.etudiant_id) >= 2
+    ORDER BY studentCount DESC, ent.nom ASC
+    LIMIT 5
+  `, params);
+  return rows.map((row) => ({ ...row, studentCount: Number(row.studentCount) }));
+}
 
 export async function getStudentDashboard(studentId) {
   const student = await getStudentProfile(studentId);
@@ -507,8 +540,23 @@ async function createCompany(
   connection,
   data
 ) {
+  const identity = companyIdentity(data.companyName, data.companyAddress);
+  const [candidateRows] = await connection.execute(
+    `SELECT id, nom, adresse
+       FROM entreprises
+      WHERE LOWER(TRIM(nom)) = LOWER(TRIM(?))
+         OR LOWER(TRIM(adresse)) = LOWER(TRIM(?))
+      FOR UPDATE`,
+    [data.companyName, data.companyAddress]
+  );
+  const existingCompany = candidateRows.find((company) =>
+    companyIdentity(company.nom, company.adresse) === identity
+  );
+  if (existingCompany) return existingCompany.id;
+
   const companyCode = makeCompanyCode(
-    data.companyName
+    data.companyName,
+    data.companyAddress
   );
 
   const [result] = await connection.execute(
@@ -545,43 +593,6 @@ async function createCompany(
       )
 
       ON DUPLICATE KEY UPDATE
-        nom = VALUES(nom),
-        neq = VALUES(neq),
-        adresse = VALUES(adresse),
-        ville = VALUES(ville),
-        province = VALUES(province),
-        code_postal = VALUES(code_postal),
-        telephone = VALUES(telephone),
-        poste_telephonique =
-          VALUES(poste_telephonique),
-        courriel = VALUES(courriel),
-        site_web = VALUES(site_web),
-        contact_rh_nom =
-          VALUES(contact_rh_nom),
-        contact_rh_courriel =
-          VALUES(contact_rh_courriel),
-        contact_rh_telephone =
-          VALUES(contact_rh_telephone),
-        contact_rh_poste =
-          VALUES(contact_rh_poste),
-        superviseur_nom =
-          VALUES(superviseur_nom),
-        superviseur_titre =
-          VALUES(superviseur_titre),
-        superviseur_courriel =
-          VALUES(superviseur_courriel),
-        superviseur_telephone =
-          VALUES(superviseur_telephone),
-        horaire_travail =
-          VALUES(horaire_travail),
-        heures_semaine =
-          VALUES(heures_semaine),
-        langue_travail =
-          VALUES(langue_travail),
-        type_organisation =
-          VALUES(type_organisation),
-        secteur_activite =
-          VALUES(secteur_activite),
         id = LAST_INSERT_ID(id)
     `,
     [
@@ -1213,16 +1224,32 @@ function formatStudentRequest(row) {
   };
 }
 
-function makeCompanyCode(companyName) {
+function makeCompanyCode(companyName, companyAddress) {
   const baseCode = clean(companyName)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, "-")
     .replace(/^-|-$/g, "")
-    .slice(0, 24);
+    .slice(0, 19);
 
-  return baseCode || `ENT-${Date.now()}`;
+  const identityHash = createHash("sha256")
+    .update(companyIdentity(companyName, companyAddress))
+    .digest("hex")
+    .slice(0, 8)
+    .toUpperCase();
+
+  return `${baseCode || "ENTREPRISE"}-${identityHash}`;
+}
+
+function companyIdentity(companyName, companyAddress) {
+  return [companyName, companyAddress]
+    .map((value) => clean(value)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, ""))
+    .join("|");
 }
 
 function clean(value) {

@@ -31,12 +31,17 @@ export function createPayrollRepo(db) {
             CONCAT(u.prenom, ' ', u.nom) AS studentName,
             e.programme AS program,
             e.groupe AS groupName,
-            ds.id AS stageFileId
+            e.session AS session,
+            (
+              SELECT ds.id
+              FROM dossiers_stage ds
+              WHERE ds.etudiant_id = e.utilisateur_id
+                AND ds.superviseur_id = e.superviseur_id
+              ORDER BY ds.cree_le DESC, ds.id DESC
+              LIMIT 1
+            ) AS stageFileId
           FROM etudiants e
           JOIN utilisateurs u ON u.id = e.utilisateur_id
-          LEFT JOIN dossiers_stage ds
-            ON ds.etudiant_id = e.utilisateur_id
-            AND ds.superviseur_id = e.superviseur_id
           WHERE e.superviseur_id = ?
             AND u.statut = 'ACTIF'
           ORDER BY studentName ASC
@@ -90,6 +95,7 @@ export function createPayrollRepo(db) {
               AND e.code_etudiant = ?
               AND e.programme = ?
               AND e.groupe = ?
+              AND e.session = ?
             ORDER BY ds.cree_le DESC
             LIMIT 1
           `,
@@ -97,7 +103,8 @@ export function createPayrollRepo(db) {
             supervisorUserId,
             chargeData.studentCode,
             chargeData.courseTitle,
-            chargeData.courseCodeGroup
+            chargeData.courseCodeGroup,
+            chargeData.session
           ]
         );
 
@@ -268,8 +275,8 @@ export function createPayrollRepo(db) {
              FROM etudiants e JOIN utilisateurs u ON u.id = e.utilisateur_id
              LEFT JOIN dossiers_stage ds ON ds.etudiant_id = e.utilisateur_id AND ds.superviseur_id = e.superviseur_id
             WHERE e.superviseur_id = ? AND u.statut = 'ACTIF' AND e.code_etudiant = ?
-              AND e.programme = ? AND e.groupe = ? ORDER BY ds.cree_le DESC LIMIT 1`,
-          [supervisorUserId, chargeData.studentCode, chargeData.courseTitle, chargeData.courseCodeGroup]
+              AND e.programme = ? AND e.groupe = ? AND e.session = ? ORDER BY ds.cree_le DESC LIMIT 1`,
+          [supervisorUserId, chargeData.studentCode, chargeData.courseTitle, chargeData.courseCodeGroup, chargeData.session]
         );
         if (!studentRows[0]) throw createError("L'étudiant, le cours et le groupe ne correspondent pas au superviseur.", 400);
         const student = studentRows[0];
@@ -477,8 +484,8 @@ function validateChargeData(data = {}) {
     throw createError("L'etudiant est obligatoire.", 400);
   }
 
-  if (!chargeData.courseTitle || !chargeData.courseCodeGroup) {
-    throw createError("Le cours et le groupe sont obligatoires.", 400);
+  if (!chargeData.courseTitle || !chargeData.courseCodeGroup || !chargeData.session) {
+    throw createError("La session, le cours et le groupe sont obligatoires.", 400);
   }
 
   return chargeData;

@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 
 import FrozenRouteSnapshot from "./FrozenRouteSnapshot.jsx";
 import { MileageForm } from "./SupervisorDashboard.jsx";
+import { dedupeStudents } from "../utils/dedupeStudents.js";
 
 const FIXED_SUPERVISION_HOURS = 4;
 
@@ -172,7 +173,7 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
     setError("");
 
     try {
-      const response = await fetch(`/api/payroll/reports/supervisors/${supervisor.supervisorUserId}.csv`, {
+      const response = await fetch(`/api/payroll/reports/supervisors/${supervisor.supervisorUserId}.pdf`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -185,7 +186,7 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
       const url = URL.createObjectURL(await response.blob());
       const link = document.createElement("a");
       link.href = url;
-      link.download = `rapport-paie-${supervisor.employeeNumber || supervisor.supervisorUserId}.csv`;
+      link.download = `rapport-paie-${supervisor.employeeNumber || supervisor.supervisorUserId}.pdf`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -284,7 +285,7 @@ export default function PayrollDashboard({ user, mode = "work", historyType = "p
                   <td><strong>{formatCurrency(supervisor.totalAmount)}</strong></td>
                   <td>
                     <button className="secondaryButton" type="button" onClick={() => downloadReport(supervisor)}>
-                      Exporter CSV
+                      Exporter PDF
                     </button>
                   </td>
                 </tr>
@@ -443,7 +444,7 @@ function PayrollCorrectionModal({ charge, settings, onCancel, onSuccess, onError
     comment: charge.userComment || ""
   });
   const [submitting, setSubmitting] = useState(false);
-  const students = settings?.students || [];
+  const students = dedupeStudents(settings?.students);
   const courseTitles = [...new Set(students.map((student) => student.program).filter(Boolean))];
   const availableGroups = [...new Set(students.filter((student) => student.program === form.courseTitle).map((student) => student.groupName).filter(Boolean))];
 
@@ -539,36 +540,44 @@ function PayrollChargeForm({ settings, user, onCreated, onError }) {
     courseTitle: "",
     courseCodeGroup: "",
     session: "",
-    studentCode: "",
+    studentCodes: [],
     comment: ""
   });
   const [submitting, setSubmitting] = useState(false);
 
-  const students = settings?.students || [];
-  const selectedStudent = students.find((student) => student.studentCode === form.studentCode);
-  const courseTitles = [...new Set(students.map((student) => student.program).filter(Boolean))];
+  const students = dedupeStudents(settings?.students);
+  const sessions = [...new Set(students.map((student) => student.session).filter(Boolean))];
+  const courseTitles = [...new Set(students
+    .filter((student) => student.session === form.session)
+    .map((student) => student.program).filter(Boolean))];
   const availableGroups = [...new Set(students
-    .filter((student) => student.program === form.courseTitle)
+    .filter((student) => student.session === form.session && student.program === form.courseTitle)
     .map((student) => student.groupName)
     .filter(Boolean))];
   const hourlyRate = Number(settings?.hourlyRate || 0);
   const totalAmount = FIXED_SUPERVISION_HOURS * hourlyRate;
+  const eligibleStudents = students.filter((student) =>
+    student.session === form.session
+    && (!form.courseTitle || student.program === form.courseTitle)
+    && (!form.courseCodeGroup || student.groupName === form.courseCodeGroup));
 
   function updateField(event) {
     const { name, value } = event.target;
-    const student = name === "studentCode"
-      ? students.find((item) => item.studentCode === value)
-      : null;
-
     setForm((current) => ({
       ...current,
       [name]: value,
-      ...(name === "courseTitle" ? { courseCodeGroup: "", studentCode: "" } : {}),
-      ...(name === "courseCodeGroup" ? { studentCode: "" } : {}),
-      ...(student ? {
-        courseTitle: student.program || "",
-        courseCodeGroup: student.groupName || ""
-      } : {})
+      ...(name === "session" ? { courseTitle: "", courseCodeGroup: "", studentCodes: [] } : {}),
+      ...(name === "courseTitle" ? { courseCodeGroup: "", studentCodes: [] } : {}),
+      ...(name === "courseCodeGroup" ? { studentCodes: [] } : {})
+    }));
+  }
+
+  function toggleStudent(studentCode) {
+    setForm((current) => ({
+      ...current,
+      studentCodes: current.studentCodes.includes(studentCode)
+        ? current.studentCodes.filter((code) => code !== studentCode)
+        : [...current.studentCodes, studentCode]
     }));
   }
 
@@ -599,7 +608,7 @@ function PayrollChargeForm({ settings, user, onCreated, onError }) {
         courseTitle: "",
         courseCodeGroup: "",
         session: "",
-        studentCode: "",
+        studentCodes: [],
         comment: ""
       });
       await onCreated();
@@ -626,13 +635,21 @@ function PayrollChargeForm({ settings, user, onCreated, onError }) {
           </label>
 
           <label className="field">
+            Session
+            <select name="session" value={form.session} onChange={updateField} required disabled={!settings}>
+              <option value="">Selectionner une session</option>
+              {sessions.map((session) => <option key={session} value={session}>{session}</option>)}
+            </select>
+          </label>
+
+          <label className="field">
             Numero et nom de cours
             <select
               name="courseTitle"
               value={form.courseTitle}
               onChange={updateField}
               required
-              disabled={!settings}
+              disabled={!form.session}
             >
               <option value="">Selectionner un cours</option>
               {courseTitles.map((courseTitle) => (
@@ -660,47 +677,26 @@ function PayrollChargeForm({ settings, user, onCreated, onError }) {
           </label>
 
           <label className="field">
-            Session
-            <input
-              name="session"
-              value={form.session}
-              onChange={updateField}
-              placeholder="Ex.: Ete 2026"
-            />
-          </label>
-
-          <label className="field">
             Nombre d'etudiants
-            <input value={form.studentCode ? "1" : "0"} readOnly />
+            <input value={form.studentCodes.length} readOnly />
           </label>
         </div>
 
         <h3>Liste des stagiaires supervises</h3>
         <div className="studentFormGrid">
-          <label className="field wide">
-            Etudiant
-            <select
-              name="studentCode"
-              value={form.studentCode}
-              onChange={updateField}
-              required
-              disabled={!settings}
-            >
-              <option value="">Selectionner un etudiant</option>
-              {(settings?.students || []).map((student) => (
-                <option key={student.studentCode} value={student.studentCode}>
-                  {student.studentCode} - {student.studentName}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          {selectedStudent && (
-            <div className="formContext wide">
-              <span>{selectedStudent.program || "-"}</span>
-              <span>{selectedStudent.groupName || "-"}</span>
-            </div>
-          )}
+          <div className="field wide">
+            <span>Etudiants</span>
+            <details className={`payrollStudentDropdown ${!settings || !form.courseCodeGroup ? "isDisabled" : ""}`}>
+              <summary>{form.studentCodes.length ? `${form.studentCodes.length} etudiant(s) selectionne(s)` : "Selectionner les etudiants"}</summary>
+              <div className="payrollStudentOptions">
+                {eligibleStudents.map((student) => <label key={student.studentCode}>
+                  <input type="checkbox" checked={form.studentCodes.includes(student.studentCode)} disabled={!settings || !form.courseCodeGroup} onChange={() => toggleStudent(student.studentCode)} />
+                  <span>{student.studentCode} - {student.studentName}</span>
+                </label>)}
+                {!eligibleStudents.length && <span>Aucun etudiant pour ce cours et ce groupe.</span>}
+              </div>
+            </details>
+          </div>
 
           <label className="field">
             Nombre d'heures par etudiant
@@ -709,7 +705,7 @@ function PayrollChargeForm({ settings, user, onCreated, onError }) {
 
           <label className="field">
             Nombre total d'heures supervisees
-            <input value={form.studentCode ? `${FIXED_SUPERVISION_HOURS} h` : "0 h"} readOnly />
+            <input value={`${form.studentCodes.length * FIXED_SUPERVISION_HOURS} h`} readOnly />
           </label>
 
           <label className="field">
@@ -719,7 +715,7 @@ function PayrollChargeForm({ settings, user, onCreated, onError }) {
 
           <label className="field">
             Total
-            <input value={formatCurrency(totalAmount)} readOnly />
+            <input value={formatCurrency(totalAmount * form.studentCodes.length)} readOnly />
           </label>
 
           <label className="field wide">
@@ -733,8 +729,8 @@ function PayrollChargeForm({ settings, user, onCreated, onError }) {
           </label>
         </div>
 
-        <button className="primaryButton fitButton" type="submit" disabled={submitting || !settings}>
-          {submitting ? "Enregistrement..." : "Creer la charge"}
+        <button className="primaryButton fitButton" type="submit" disabled={submitting || !settings || !form.studentCodes.length}>
+          {submitting ? "Enregistrement..." : `Creer ${form.studentCodes.length} charge(s)`}
         </button>
       </form>
     </section>

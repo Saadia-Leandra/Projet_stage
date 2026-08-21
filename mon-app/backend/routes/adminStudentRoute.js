@@ -174,17 +174,17 @@ function validateStudent(body = {}) {
     code_postal: nullable(body.code_postal),
     code_permanent: nullable(body.code_permanent),
     groupe: nullable(body.groupe),
-    expiration_caq: nullable(body.expiration_caq),
-    expiration_permis_etudes: nullable(body.expiration_permis_etudes),
-    expiration_assurance: nullable(body.expiration_assurance),
+    expiration_caq: nullableDate(body.expiration_caq, "expiration du CAQ"),
+    expiration_permis_etudes: nullableDate(body.expiration_permis_etudes, "expiration du permis d’études"),
+    expiration_assurance: nullableDate(body.expiration_assurance, "expiration de l’assurance"),
     session: nullable(body.session),
     numero_cours: nullable(body.numero_cours),
     titre_cours: nullable(body.titre_cours),
     discipline: nullable(body.discipline),
     horaire: nullable(body.horaire),
     ponderation: nullable(body.ponderation),
-    date_debut_groupe: nullable(body.date_debut_groupe),
-    date_fin_groupe: nullable(body.date_fin_groupe)
+    date_debut_groupe: nullableDate(body.date_debut_groupe, "début du groupe"),
+    date_fin_groupe: nullableDate(body.date_fin_groupe, "fin du groupe")
   };
 
   if (
@@ -205,6 +205,25 @@ function validateStudent(body = {}) {
 
 function nullable(value) {
   return String(value || "").trim() || null;
+}
+
+function nullableDate(value, fieldLabel) {
+  const rawValue = nullable(value);
+  if (!rawValue) return null;
+
+  const match = rawValue.match(/^(\d{4})-(\d{2})-(\d{2})(?:T.*)?$/);
+  if (!match) {
+    throw httpError(`La date « ${fieldLabel} » est invalide.`, 400);
+  }
+
+  const [, year, month, day] = match;
+  const normalized = `${year}-${month}-${day}`;
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== normalized) {
+    throw httpError(`La date « ${fieldLabel} » est invalide.`, 400);
+  }
+
+  return normalized;
 }
 
 function optionalPositiveId(value) {
