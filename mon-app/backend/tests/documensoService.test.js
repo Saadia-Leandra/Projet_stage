@@ -7,7 +7,8 @@ import {
   getDocumensoDiagnostic,
   getDocumensoConfigMessage,
   isDocumensoDocumentLimitError,
-  isDocumensoConfigured
+  isDocumensoConfigured,
+  signatureFieldPositionByRole
 } from "../services/documensoService.js";
 
 test("fonctionne sans cle Documenso configuree", async () => {
@@ -65,4 +66,40 @@ test("traduit la limite mensuelle Documenso", () => {
   );
   assert.match(error.message, /limite mensuelle/);
   assert.doesNotMatch(error.message, /upgrade your plan/i);
+});
+
+test("mappe les signatures pedagogique et administration aux bons roles", () => {
+  assert.deepEqual(
+    signatureFieldPositionByRole("SUPERVISEUR"),
+    {
+      zone: "APPROBATION_PEDAGOGIQUE",
+      page: 3,
+      positionX: 52,
+      positionY: 0.7,
+      width: 28,
+      height: 3.2
+    }
+  );
+  assert.deepEqual(
+    signatureFieldPositionByRole("CONSEILLERE"),
+    {
+      zone: "APPROBATION_ADMINISTRATION",
+      page: 2,
+      positionX: 86,
+      positionY: 9.5,
+      width: 10,
+      height: 3.4
+    }
+  );
+  assert.deepEqual(
+    signatureFieldPositionByRole("DIRECTION"),
+    {
+      zone: "DIRECTION_PROGRAMME",
+      page: 3,
+      positionX: 52,
+      positionY: 6.8,
+      width: 28,
+      height: 3.2
+    }
+  );
 });

@@ -212,9 +212,10 @@ export async function addSignatureFields({
   return response;
 }
 
-function signatureFieldPositionByRole(role) {
+export function signatureFieldPositionByRole(role) {
   const positions = {
     ETUDIANT: {
+      zone: "SIGNATURE_ETUDIANT",
       page: 3,
       positionX: 3.6,
       positionY: 0.7,
@@ -222,6 +223,7 @@ function signatureFieldPositionByRole(role) {
       height: 3.2
     },
     ENTREPRISE: {
+      zone: "SIGNATURE_MILIEU_STAGE",
       page: 3,
       positionX: 3.6,
       positionY: 6.8,
@@ -229,6 +231,7 @@ function signatureFieldPositionByRole(role) {
       height: 3.2
     },
     SUPERVISEUR: {
+      zone: "APPROBATION_PEDAGOGIQUE",
       page: 3,
       positionX: 52,
       positionY: 0.7,
@@ -236,6 +239,7 @@ function signatureFieldPositionByRole(role) {
       height: 3.2
     },
     CONSEILLERE: {
+      zone: "APPROBATION_ADMINISTRATION",
       page: 2,
       positionX: 86,
       positionY: 9.5,
@@ -243,6 +247,7 @@ function signatureFieldPositionByRole(role) {
       height: 3.4
     },
     DIRECTION: {
+      zone: "DIRECTION_PROGRAMME",
       page: 3,
       positionX: 52,
       positionY: 6.8,

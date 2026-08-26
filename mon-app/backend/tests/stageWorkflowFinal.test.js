@@ -604,8 +604,45 @@ test("PDF Documenso final conserve comme source de verite", async () => {
     true
   );
   assert.equal(
-    source.includes("includeAttestation || includeOfficialStamps"),
+    source.includes("includeOfficialDates = false"),
     true
+  );
+  assert.equal(
+    source.includes(
+      "includeAttestation ||\n    includeOfficialStamps ||\n    includeOfficialDates"
+    ),
+    true
+  );
+});
+
+test("PDF final absent restaure depuis Documenso sans reecrire la base", async () => {
+  const source = await readFile(
+    new URL(
+      "../services/contractService.js",
+      import.meta.url
+    ),
+    "utf8"
+  );
+
+  assert.equal(
+    source.includes("restoreMissingSignedContractPdf"),
+    true
+  );
+  assert.equal(
+    source.includes("type === \"signed\""),
+    true
+  );
+  assert.equal(
+    source.includes("downloadSignedPdf(documentId)"),
+    true
+  );
+  assert.equal(
+    source.includes("await fs.writeFile(absolutePath, restoredPdfBuffer)"),
+    true
+  );
+  assert.equal(
+    source.includes("UPDATE contrats\\n          SET\\n            pdf_signed_path"),
+    false
   );
 });
 

@@ -7,6 +7,7 @@ import {
   generateContractPdf,
   resolveContractStoragePath,
   saveSignedContractPdf,
+  stampContractSignaturesOnPdf,
   assertValidPdf
 } from "./contractPdfService.js";
 import {
@@ -564,37 +565,90 @@ export async function getStudentContractFile(
   try {
     await assertValidPdf(absolutePath);
   } catch (error) {
-    if (type !== "original" || error.status !== 404) {
+    if (
+      type === "signed" &&
+      error.status === 404 &&
+      contract.status === "DOSSIER_COMPLET"
+    ) {
+      await restoreMissingSignedContractPdf(
+        contract,
+        absolutePath
+      );
+    } else if (type !== "original" || error.status !== 404) {
       throw error;
+    } else {
+      const signers = await getContractSigners(db, contract.id);
+      const regeneratedPdf = await generateContractPdf(contract, signers);
+
+      await db.execute(
+        `
+          UPDATE contrats
+          SET
+            chemin_fichier_genere = ?,
+            pdf_original_path = ?,
+            genere_le = NOW()
+          WHERE id = ?
+        `,
+        [
+          regeneratedPdf.relativePath,
+          regeneratedPdf.relativePath,
+          contract.id
+        ]
+      );
+
+      pathColumn = regeneratedPdf.relativePath;
+      absolutePath = regeneratedPdf.absolutePath;
     }
-
-    const signers = await getContractSigners(db, contract.id);
-    const regeneratedPdf = await generateContractPdf(contract, signers);
-
-    await db.execute(
-      `
-        UPDATE contrats
-        SET
-          chemin_fichier_genere = ?,
-          pdf_original_path = ?,
-          genere_le = NOW()
-        WHERE id = ?
-      `,
-      [
-        regeneratedPdf.relativePath,
-        regeneratedPdf.relativePath,
-        contract.id
-      ]
-    );
-
-    pathColumn = regeneratedPdf.relativePath;
-    absolutePath = regeneratedPdf.absolutePath;
   }
 
   return {
     absolutePath,
     fileName: contractDownloadFileName(type)
   };
+}
+
+async function restoreMissingSignedContractPdf(
+  contract,
+  absolutePath
+) {
+  if (!isDocumensoConfigured()) {
+    throw createError(
+      "Le PDF final est absent du serveur et Documenso n'est pas configure pour le recuperer.",
+      404
+    );
+  }
+
+  const documentId =
+    contract.externalDocumentId ||
+    contract.documensoDocumentId ||
+    contract.externalEnvelopeId;
+
+  if (!documentId) {
+    throw createError(
+      "Le PDF final est absent du serveur et aucun document Documenso n'est associe au contrat.",
+      404
+    );
+  }
+
+  const signedPdfBuffer = await downloadSignedPdf(documentId);
+  const signers = await getContractSigners(db, contract.id);
+  const restoredPdfBuffer =
+    await stampContractSignaturesOnPdf(
+      signedPdfBuffer,
+      {
+        contract,
+        signers,
+        includeAttestation: true,
+        includeOfficialDates: true,
+        officialDateRoles: signerRoleOrder
+      }
+    );
+
+  await fs.mkdir(path.dirname(absolutePath), {
+    recursive: true
+  });
+  await fs.writeFile(absolutePath, restoredPdfBuffer);
+  await assertValidPdf(absolutePath);
 }
 
 function contractDownloadFileName(type) {
@@ -3294,7 +3348,14 @@ async function downloadAndSaveDocumensoPdf(
       signedPdfBuffer,
       {
         signers,
-        includeAttestation: type === "final"
+        includeAttestation: type === "final",
+        includeOfficialDates: true,
+        officialDateRoles:
+          type === "student"
+            ? studentSignerRoles
+            : type === "milieu"
+              ? milieuSignerRoles
+              : administrativeSignerRoles
       }
     );
 

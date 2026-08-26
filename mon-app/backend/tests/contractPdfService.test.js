@@ -8,6 +8,7 @@ import {
   assertValidPdf,
   generateContractPdf,
   generateInternshipRequestPdf,
+  getOfficialSignatureDateStampPlan,
   resolveContractStoragePath,
   saveSignedContractPdf,
   stampContractSignaturesOnPdf
@@ -251,6 +252,247 @@ test("conserve le PDF Documenso signe sans tampons StageTec par defaut", async (
 
   await fs.rm(file.absolutePath, { force: true });
   await fs.rm(savedFile.absolutePath, { force: true });
+});
+
+test("prepare les dates officielles de signature par role", () => {
+  const plan = getOfficialSignatureDateStampPlan(
+    [
+      {
+        role: "ETUDIANT",
+        status: "SIGNE",
+        signedAt: "2026-01-10T15:00:00.000Z",
+        signatureProvider: "DOCUMENSO"
+      },
+      {
+        role: "ENTREPRISE",
+        status: "SIGNE",
+        signedAt: "2026-01-12T15:00:00.000Z",
+        signatureProvider: "DOCUMENSO"
+      },
+      {
+        role: "SUPERVISEUR",
+        status: "SIGNE",
+        signedAt: "2026-01-15T15:00:00.000Z",
+        signatureProvider: "DOCUMENSO"
+      },
+      {
+        role: "CONSEILLERE",
+        status: "SIGNE",
+        signedAt: "2026-01-17T15:00:00.000Z",
+        signatureProvider: "DOCUMENSO"
+      },
+      {
+        role: "DIRECTION",
+        status: "SIGNE",
+        signedAt: "2026-01-19T15:00:00.000Z",
+        signatureProvider: "DOCUMENSO"
+      }
+    ]
+  );
+
+  assert.deepEqual(
+    plan.map(({ role, zone, text, pageIndex, boxX, boxY }) => ({
+      role,
+      zone,
+      text,
+      pageIndex,
+      boxX,
+      boxY
+    })),
+    [
+      {
+        role: "ETUDIANT",
+        zone: "SIGNATURE_ETUDIANT",
+        text: "10/01/2026",
+        pageIndex: 2,
+        boxX: 210,
+        boxY: 764
+      },
+      {
+        role: "ENTREPRISE",
+        zone: "SIGNATURE_MILIEU_STAGE",
+        text: "12/01/2026",
+        pageIndex: 2,
+        boxX: 210,
+        boxY: 716
+      },
+      {
+        role: "SUPERVISEUR",
+        zone: "APPROBATION_PEDAGOGIQUE",
+        text: "15/01/2026",
+        pageIndex: 2,
+        boxX: 504,
+        boxY: 764
+      },
+      {
+        role: "CONSEILLERE",
+        zone: "APPROBATION_ADMINISTRATION",
+        text: "17/01/2026",
+        pageIndex: 1,
+        boxX: 512,
+        boxY: 690
+      },
+      {
+        role: "DIRECTION",
+        zone: "DIRECTION_PROGRAMME",
+        text: "19/01/2026",
+        pageIndex: 2,
+        boxX: 504,
+        boxY: 716
+      }
+    ]
+  );
+});
+
+test("ignore les dates non signees, absentes ou non Documenso", () => {
+  const plan = getOfficialSignatureDateStampPlan(
+    [
+      {
+        role: "ETUDIANT",
+        status: "EN_ATTENTE",
+        signedAt: "2026-01-10T15:00:00.000Z",
+        signatureProvider: "DOCUMENSO"
+      },
+      {
+        role: "ENTREPRISE",
+        status: "SIGNE",
+        signedAt: "2026-01-12T15:00:00.000Z",
+        signatureProvider: "AUTRE"
+      },
+      {
+        role: "SUPERVISEUR",
+        status: "SIGNE",
+        signatureProvider: "DOCUMENSO"
+      },
+      {
+        role: "CONSEILLERE",
+        status: "SIGNE",
+        signedAt: "2026-01-17T15:00:00.000Z",
+        signatureProvider: "DOCUMENSO"
+      }
+    ]
+  );
+
+  assert.deepEqual(
+    plan.map(({ role, text }) => ({ role, text })),
+    [
+      {
+        role: "CONSEILLERE",
+        text: "17/01/2026"
+      }
+    ]
+  );
+});
+
+test("estampille seulement les dates de la phase courante", async () => {
+  const contract = {
+    id: 791,
+    externalId: "stagetec-test-791",
+    studentFirstName: "Marie",
+    studentLastName: "Tremblay",
+    companyName: "ACME",
+    completedAt: "2026-01-20T15:00:00.000Z",
+    confirmationCode: "STG-2026-DATES"
+  };
+  const originalFile = await generateContractPdf(contract);
+  const sourceBuffer = await fs.readFile(
+    originalFile.absolutePath
+  );
+  const signers = [
+    {
+      role: "ETUDIANT",
+      status: "SIGNE",
+      signedAt: "2026-01-10T15:00:00.000Z",
+      signatureProvider: "DOCUMENSO"
+    },
+    {
+      role: "ENTREPRISE",
+      status: "SIGNE",
+      signedAt: "2026-01-12T15:00:00.000Z",
+      signatureProvider: "DOCUMENSO"
+    },
+    {
+      role: "SUPERVISEUR",
+      status: "SIGNE",
+      signedAt: "2026-01-15T15:00:00.000Z",
+      signatureProvider: "DOCUMENSO"
+    },
+    {
+      role: "CONSEILLERE",
+      status: "SIGNE",
+      signedAt: "2026-01-17T15:00:00.000Z",
+      signatureProvider: "DOCUMENSO"
+    },
+    {
+      role: "DIRECTION",
+      status: "SIGNE",
+      signedAt: "2026-01-19T15:00:00.000Z",
+      signatureProvider: "DOCUMENSO"
+    }
+  ];
+
+  const studentFile = await saveSignedContractPdf(
+    contract,
+    sourceBuffer,
+    {
+      signers,
+      includeOfficialDates: true,
+      officialDateRoles: ["ETUDIANT"]
+    }
+  );
+  const milieuFile = await saveSignedContractPdf(
+    contract,
+    await fs.readFile(studentFile.absolutePath),
+    {
+      signers,
+      includeOfficialDates: true,
+      officialDateRoles: ["ENTREPRISE"]
+    }
+  );
+  const finalFile = await saveSignedContractPdf(
+    contract,
+    await fs.readFile(milieuFile.absolutePath),
+    {
+      signers,
+      includeOfficialDates: true,
+      officialDateRoles: [
+        "SUPERVISEUR",
+        "CONSEILLERE",
+        "DIRECTION"
+      ],
+      includeAttestation: true
+    }
+  );
+  const pdfDoc = await PDFDocument.load(
+    await fs.readFile(finalFile.absolutePath)
+  );
+
+  assert.equal(pdfDoc.getPageCount(), 8);
+  assert.deepEqual(
+    getOfficialSignatureDateStampPlan(signers, [
+      "ETUDIANT"
+    ]).map(({ role }) => role),
+    ["ETUDIANT"]
+  );
+  assert.deepEqual(
+    getOfficialSignatureDateStampPlan(signers, [
+      "ENTREPRISE"
+    ]).map(({ role }) => role),
+    ["ENTREPRISE"]
+  );
+  assert.deepEqual(
+    getOfficialSignatureDateStampPlan(signers, [
+      "SUPERVISEUR",
+      "CONSEILLERE",
+      "DIRECTION"
+    ]).map(({ role }) => role),
+    ["SUPERVISEUR", "CONSEILLERE", "DIRECTION"]
+  );
+
+  await fs.rm(originalFile.absolutePath, { force: true });
+  await fs.rm(studentFile.absolutePath, { force: true });
+  await fs.rm(milieuFile.absolutePath, { force: true });
+  await fs.rm(finalFile.absolutePath, { force: true });
 });
 
 test("rejette les chemins de stockage relatifs dangereux", () => {

@@ -100,7 +100,9 @@ export async function saveSignedContractPdf(
   {
     signers = [],
     includeAttestation = false,
-    includeOfficialStamps = false
+    includeOfficialStamps = false,
+    includeOfficialDates = false,
+    officialDateRoles = null
   } = {}
 ) {
   if (!isPdfBuffer(pdfBuffer)) {
@@ -115,14 +117,18 @@ export async function saveSignedContractPdf(
   const absolutePath =
     resolveContractStoragePath(relativePath);
   const signedBuffer =
-    includeAttestation || includeOfficialStamps
+    includeAttestation ||
+    includeOfficialStamps ||
+    includeOfficialDates
       ? await stampContractSignaturesOnPdf(
           pdfBuffer,
           {
             contract,
             signers,
             includeAttestation,
-            includeOfficialStamps
+            includeOfficialStamps,
+            includeOfficialDates,
+            officialDateRoles
           }
         )
       : pdfBuffer;
@@ -142,7 +148,9 @@ export async function stampContractSignaturesOnPdf(
     contract = {},
     signers = [],
     includeAttestation = false,
-    includeOfficialStamps = false
+    includeOfficialStamps = false,
+    includeOfficialDates = false,
+    officialDateRoles = null
   } = {}
 ) {
   if (!isPdfBuffer(pdfBuffer)) {
@@ -171,6 +179,15 @@ export async function stampContractSignaturesOnPdf(
       pdfDoc,
       fonts,
       signedSigners
+    );
+  }
+
+  if (includeOfficialDates && !includeOfficialStamps) {
+    drawOfficialSignatureDates(
+      pdfDoc,
+      fonts,
+      signedSigners,
+      officialDateRoles
     );
   }
 
@@ -281,6 +298,7 @@ const signerRoleOrder = [
 
 const officialSignatureStampPositions = {
   ETUDIANT: {
+    zone: "SIGNATURE_ETUDIANT",
     pageIndex: 2,
     x: 22,
     y: 764,
@@ -290,6 +308,7 @@ const officialSignatureStampPositions = {
     dateWidth: 70
   },
   SUPERVISEUR: {
+    zone: "APPROBATION_PEDAGOGIQUE",
     pageIndex: 2,
     x: 320,
     y: 764,
@@ -299,6 +318,7 @@ const officialSignatureStampPositions = {
     dateWidth: 68
   },
   ENTREPRISE: {
+    zone: "SIGNATURE_MILIEU_STAGE",
     pageIndex: 2,
     x: 22,
     y: 716,
@@ -308,6 +328,7 @@ const officialSignatureStampPositions = {
     dateWidth: 70
   },
   CONSEILLERE: {
+    zone: "APPROBATION_ADMINISTRATION",
     pageIndex: 1,
     x: 430,
     y: 690,
@@ -317,6 +338,7 @@ const officialSignatureStampPositions = {
     dateWidth: 76
   },
   DIRECTION: {
+    zone: "DIRECTION_PROGRAMME",
     pageIndex: 2,
     x: 320,
     y: 716,
@@ -326,6 +348,103 @@ const officialSignatureStampPositions = {
     dateWidth: 68
   }
 };
+
+export function getOfficialSignatureDateStampPlan(
+  signers,
+  roles = null
+) {
+  const allowedRoles = Array.isArray(roles)
+    ? new Set(
+        roles.map((role) =>
+          String(role || "").toUpperCase()
+        )
+      )
+    : null;
+
+  return normalizeContractSigners(signers)
+    .filter((signer) => {
+      if (
+        signer.status !== "SIGNE" ||
+        !signer.signedAt ||
+        !isReliableSignatureDate(signer)
+      ) {
+        return false;
+      }
+
+      return (
+        !allowedRoles || allowedRoles.has(signer.role)
+      );
+    })
+    .map((signer) => {
+      const position =
+        officialSignatureStampPositions[signer.role];
+      const text = formatSignatureDateForPdf(
+        signer.signedAt
+      );
+
+      if (!position || !text) {
+        return null;
+      }
+
+      return {
+        role: signer.role,
+        zone: position.zone,
+        pageIndex: position.pageIndex,
+        boxX: position.dateX,
+        boxY: position.y,
+        boxWidth: position.dateWidth,
+        boxHeight: position.height,
+        textX: position.dateX + 4,
+        textY: position.y + 8,
+        maxWidth: position.dateWidth - 8,
+        fontSize: 6,
+        text
+      };
+    })
+    .filter(Boolean);
+}
+
+function drawOfficialSignatureDates(
+  pdfDoc,
+  fonts,
+  signers,
+  roles
+) {
+  const pages = pdfDoc.getPages();
+  const stampPlan = getOfficialSignatureDateStampPlan(
+    signers,
+    roles
+  );
+
+  stampPlan.forEach((stamp) => {
+    const page = pages[stamp.pageIndex];
+
+    if (!page) {
+      return;
+    }
+
+    page.drawRectangle({
+      x: stamp.boxX,
+      y: stamp.boxY,
+      width: stamp.boxWidth,
+      height: stamp.boxHeight,
+      color: rgb(1, 1, 1)
+    });
+
+    drawValue(
+      page,
+      fonts.font,
+      stamp.text,
+      stamp.textX,
+      stamp.textY,
+      {
+        maxWidth: stamp.maxWidth,
+        size: stamp.fontSize,
+        verticalOffset: 0
+      }
+    );
+  });
+}
 
 function drawOfficialSignatureStamps(
   pdfDoc,
@@ -357,9 +476,8 @@ function drawOfficialSignatureStamp(
   signer,
   position
 ) {
-  const signedDate = formatDateTimeForPdf(
-    signer.signedAt
-  );
+  const signedDate =
+    formatReliableSignatureDateForPdf(signer) || "-";
 
   page.drawRectangle({
     x: position.x,
@@ -632,7 +750,7 @@ function drawAttestationSignerRow(
     page,
     fonts.font,
     signed
-      ? formatDateTimeForPdf(signer.signedAt)
+      ? formatReliableSignatureDateForPdf(signer) || "-"
       : "En attente",
     430,
     y + 20,
@@ -1600,6 +1718,58 @@ function signatureProviderLabel(signer = {}) {
   return provider
     ? `Signature ${provider}`
     : "Signature StageTec";
+}
+
+function isReliableSignatureDate(signer = {}) {
+  const provider = String(
+    signer.signatureProvider || ""
+  ).toUpperCase();
+
+  return provider === "DOCUMENSO";
+}
+
+function formatReliableSignatureDateForPdf(
+  signer = {}
+) {
+  if (!isReliableSignatureDate(signer)) {
+    return "";
+  }
+
+  return formatSignatureDateForPdf(signer.signedAt);
+}
+
+function formatSignatureDateForPdf(value) {
+  if (!value) {
+    return "";
+  }
+
+  const rawValue = String(value);
+  const dateMatch = rawValue.match(
+    /^(\d{4})-(\d{2})-(\d{2})/
+  );
+
+  if (dateMatch) {
+    return `${dateMatch[3]}/${dateMatch[2]}/${dateMatch[1]}`;
+  }
+
+  const date = value instanceof Date
+    ? value
+    : new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const day = String(date.getUTCDate()).padStart(
+    2,
+    "0"
+  );
+  const month = String(
+    date.getUTCMonth() + 1
+  ).padStart(2, "0");
+  const year = date.getUTCFullYear();
+
+  return `${day}/${month}/${year}`;
 }
 
 function formatDateTimeForPdf(value) {
